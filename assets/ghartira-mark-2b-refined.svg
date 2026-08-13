@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none" role="img" aria-label="Ghartira mark — returning path">
+  <!-- Ghartira mark v2b refined | indigo #1B2A4A + terracotta #B8734A -->
+  <rect width="128" height="128" fill="#F5F3EF"/>
+
+  <defs>
+    <mask id="cutout">
+      <rect width="128" height="128" fill="white"/>
+      <!-- House body -->
+      <path fill="black" d="M64 46 L79 61 L79 77 L49 77 L49 61 Z"/>
+      <!-- Door -->
+      <rect x="60" y="69" width="8" height="8" fill="black"/>
+      <!-- Window -->
+      <rect x="70" y="64" width="5" height="5" fill="black"/>
+    </mask>
+  </defs>
+
+  <!-- Primary meander — one continuous path, house carved via mask -->
+  <path
+    mask="url(#cutout)"
+    fill="none"
+    stroke="#1B2A4A"
+    stroke-width="7.5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    d="M64 106
+       C46 106 34 92 36 76
+       C38 60 52 48 68 48
+       C84 48 96 62 94 78
+       C92 94 76 104 60 98
+       C44 92 36 76 44 62
+       C52 48 68 42 80 50
+       C92 58 98 74 92 88
+       C86 102 70 108 64 106"
+  />
+
+  <!-- Riverbank depth — inner parallel curve -->
+  <path
+    fill="none"
+    stroke="#1B2A4A"
+    stroke-width="2.2"
+    stroke-linecap="round"
+    opacity="0.3"
+    d="M64 100
+       C50 100 42 90 44 76
+       C46 64 56 56 68 58
+       C80 60 88 72 86 84
+       C84 94 74 100 64 100"
+  />
+
+  <!-- Canopy arch over roof -->
+  <path
+    fill="none"
+    stroke="#1B2A4A"
+    stroke-width="2.8"
+    stroke-linecap="round"
+    opacity="0.45"
+    d="M47 52 C56 42 72 42 81 52"
+  />
+
+  <!-- Journey origin -->
+  <circle cx="64" cy="106" r="4.2" fill="#B8734A"/>
+
+  <!-- Threshold — arrival at home -->
+  <rect x="57.5" y="75" width="13" height="2" rx="1" fill="#B8734A"/>
+</svg>

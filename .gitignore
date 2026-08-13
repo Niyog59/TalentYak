@@ -1,0 +1,38 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# next.js
+.next/
+out/
+build/
+next-env.d.ts
+*.tsbuildinfo
+
+# env — never commit
+.env
+.env.*
+!.env.example
+
+# local-only journals (see CLAUDE.md → MAP)
+DEVLOG.md
+CTO-BRIEF.md
+
+# vercel / supabase
+.vercel
+.supabase/
+
+# backups & dumps — may contain grief, health, and contractor data
+*.dump
+*.sql.gz
+*.enc
+backups/
+
+# os / editor
+.DS_Store
+*.pem
+npm-debug.log*
+yarn-error.log*
+.idea/
+.vscode/

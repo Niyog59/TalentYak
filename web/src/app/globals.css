@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+/*
+ * Ghartira design tokens — editorial / heritage system.
+ * Paper cream, indigo ink, terracotta accent. No gradients, no shadows.
+ */
+:root {
+  --paper: #f5f3ef;
+  --ink: #1b2a4a;
+  --ink-deep: #12203a;
+  --terracotta: #b8734a;
+  --terracotta-dark: #9d5f3b;
+  --line: #ddd6cb;
+  --paper-raised: #efece5;
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-paper-raised: var(--paper-raised);
+  --color-ink: var(--ink);
+  --color-ink-deep: var(--ink-deep);
+  --color-terracotta: var(--terracotta);
+  --color-terracotta-dark: var(--terracotta-dark);
+  --color-line: var(--line);
+  --font-display: var(--font-fraunces);
+  --font-serif: var(--font-source-serif);
+  --font-sans: var(--font-plex-sans);
+  --font-devanagari: var(--font-devanagari);
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-source-serif), Georgia, serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-fraunces), Georgia, serif;
+  letter-spacing: -0.01em;
+}
+
+/* Letterspaced small-caps label, used for prices, nav, section markers */
+.label {
+  font-family: var(--font-plex-sans), sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.rule {
+  border-top: 1px solid var(--line);
+}
+
+.devanagari {
+  font-family: var(--font-devanagari), serif;
+}

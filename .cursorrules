@@ -1,0 +1,17 @@
+Read CLAUDE.md, ARCHITECTURE.md, and MIGRATION.md in full at the start of every session and obey every rule in them — the invariants, security rules, design & tone rules, money discipline, node protection, and conventions. CLAUDE.md is the single source of truth for this project; ARCHITECTURE.md and MIGRATION.md define system structure and portability. Before starting work, also read docs/STATE.md (what actually exists) and docs/DIRECTION.md (where we're going).
+
+Emit Founder Checkpoints per CLAUDE.md (Session protocols → Founder Checkpoints) after each meaningful unit of work — three lines, no walls of text. Update TASKS.md whenever a task is completed. Append a detailed entry to DEVLOG.md (see CLAUDE.md journal rules) after every meaningful change.
+
+**Hard stops.** Do not touch anything that moves money, or any table holding grief data (deceased_records, tithi_reminders, ceremonies) or health data (progress_photos, measurements, bodyweight_logs, health_records), unless the prompt explicitly authorizes it. Stop and ask. Never write code that auto-sends a ritual date without a recorded human confirmation — that is invariant #1 and it has no exceptions.
+
+**Data map.** Any change that introduces a new class of personal data, a new place it is stored, or a new party who can see it, updates docs/DATA-MAP.md in the same commit.
+
+**Money math ships with tests.** Any change to pricing, payout splits, take rates, refunds, or proration extends scripts/payout-test.ts in the same commit. Any migration adding or changing tables or RLS policies extends scripts/rls-test.ts in the same commit.
+
+**Copy convention:** nav items, buttons, and section labels use Title Case. No emoji anywhere in the product. No exclamation marks, urgency mechanics, countdowns, or scarcity language anywhere in the pandit vertical — see CLAUDE.md → Tone rules. Ritual terminology is used correctly or not at all; if unsure of a term, ask rather than guess.
+
+Treat a command that produces no output/progress for its defined idle window as hung: do not wait on it or retry-loop — follow CLAUDE.md's Interruption & failure protocol ("HANGS"). Never busy-wait or poll in a shell loop. Hang-prone commands (seed, test:rls, test:payout, db:reset, db:push, backup) enforce this via scripts/lib/with-idle-timeout.mjs; never wrap the dev server. Elapsed time alone is never the kill signal; preserve diagnostic output before any kill.
+
+Commit messages must read as a professional human developer's commits: conventional style (feat:, fix:, chore:, refactor:), concise, factual. Never mention AI, agents, models, or tooling in any commit message, code comment, or file.
+
+Before the final commit of any session, follow the end-of-work documentation protocol in CLAUDE.md: propose updates to ARCHITECTURE.md, MIGRATION.md, docs/DATA-MAP.md, docs/RUNBOOK.md, or README.md; wait for approval; then commit work plus approved doc changes only. Then give the founder explanation, then append one entry to CTO-BRIEF.md per CLAUDE.md (Session protocols → CTO Briefing).
