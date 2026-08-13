@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" role="img" aria-label="Ghartira">
+  <!-- Single-color mark for favicons, dark headers, embroidery -->
+  <rect x="14" y="8" width="5" height="28" fill="currentColor"/>
+  <rect x="29" y="8" width="5" height="28" fill="currentColor"/>
+  <rect x="12" y="8" width="24" height="5" fill="currentColor"/>
+  <rect x="21" y="16" width="6" height="14" fill="currentColor" opacity="0.72"/>
+  <path d="M16 36 L32 36 L29 32 L19 32 Z" fill="currentColor" opacity="0.72"/>
+</svg>
