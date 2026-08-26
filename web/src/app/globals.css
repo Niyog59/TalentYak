@@ -22,16 +22,16 @@
   --color-terracotta: var(--terracotta);
   --color-terracotta-dark: var(--terracotta-dark);
   --color-line: var(--line);
-  --font-display: var(--font-fraunces);
-  --font-serif: var(--font-source-serif);
-  --font-sans: var(--font-plex-sans);
+  --font-display: var(--font-inter);
+  --font-serif: var(--font-inter);
+  --font-sans: var(--font-inter);
   --font-devanagari: var(--font-devanagari);
 }
 
 body {
   background: var(--paper);
   color: var(--ink);
-  font-family: var(--font-source-serif), Georgia, serif;
+  font-family: var(--font-inter), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -39,13 +39,13 @@ h1,
 h2,
 h3,
 h4 {
-  font-family: var(--font-fraunces), Georgia, serif;
-  letter-spacing: -0.01em;
+  font-family: var(--font-inter), system-ui, sans-serif;
+  letter-spacing: -0.02em;
 }
 
 /* Letterspaced small-caps label, used for prices, nav, section markers */
 .label {
-  font-family: var(--font-plex-sans), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   text-transform: uppercase;
   letter-spacing: 0.14em;
   font-size: 0.72rem;
