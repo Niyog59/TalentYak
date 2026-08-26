@@ -1,27 +1,10 @@
 import type { Metadata } from "next";
-import {
-  Fraunces,
-  Source_Serif_4,
-  IBM_Plex_Sans,
-  Noto_Serif_Devanagari,
-} from "next/font/google";
+import { Inter, Noto_Serif_Devanagari } from "next/font/google";
 import "./globals.css";
 
-const fraunces = Fraunces({
-  variable: "--font-fraunces",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
-  axes: ["opsz"],
-});
-
-const sourceSerif = Source_Serif_4({
-  variable: "--font-source-serif",
-  subsets: ["latin"],
-});
-
-const plexSans = IBM_Plex_Sans({
-  variable: "--font-plex-sans",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
 });
 
 const devanagari = Noto_Serif_Devanagari({
@@ -47,7 +30,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${fraunces.variable} ${sourceSerif.variable} ${plexSans.variable} ${devanagari.variable} h-full antialiased`}
+      className={`${inter.variable} ${devanagari.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
