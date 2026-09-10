@@ -16,10 +16,19 @@ export default async function AdminFitnessPage() {
     .not("status", "in", "(cancelled,refunded,completed)")
     .order("created_at", { ascending: false });
 
+  // Read the clock once, alongside the data fetch, so the 48-hour SLA is
+  // measured against a single instant for every row on the page.
+  // This is a per-request async Server Component (the admin layout sets
+  // dynamic = "force-dynamic"), so it renders once and never re-renders on a
+  // client — the instability the purity rule guards against cannot occur here.
+  // eslint-disable-next-line react-hooks/purity
+  const now = Date.now();
+
   const rows = (bookings ?? []).map((b) => ({
     ...b,
     service: Array.isArray(b.services) ? b.services[0] : b.services,
     provider: Array.isArray(b.providers) ? b.providers[0] : b.providers,
+    ageMs: now - new Date(b.created_at).getTime(),
   }));
   const unassigned = rows.filter((b) => !b.provider_id);
   const assigned = rows.filter((b) => b.provider_id);
@@ -39,7 +48,7 @@ export default async function AdminFitnessPage() {
         {unassigned.length > 0 ? (
           <ul className="font-sans text-sm">
             {unassigned.map((b) => {
-              const ageMs = Date.now() - new Date(b.created_at).getTime();
+              const { ageMs } = b;
               const overdue = ageMs > HOURS_48;
               return (
                 <li key={b.id} className="rule flex items-baseline justify-between py-3 first:border-t-0">
