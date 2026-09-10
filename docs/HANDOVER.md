@@ -6,6 +6,18 @@
 
 ---
 
+> ## ⚠ Amended 2026-09-09 — read this before §6
+>
+> The brand is moving from Ghartira to **Aafnai**, and the fitness/coaching model in **§6 has been replaced**. The sections below are amended in place, with the original text preserved beneath each change as history.
+>
+> **What changed in one breath:** coaches create their own plans, set their own prices, and define their own inclusions — there is no platform-defined package and no price approval. Commission is **70/30 on recurring coaching** and **60/40 on one-off consultations**, replacing 60/40 and 65/35. The customer **selects their coach and plan before paying**, replacing intake-then-assign. Aafnai is a **contractor-delivered managed coaching service**: the customer buys coaching from Aafnai, and their selected independent coach delivers it.
+>
+> **Sections amended:** §6.1, §6.2, §6.3, §6.5, §12. **Sections 1–5 (pandit) are unchanged.**
+>
+> The full rule set, with every decision's status and source, lives in **`docs/aafnai/DECISION_REGISTER.md`**. Where this file and that register ever disagree, **the register wins** — it is the current product authority.
+
+---
+
 ## 1. Executive summary
 
 A two-sided marketplace connecting the Nepali diaspora (US, UK, AU, JP, CA — ~250–300k households serviceable) with service providers in Nepal. Wage arbitrage exists but is **not** the moat. Real moats: cultural/tradition fit, trust, payment rails, and (for pandit) a tithi-reminder database nobody has built.
@@ -146,35 +158,63 @@ Example — Gokarna Full $299:
 
 ## 6. Fitness / coaching vertical
 
-### 6.1 Model (agreed)
-- Agency first; **one coach tier** (no Pro/Standard customer-facing split)
-- **Service tiers only** — three scopes, platform-defined menu, all coaches sell same packages
-- Founding coaches: **65% payout** (invisible to customers) to land established anchor; everyone else 60%
-- Pitch to coaches: **additive channel** — keep local clients; platform adds diaspora demand + Stripe + no collections
+### 6.1 Model — amended 2026-09-09
 
-### 6.2 Pricing (final)
+**Aafnai is a contractor-delivered managed coaching service.** The customer purchases coaching from Aafnai; their selected independent coach delivers it.
 
-| Tier | Deliverable | Price |
+- **Coaches create their own plans**, set their own prices, and define their own inclusions. There is no platform-defined package, no price floor or ceiling, and **no Aafnai price approval**. Only technical validation applies: the price must be processable, and a plan may not advertise functionality the platform lacks.
+- **Coaches control their programmes and adjustments.** Routine programme changes stay between coach and client. There is no mandated revision cadence and no Aafnai approval of workouts. "Continue unchanged" is a complete review outcome.
+- **Aafnai handles** discovery, billing, platform support, and customer requests to change coaches.
+- Pitch to coaches: **additive channel** — keep local clients; the platform adds diaspora demand, card billing, and no collections. *(unchanged)*
+
+> **Superseded 2026-09-09** — original text, kept as history:
+> *"Agency first; one coach tier (no Pro/Standard customer-facing split). Service tiers only — three scopes, platform-defined menu, all coaches sell same packages. Founding coaches: 65% payout (invisible to customers) to land established anchor; everyone else 60%."*
+> Replaced by coach-created plans (`AAF-PLAN-01`, `AAF-PLAN-02`) and the commission rates in §6.3. The `founding` flag on the `providers` table is now historical only.
+
+### 6.2 Pricing — amended 2026-09-09
+
+**There is no platform price list.** Each coach sets their own price and inclusions per plan. The plan builder shows the coach **Customer pays / Coach receives / Aafnai share** before they publish.
+
+Still binding:
+
+- Existing subscribers: **price and inclusions locked at purchase.** Editing a plan never changes an existing purchase.
+- Nutrition = general wellness only — **no medical or disease-specific meal plans** (US dietitian licensing risk).
+- A plan may not claim an inclusion the platform cannot deliver.
+
+> **Superseded 2026-09-09** — original text, kept as history:
+> *"Plan (one-time) $49 ($79 both) · Coached $99/mo · Premium $159/mo (2 live video calls/mo, max ~5 slots/coach). Billing: quarterly default."*
+> These were platform-set prices and a platform-set call allowance. Both are replaced by coach-set pricing and per-plan entitlements (`AAF-PLAN-01`, `AAF-CAL-05`). Quarterly billing is no longer a default — billing structure is a per-plan field. The old figures remain useful only as a sanity check on what the market might bear; they are **not** launch prices, and the code still carrying them (`web/src/verticals/fitness/catalog.ts`) is scheduled for replacement.
+
+### 6.3 Commission and payout — amended 2026-09-09
+
+| Service type | Coach | Aafnai |
 |---|---|---|
-| **Plan** (one-time) | Custom training program OR diet plan, ~5 days, one revision | $49 ($79 both) |
-| **Coached** | Program + diet + weekly async check-ins + form checks + messaging + monthly updates | **$99/mo** |
-| **Premium** | Coached + 2 live video calls/mo + priority; max ~5 slots/coach | **$159/mo** |
+| **Recurring coaching** (incl. multi-month packages) | **70%** | **30%** |
+| **One-off consultations** | **60%** | **40%** |
 
-- Billing: **quarterly** default
-- Existing subscribers: price locked at signup
-- Plan = trial product → upsell to Coached
-- Diet-only: buy Plan (diet) or Coached — no separate lane until data says otherwise
-- Nutrition = general wellness only — no medical/disease meal plans (US dietitian licensing risk)
+- **Base:** the coaching service amount, **excluding separately collected taxes**.
+- **Fees:** Aafnai covers ordinary payment-processing and payout fees **from its own share**.
+- **Discounts:** an Aafnai-funded promotion **must not reduce the coach's agreed earnings**. A coach-funded discount requires the coach's explicit acceptance.
+- **Refunds** reverse the corresponding service amount and its commission allocation. Disputes and adjustments are tracked explicitly, as new entries — never by editing history.
+- **Payout timing:** coaches are paid **monthly in arrears, during the first seven days of the following month**, for service delivered through the previous month-end. Partial service months are prorated consistently. **A customer payment arriving does not make that amount payable to the coach.**
+- **Classification is by service type, not payment count.** A six-month coaching package is recurring coaching at 70/30 even when bought in one payment — see §6.7.
 
-### 6.3 Payout split
+> **Superseded 2026-09-09** — original text, kept as history:
+> *"60% coach / 40% platform on all tiers (65% founding coaches). At Coached $99/mo: coach $59.40. At Premium $159/mo: coach $95.40."*
+> Replaced by `AAF-COMM-01` and `AAF-COMM-02`. **Historical payout-ledger rows keep their original rule string** — the new rates apply to new plans only and do not retroactively reinterpret past records.
 
-**60% coach / 40% platform** on all tiers (65% founding coaches).
+**Marketplace transition (unchanged intent):** if Aafnai ever becomes a true marketplace, the coach share rises toward 75–80% and the platform take falls to ~20–25%.
 
-At Coached $99/mo: coach $59.40 (~NPR 9,000/client/mo); 10 clients ≈ NPR 90,000/mo (top of Nepal trainer market).
+### 6.7 Long-term prepaid coaching — added 2026-09-09
 
-At Premium $159/mo: coach $95.40 — reflects call workload.
+A multi-month coaching package is **ongoing coaching**, not a consultation, and uses the **70/30** split even when purchased through a single upfront payment.
 
-**Marketplace transition:** Coach share rises toward 75–80%; platform take ~20–25%.
+- **Allocate the payment across the service period**, and release coach earnings **as service is delivered**.
+- Worked example: a **$510 six-month package** with equal monthly allocation is **$85 per service month** — **$59.50 to the coach, $25.50 to Aafnai**, recognised month by month. After the first delivered month, **$425.00 remains an undelivered balance.**
+- **Track the undelivered balance separately.** Customer payments, earned coach balances, and actual payouts are three distinct things and are never conflated.
+- **A coach change mid-term must preserve the distinction** between the original coach's earned amount and the remaining service funding.
+
+> **Unresolved — blocks launch of prepaid plans.** Cancellation and refund rules for prepaid terms are **not decided**. Prepaid plans must not be enabled until they are.
 
 ### 6.4 Coaches & capacity
 
@@ -189,20 +229,28 @@ At Premium $159/mo: coach $95.40 — reflects call workload.
 - Cap **12–15 clients/coach** early
 - Bring #3 when active clients hit ~20–24 or female demand appears in intake
 
-### 6.5 Customer assignment (agency phase)
+### 6.5 Coach selection — amended 2026-09-09
 
-**No browse-and-choose at launch.** Intake quiz → founder assigns within 48h.
+**The customer selects their coach before paying.**
 
-**Intake fields:** Goal (fat loss / muscle / general), coach gender preference (hard filter), language, home/gym + equipment, schedule/timezone, injuries, tier purchased.
+Before any charge is collected, the customer must see and select their coach **and** their plan, including:
 
-**Match priority:**
-1. Goal ↔ coach specialization
-2. Gender preference
-3. Load balance
+- the coach's qualifications
+- the plan's price
+- the plan's inclusions
+- **compatible availability**
+
+**The system must confirm the coach can accept this customer before collecting payment** — capacity and availability are checked at checkout, not after.
+
+**Intake still matters**, but it now informs the customer's choice rather than a back-office assignment: goal, coach gender preference, language, equipment, schedule and timezone, injuries.
 
 **Policies:**
-- **Free coach switch anytime** — de-risks purchase; switch data trains future algorithm
-- Founder in coach-client thread first 2 weeks per new client
+- **Free coach change anytime.** Aafnai handles the request. Mechanics — consent, price difference, records access, effective date, remaining prepaid value — are **not yet decided**.
+- Founder involved early with each new coach-client pairing while volume is small.
+
+> **Superseded 2026-09-09** — original text, kept as history:
+> *"No browse-and-choose at launch. Intake quiz → founder assigns within 48h. Match priority: goal ↔ coach specialization, gender preference, load balance."*
+> Coach-created plans with coach-set prices make the coach a purchase-time choice — you buy *that coach's* plan — so intake-then-assign is no longer coherent. Replaced by `AAF-FLOW-01`. The 48-hour assignment board at `web/src/app/admin/fitness/page.tsx` becomes an **exception tool** (unassigned edge cases, transfers), not the main flow.
 
 ### 6.6 Demand validation (UNRESOLVED — critical)
 
@@ -309,8 +357,8 @@ Shared core + per-vertical tables. No generic JSON-blob service_type.
 - Build fitness before pandit pilot data + fitness presales
 - Surge-price shraddha or charge for recording
 - Offer remote wedding/bratabandha/griha pravesh/funeral
-- Create customer-facing coach tiers (Pro vs Standard)
-- More than 3 fitness service scopes at launch
+- ~~Create customer-facing coach tiers (Pro vs Standard)~~ — **superseded 2026-09-09.** Coaches now set their own prices and inclusions, which is customer-visible by design. The surviving intent: Aafnai does not *rank* coaches, badge a plan "recommended" or "best value", or sell premium placement.
+- ~~More than 3 fitness service scopes at launch~~ — **superseded 2026-09-09.** With coach-created plans the live count is N coaches × M plans. The surviving intent: keep each coach's own menu short enough to compare, and launch with **one or two coaches**, not six.
 - Six shallow coaches instead of two deep ones
 - Launch UK+US+AU simultaneously
 - Trust Monte Carlo percentile outputs as precision — directional only
