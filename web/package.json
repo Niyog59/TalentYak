@@ -6,7 +6,15 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./test/register.mjs --test \"src/**/*.test.ts\" \"test/db/totp.test.ts\"",
+    "test:watch": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./test/register.mjs --test --watch \"src/**/*.test.ts\"",
+    "verify": "npm run typecheck && npm run lint && npm run check:migrations && npm test",
+    "test:db": "node ../scripts/lib/with-idle-timeout.mjs 240 node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./test/register.mjs --test --test-concurrency=1 \"test/db/**/*.db.test.ts\"",
+    "check:migrations": "node ../scripts/check-migrations.mjs",
+    "db:migrate": "node ../scripts/lib/with-idle-timeout.mjs 120 node ../scripts/apply-migrations.mjs",
+    "db:migrate:dry": "node ../scripts/apply-migrations.mjs --dry-run"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1109.0",
