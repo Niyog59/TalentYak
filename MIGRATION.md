@@ -18,7 +18,7 @@ Every vendor in this stack is replaceable, and this file is the proof. If a vend
 | Database / auth / RLS | Supabase | **High** | `lib/supabase/{client,server,admin}.ts` | Postgres itself is portable — `pg_dump` and restore. What is not: `auth.users`, the `handle_new_user` trigger, `auth.uid()` inside every RLS policy, and every user's session. Moving auth means re-authenticating every user. **Weeks.** *Seam is partial: query builders appear directly in page components.* |
 | Payments in | Stripe | **Highest** | `lib/checkout/service.ts`, `lib/payments/{stripe,webhook,billing}.ts` | Saved payment methods are not casually portable. Subscription billing anchors and grandfathered prices are the hard part. **Say this plainly rather than pretending otherwise.** Mitigation: every Stripe object ID is mirrored into our own tables and the pricing *logic* lives in our code, not in Stripe metadata. **Months, with customer friction.** |
 | Payouts out | **None chosen** — transfers are made by hand and recorded | **Low** | `lib/payouts/` | No route to Nepal has been verified, so none is assumed. The system prepares batches, exports a masked CSV and records each transfer with its reference; `provider_payout_destinations.channel` is free text for exactly this reason. Switching to an API later is a new formatter. **Days.** |
-| Email | Resend | **Low** | `lib/email/index.ts` | Three HTML templates, one `send` call. Any SMTP or API provider substitutes. **Hours.** Domain reputation is the real cost. |
+| Email | Resend | **Low** | `lib/email/index.ts` | Templates are pure functions; one `send` call. Any SMTP or API provider substitutes. **Hours.** Domain reputation is the real cost. One coupling to undo: sends pass an idempotency key so a retry cannot deliver twice — a replacement provider needs an equivalent, or crash-after-send becomes a duplicate. |
 | Object storage | Cloudflare R2 | **Low** | `lib/recordings.ts` | S3-compatible; the AWS SDK is already the client. Change the endpoint and copy objects. **Days**, dominated by transfer time. |
 | BS calendar | `nepali-date-converter` | **Low to replace, catastrophic to get wrong** | `verticals/pandit/tithi.ts` | See §5. |
 | Video calls | **None yet** | — | — | Unbuilt. Daily is an unverified candidate. Keep the seam in `lib/calls/` from day one. |
@@ -71,6 +71,7 @@ Same shape for any vendor.
 | `LIVE_BILLING` | One of the four locks on real money. Necessary, never sufficient | `lib/policy/live-gate.ts` |
 | `STRIPE_ACCOUNT_ID` | Optional. If set, the webhook refuses events from any other Stripe account | `lib/payments/webhook.ts` |
 | `SUPABASE_ACCESS_TOKEN` | **Migrations only.** Never read at runtime; revoke when schema work is done | `scripts/apply-migrations.mjs` |
+| `DAILY_API_KEY` | **Reserved, unread.** Video calls are unbuilt; Daily is still an unverified candidate (see §4). Nothing reads this yet | — |
 
 **Guard status.** `lib/supabase/admin.ts` now carries all three mandated guards: `import "server-only"`, a runtime `window` check that throws, and its non-public variable name. The debt recorded here in the first version is closed.
 
@@ -79,6 +80,8 @@ Same shape for any vendor.
 ## 4. Vendor-specific notes
 
 **Stripe — where the exit genuinely hurts.** Saved payment methods can be migrated only through Stripe's own data-migration process, and it is not self-serve. Subscription billing anchors and grandfathered prices are worse: a customer on a locked signup price has that price expressed as a Stripe object, and recreating it elsewhere means recreating the billing relationship. *Mitigation already in place:* every Stripe object ID is mirrored into `payments` and `bookings`, and the split logic lives in `lib/payouts/`, never in Stripe metadata. *Mitigation still needed:* checkout currently builds inline `price_data` rather than using Stripe Price objects, so there is no durable product catalog on the Stripe side to reconcile against.
+
+**Resend — what "sent" is allowed to mean.** `notification_deliveries` records `accepted`, `delivered`, `bounced`, `complained`, `failed` and `uncertain` as six different facts, and `SendResult` has no `sent` variant at all. Accepted means the provider took the message; it is **not** proof it arrived. `uncertain` exists for the honest case where we called the provider and never learned the outcome — a crash after the request left, which no provider can rule out. Any replacement must keep this vocabulary: collapsing it to "sent" would make the founder console state things nobody can know. Migration `0029` added the notification inbox on top of this; the delivery table itself predates it (`0018`).
 
 **Supabase — auth is the anchor, not the data.** The Postgres data leaves cleanly. `auth.users`, the signup trigger, and `auth.uid()` in every RLS policy do not. Any migration re-authenticates every user.
 

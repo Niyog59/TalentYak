@@ -44,6 +44,19 @@ npm --prefix web run db:migrate:dry                            # what would appl
 TALENTYAK_DB_TESTS=confirmed npm --prefix web run test:db      # permissions, as real users
 ```
 
+Sending one real email, to check delivery end to end:
+
+```bash
+node scripts/send-test-notification.mjs <address>            # queue it
+node scripts/send-test-notification.mjs <address> --report   # what actually happened
+node scripts/send-test-notification.mjs <address> --cleanup  # remove the fixture
+```
+
+The address is **required** — there is no default, because a default is how a
+test send reaches somebody who never asked for it. Reserved test domains are
+refused, and so is everything until the worker runs: the script only queues, and
+the worker sends through the same path a real notification takes.
+
 Which variables are needed, and what is configured today: `docs/operations/configuration.md`.
 
 ## File guide

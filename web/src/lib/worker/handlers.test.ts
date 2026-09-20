@@ -122,8 +122,235 @@ describe("email jobs", () => {
       "email.admin_alert",
       "email.retention_notice",
       "email.shraddha_reminder",
+      // Handlers built ahead of their producers (Batches 2 and 4).
+      "email.appointment_confirmed",
+      "email.appointment_changed",
+      "email.appointment_cancelled",
+      "email.appointment_reminder",
+      "email.reservation_expired",
+      "email.unread_messages",
+      "email.expectations_updated",
     ]) {
       assert.equal(typeof HANDLERS[topic], "function", `no handler for ${topic}`);
     }
+  });
+});
+
+/**
+ * What must still be true at the moment of sending.
+ *
+ * These exercise the recheck that runs immediately before the provider is
+ * called. Each one describes a world that changed between queueing and
+ * sending, and asserts that nothing was sent — and that the job finished as
+ * `done` rather than `failed`, because skipping was the correct outcome.
+ */
+
+const CUSTOMER = "00000000-0000-4000-8000-0000000000c1";
+const COACH_PROFILE = "00000000-0000-4000-8000-0000000000c2";
+const PROVIDER = "00000000-0000-4000-8000-0000000000p1";
+const APPOINTMENT = "00000000-0000-4000-8000-0000000000a1";
+const QUEUED_START = "2026-10-01T09:00:00.000Z";
+
+interface World {
+  appointment?: Record<string, unknown> | null;
+  suspended?: boolean;
+  emailAllowed?: boolean;
+}
+
+function worldContext(transport: EmailTransport, world: World = {}) {
+  const sent: OutgoingEmail[] = [];
+  const notifications: Record<string, unknown>[] = [];
+
+  const appointment =
+    world.appointment === undefined
+      ? {
+          id: APPOINTMENT,
+          starts_at: QUEUED_START,
+          state: "booked",
+          customer_id: CUSTOMER,
+          provider_id: PROVIDER,
+          providers: { profile_id: COACH_PROFILE },
+        }
+      : world.appointment;
+
+  const rows: Record<string, (value: unknown) => unknown> = {
+    appointments: () => appointment,
+    profiles: (id) => ({
+      id,
+      email: id === CUSTOMER ? "customer@talentyak.com" : "coach@talentyak.com",
+      preferred_name: id === CUSTOMER ? "Sita" : "Anjali",
+      full_name: null,
+      timezone: id === CUSTOMER ? "America/Chicago" : "Asia/Kathmandu",
+      suspended_at: world.suspended ? "2026-09-01T00:00:00Z" : null,
+    }),
+    providers: () => ({
+      id: PROVIDER,
+      profile_id: COACH_PROFILE,
+      display_name: "Anjali",
+      provider_public_profiles: { display_name: "Anjali R." },
+    }),
+  };
+
+  const admin = {
+    from: (table: string) => ({
+      upsert: async () => ({ data: null, error: null }),
+      select: () => ({
+        eq: (_col: string, value: unknown) => ({
+          maybeSingle: async () => ({ data: rows[table]?.(value) ?? null, error: null }),
+        }),
+      }),
+    }),
+    rpc: async (name: string, args: Record<string, unknown>) => {
+      if (name === "notification_email_allowed") {
+        return { data: world.emailAllowed ?? true, error: null };
+      }
+      if (name === "create_notification") {
+        notifications.push(args);
+        return { data: "notification-1", error: null };
+      }
+      return { data: null, error: null };
+    },
+  } as unknown as SupabaseClient;
+
+  const ctx: HandlerContext = {
+    admin,
+    transport: async (email) => {
+      sent.push(email);
+      return transport(email);
+    },
+    enqueue: async () => {},
+  };
+  return { ctx, sent, notifications };
+}
+
+const reminderJob = (payload: Record<string, unknown> = {}): OutboxJob => ({
+  id: "00000000-0000-4000-8000-000000000002",
+  topic: "email.appointment_reminder",
+  payload: { appointment_id: APPOINTMENT, recipient: "customer", starts_at: QUEUED_START, ...payload },
+  attempts: 0,
+  max_attempts: 8,
+});
+
+describe("what must still be true when the message is sent", () => {
+  test("a reminder for a session that moved is skipped, not sent late and wrong", async () => {
+    const { ctx, sent } = worldContext(accepted, {
+      appointment: {
+        id: APPOINTMENT,
+        // Moved an hour later after the reminder was queued.
+        starts_at: "2026-10-01T10:00:00.000Z",
+        state: "booked",
+        customer_id: CUSTOMER,
+        provider_id: PROVIDER,
+        providers: { profile_id: COACH_PROFILE },
+      },
+    });
+
+    const outcome = await HANDLERS["email.appointment_reminder"](reminderJob(), ctx);
+
+    assert.equal(outcome.kind, "done", "skipping is a correct outcome, not a failure");
+    assert.deepEqual(sent, [], "nothing was handed to the sending service");
+    assert.equal((outcome as { result: Record<string, unknown> }).result.reason, "skipped");
+    assert.match(String((outcome as { result: Record<string, unknown> }).result.detail), /rescheduled/);
+  });
+
+  test("a reminder for a cancelled session is skipped", async () => {
+    const { ctx, sent } = worldContext(accepted, {
+      appointment: {
+        id: APPOINTMENT, starts_at: QUEUED_START, state: "cancelled_by_provider",
+        customer_id: CUSTOMER, provider_id: PROVIDER, providers: { profile_id: COACH_PROFILE },
+      },
+    });
+
+    const outcome = await HANDLERS["email.appointment_reminder"](reminderJob(), ctx);
+
+    assert.equal(outcome.kind, "done");
+    assert.deepEqual(sent, []);
+    assert.match(String((outcome as { result: Record<string, unknown> }).result.detail), /cancelled_by_provider/);
+  });
+
+  test("a reminder for a session that has already started is skipped", async () => {
+    const past = new Date(Date.now() - 60_000).toISOString();
+    const { ctx, sent } = worldContext(accepted, {
+      appointment: {
+        id: APPOINTMENT, starts_at: past, state: "booked",
+        customer_id: CUSTOMER, provider_id: PROVIDER, providers: { profile_id: COACH_PROFILE },
+      },
+    });
+
+    const outcome = await HANDLERS["email.appointment_reminder"](reminderJob({ starts_at: past }), ctx);
+
+    assert.equal(outcome.kind, "done");
+    assert.deepEqual(sent, []);
+    assert.match(String((outcome as { result: Record<string, unknown> }).result.detail), /already started/);
+  });
+
+  test("a cancellation still sends, because the session being gone is the point", async () => {
+    const { ctx, sent } = worldContext(accepted, {
+      appointment: {
+        id: APPOINTMENT, starts_at: QUEUED_START, state: "cancelled_by_provider",
+        customer_id: CUSTOMER, provider_id: PROVIDER, providers: { profile_id: COACH_PROFILE },
+      },
+    });
+
+    const outcome = await HANDLERS["email.appointment_cancelled"]({
+      ...reminderJob(), topic: "email.appointment_cancelled", payload: { appointment_id: APPOINTMENT, recipient: "customer", by_coach: true },
+    }, ctx);
+
+    assert.equal(outcome.kind, "done");
+    assert.equal(sent.length, 1, "the cancellation was sent");
+  });
+
+  test("switching an optional email off suppresses the email but still records it in the inbox", async () => {
+    const { ctx, sent, notifications } = worldContext(accepted, { emailAllowed: false });
+
+    const outcome = await HANDLERS["email.appointment_reminder"](reminderJob(), ctx);
+
+    assert.equal(outcome.kind, "done");
+    assert.deepEqual(sent, [], "no email was sent");
+    assert.equal(notifications.length, 1, "the person is still told, in their inbox");
+    assert.equal((outcome as { result: Record<string, unknown> }).result.reason, "preference");
+  });
+
+  test("a suspended recipient is not emailed, and gets no inbox row either", async () => {
+    const { ctx, sent, notifications } = worldContext(accepted, { suspended: true });
+
+    const outcome = await HANDLERS["email.appointment_reminder"](reminderJob(), ctx);
+
+    assert.equal(outcome.kind, "done");
+    assert.deepEqual(sent, []);
+    assert.deepEqual(notifications, []);
+    assert.match(String((outcome as { result: Record<string, unknown> }).result.detail), /suspended/);
+  });
+
+  test("an unread-message email cannot be sent while conversations are unbuilt", async () => {
+    // The producer belongs to Batch 2. Until the read state can actually be
+    // checked, this must refuse rather than assume the messages are unread.
+    const { ctx, sent } = worldContext(accepted);
+
+    const outcome = await HANDLERS["email.unread_messages"]({
+      ...reminderJob(), topic: "email.unread_messages",
+      payload: { profile_id: CUSTOMER, conversation_id: "c1", from_name: "Anjali R.", count: 3, since: QUEUED_START },
+    }, ctx);
+
+    assert.equal(outcome.kind, "done");
+    assert.deepEqual(sent, [], "no message content and no email left the system");
+    assert.match(String((outcome as { result: Record<string, unknown> }).result.detail), /Batch 2/);
+  });
+
+  test("a session email never carries health or message content in its subject", async () => {
+    const { ctx, sent } = worldContext(accepted);
+    await HANDLERS["email.appointment_confirmed"]({
+      ...reminderJob(), topic: "email.appointment_confirmed",
+      payload: { appointment_id: APPOINTMENT, recipient: "customer" },
+    }, ctx);
+
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].subject, "Your session is booked");
+    // Stated in the CUSTOMER's zone, not the coach's and not UTC: 09:00 UTC is
+    // 04:00 in Chicago. Sending Kathmandu time to a client in Illinois is how
+    // somebody misses a session they paid for.
+    assert.match(sent[0].html, /04:00/);
+    // And the zone is always named, however the platform abbreviates it.
+    assert.match(sent[0].html, /GMT-5|CDT|CST/);
   });
 });

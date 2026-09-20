@@ -33,6 +33,14 @@ export default async function AdminFinancePage() {
     supabase.from("earning_states").select("ledger_entry_id, provider_id, currency, hold_reason, updated_at, ledger_entries(amount_minor), providers(display_name)").eq("state", "held").limit(100),
   ]);
 
+  // What actually reached people. Separate from the job list above: a job can
+  // be `done` while the message bounced, and those are different facts.
+  const { data: deliveries } = await supabase
+    .from("notification_deliveries")
+    .select("id, template, recipient_email, subject, state, provider_message_id, error, created_at")
+    .order("created_at", { ascending: false })
+    .limit(50);
+
   return (
     <div>
       <PageHeader title="Finance & exceptions">
@@ -134,6 +142,26 @@ export default async function AdminFinancePage() {
               <input type="hidden" name="job_id" value={j.id} />
               <SubmitButton pendingLabel="Queuing…" variant="quiet">Retry</SubmitButton>
             </ActionForm>,
+          ])}
+        />
+      </Panel>
+
+      <Panel
+        title="What actually reached people"
+        id="deliveries"
+        description="A job finishing is not the same as an email arriving. 'Accepted' means the sending service took it — delivery, bounces and complaints are separate facts, recorded here as they become known. 'Uncertain' means we called the provider and never learned the outcome; the message may or may not have been sent."
+      >
+        <DataTable
+          caption="Recent email deliveries"
+          head={["Sent", "Template", "To", "State", "Provider reference", "Error"]}
+          empty="No email has been sent yet."
+          rows={(deliveries ?? []).map((d) => [
+            formatDate(d.created_at, null, true),
+            d.template,
+            <span key="to" className="break-all text-xs">{d.recipient_email}</span>,
+            d.state,
+            <span key="id" className="break-all text-xs">{d.provider_message_id ?? "—"}</span>,
+            <span key="err" className="break-all text-xs">{(d.error ?? "").slice(0, 200)}</span>,
           ])}
         />
       </Panel>
