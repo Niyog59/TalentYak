@@ -1,4 +1,10 @@
-# Aafnai — Decision Register
+# TalentYak — Decision Register
+
+> ### Amended 2026-09-15 (third pass) — read §L first.
+>
+> The product is now **TalentYak**, and the commission is **20% on both recurring coaching and one-off consultations**. **§L supersedes AAF-COMM-01, AAF-COMM-02, AAF-BRAND-06 and AAF-CAL-08, and narrows AAF-COMM-04.** Everything they replace is kept below, unedited, so historical records stay explicable.
+>
+> The file is still named for the Aafnai era on purpose: renaming it would break every citation in the code and documents that point at it. The name is a path, not a claim about the brand.
 
 **Module:** M00 · **Authored against:** `master @ 2bb3d9f89f9588076d958def8f0bb444ef54f26f`
 
@@ -373,3 +379,72 @@ Every CONFIRMED capability has an owning module and at least one acceptance scen
 | AAF-BRAND-05, AAF-TECH-04 | M01, M03 | AC-13 |
 | AAF-TECH-01 | M06 | AC-14 |
 | Vendor-credential independence | all | AC-12 |
+
+---
+
+## L. Third-pass decisions — 2026-09-15 (TalentYak)
+
+**Source key added:** **FM03** — Founder brief, *TalentYak — Complete M03–M07 implementation brief*, v1.0, supplied 2026-09-15. Founder-written. It states its own supersessions explicitly.
+
+This pass changes the brand and the commission rate. Everything superseded below is **kept in place above**, unedited, so a reader can still reconstruct why a 2026 ledger row looks the way it does.
+
+### L1 · Brand
+
+| ID | Topic | Status | Rule | Source | Modules |
+|---|---|---|---|---|---|
+| **TY-BRAND-01** | Product and company name | **CONFIRMED** | The product and company are **TalentYak**, at **talentyak.com**. Capital T and capital Y. | FM03 §1 | all |
+| **TY-BRAND-02** | Visual direction | **CONFIRMED** | Forest green `#124F43` and white, with the approved front-facing yak mark. **Supersedes AAF-BRAND-06** (ivory `#F8F6F1`, deep teal `#0B5956`, lowercase `aafnai` wordmark). | FM03 §4.2 | M02 |
+| **TY-BRAND-03** | Asset reality | **CONFIRMED** (statement of fact) | The approved pack is **raster only — there are no SVG files.** Only `website/talentyak-symbol-transparent.png` is genuinely transparent; both horizontal files carry opaque backgrounds. No maskable icon has been produced or verified. | FM03 §4.2; pack README | M02 |
+| **TY-REPO-01** | Repository | **CONFIRMED** | The GitHub repository `Niyog59/Aafnai` has been renamed to **`Niyog59/TalentYak`** (verified via the GitHub API, 2026-09-15). The local directory rename to `/Users/niyoguprety/dev/TalentYak` is authorised. | FM03 §4.1 | — |
+
+### L2 · Commission — supersedes AAF-COMM-01, AAF-COMM-02
+
+| ID | Topic | Status | Rule | Source | Modules |
+|---|---|---|---|---|---|
+| **TY-COMM-01** | Rate | **CONFIRMED** | **20% platform commission on recurring coaching AND 20% on one-off consultations.** Coaches receive 80% of both. **Supersedes AAF-COMM-01 (30%) and AAF-COMM-02 (40%)**, and every older 60/40, 65/35 and 70/30 assumption, for new offers. | FM03 §1 | M05, M06, M07 |
+| **TY-COMM-02** | Rounding | **CONFIRMED** | **Commission is rounded first; the coach takes the exact remainder.** `commission = round(base × rate)` to the nearest minor unit, half away from zero; `coach = base − commission`. **Narrows AAF-COMM-04**, which rounded the coach's share first and produced a different answer on odd amounts. | FM03 §5 fixture 5 | M06, M07 |
+| **TY-COMM-03** | Historical preservation | **CONFIRMED** | Actual historical contracts keep their original rates. Old ledger rows are never reinterpreted at the new rate. Superseded policy versions are retained in code so those rows stay explicable. | FM03 §1 | M03, M07 |
+| **TY-COMM-04** | No customer fee | **CONFIRMED** | **No separate customer service fee and no hidden markup.** The customer sees a clear total before paying. Ordinary processing costs are borne by the platform out of its 20%, never deducted from the advertised coach 80%. *(Consistent with AAF-COMM-07.)* | FM03 §5 | M05, M06 |
+
+**Worked fixtures (FM03 §5) — these are the authoritative test cases:**
+
+| Case | Result |
+|---|---|
+| USD 100.00, no tax or discount | coach **80.00**, commission **20.00** |
+| Coach discounts a USD 600.00 package to 540.00 | coach **432.00**, commission **108.00** |
+| Platform funds a USD 10.00 promotion on a USD 100.00 service | customer pays **90.00**, coach entitlement **80.00**, platform net before processing **10.00** |
+| Refund 25.00 from the first case | coach reversal **20.00**, commission reversal **5.00**; replay does not reverse again |
+| USD 10.01 at 20% | commission **2.00**, coach **8.01** |
+
+**Supersedes the Aafnai-era `$510` example.** A USD 510.00 six-month term now allocates **85.00 per service month → 68.00 coach / 17.00 platform**, with **425.00 undelivered** after one delivered month. **AAF-TERM-02's 59.50 / 25.50 figures are historical.** AAF-TERM-01 (a six-month package is coaching, not a consultation) and AAF-TERM-03 (undelivered balance tracked separately) are unchanged, and AAF-TERM-05 remains **OPEN and blocking** — prepaid terms stay disabled.
+
+### L3 · Scope and vendors
+
+| ID | Topic | Status | Rule | Source |
+|---|---|---|---|---|
+| **TY-SCOPE-01** | Launch vertical | **CONFIRMED** | Fitness is the only active launch vertical. Shared architecture is preserved for later services, but no empty vertical is advertised. **Resolves OPEN-11's vertical question**; the production-environment question remains open. | FM03 §1 |
+| **TY-SCOPE-02** | Scheduling | **CONFIRMED** | Build our own narrow calendar in M09. **No Cal.com and no Calendly.** Google OAuth is for sign-in only, not Calendar sync. **Supersedes AAF-CAL-08's optional Google Calendar connection.** | FM03 §1 |
+| **TY-SCOPE-03** | Stripe account | **CONFIRMED** (statement of fact) | The Stripe business account country is the **United States**. This does **not** by itself activate any customer market or any coach payout corridor. | FM03 §1, §5 |
+| **TY-SCOPE-04** | Payout corridor | **CONFIRMED** (as an obligation) | Eligibility for US-business-to-Nepal-coach commercial payouts is **not established**. Neither Remitly, Payoneer, nor Stripe Connect is an approved route. **Sharpens OPEN-13**: build provider-neutral and manual-settlement-compatible; verify before designing any live transfer. | FM03 §10.4 |
+| **TY-DEV-01** | Sandbox first | **CONFIRMED** | New purchase flows are fully tested in sandbox. **LIVE purchase stays disabled** until fulfilment, scheduling, business policies and payout eligibility are ready. *(Consistent with AAF-DEV-01.)* | FM03 §2 |
+
+### L4 · Policies implemented as sandbox defaults
+
+FM03 §5 distinguishes rules the founder has **confirmed** from working defaults that are **implemented and tested but blocked from live use** until approved. That distinction is enforced in code: `src/lib/policy/` carries a `status` of `confirmed` or `sandbox_default` on every policy, and `assertLiveBillingPermitted` refuses to take real money while any policy in the active set is still a sandbox default — an environment variable alone cannot open the gate.
+
+**Awaiting founder approval:** fee presentation and FX/dispute cost allocation · commission base treatment of tax and settlement adjustments · platform-funded promotion campaigns · prepaid-term enablement · cancellation terms · payment-failure grace · earnings recognition and hold period · payout cutoff, minimum and negative-balance treatment · customer countries and coach payout corridors · adult-only onboarding.
+
+### L5 · Status changes
+
+| Entry | Was | Now |
+|---|---|---|
+| AAF-COMM-01 | CONFIRMED 70/30 | **SUPERSEDED** by TY-COMM-01 |
+| AAF-COMM-02 | CONFIRMED 60/40 | **SUPERSEDED** by TY-COMM-01 |
+| AAF-COMM-04 | CONFIRMED, coach rounded first | **NARROWED** by TY-COMM-02, commission rounded first |
+| AAF-COMM-05 | CONFIRMED | **UNCHANGED** — classification is still by service type, and both types now carry the same rate |
+| AAF-TERM-02 | CONFIRMED, 59.50 / 25.50 | **ARITHMETIC SUPERSEDED** by TY-COMM-01 → 68.00 / 17.00. The principle is unchanged |
+| AAF-BRAND-06 | PROPOSED | **SUPERSEDED** by TY-BRAND-02 |
+| AAF-BRAND-04 | PROPOSED, gated on OPEN-11 | **CONFIRMED** as TY-SCOPE-01 |
+| AAF-CAL-08 | PROPOSED | **SUPERSEDED** by TY-SCOPE-02 — no Google Calendar connection |
+| OPEN-13 | OPEN | **STILL OPEN**, sharpened by TY-SCOPE-04 |
+| AAF-TERM-05 | OPEN, blocking | **STILL OPEN, STILL BLOCKING** — prepaid terms remain disabled in code |
