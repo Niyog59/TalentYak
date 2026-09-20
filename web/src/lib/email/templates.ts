@@ -46,6 +46,31 @@ function date(iso: string | null | undefined, timeZone?: string | null): string 
   }
 }
 
+/**
+ * A moment, with its time and the zone it is stated in.
+ *
+ * The zone name is not decoration. The two people on a coaching call are in
+ * Nepal and abroad, and a time with no zone is the single easiest way to make
+ * somebody miss a session they paid for.
+ */
+function dateTime(iso: string | null | undefined, timeZone?: string | null): string {
+  if (!iso) return "";
+  const zone = timeZone || "UTC";
+  try {
+    return new Intl.DateTimeFormat("en-GB", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZoneName: "short",
+      timeZone: zone,
+    }).format(new Date(iso));
+  } catch {
+    return `${iso.slice(0, 16).replace("T", " ")} UTC`;
+  }
+}
+
 function button(href: string, label: string): string {
   const url = safeUrl(href);
   if (!url) return "";
@@ -272,6 +297,127 @@ export function retentionNoticeEmail(
 <p>Your ${escapeHtml(d.resourceLabel)} is scheduled to be deleted on ${escapeHtml(date(d.deletionDueAt, d.timezone))}, because it has passed the period we keep it for.</p>
 <p>If you'd like a copy first, you can request an export before that date.</p>
 ${button(`${ctx.siteUrl}/account`, "Review your data")}`,
+    ctx.supportEmail,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sessions
+// ---------------------------------------------------------------------------
+//
+// A session email states the time in the recipient's own zone and names the
+// zone, because the two people on a call are in Nepal and in North America or
+// Australia, and "3pm" alone has sent somebody to the wrong hour before.
+
+export function appointmentConfirmedEmail(
+  ctx: TemplateContext,
+  d: { name?: string | null; otherPartyName: string; startsAt: string; timezone?: string | null },
+): RenderedEmail {
+  return build(
+    "Your session is booked",
+    `${greet(d.name)}
+<p>Your session with ${escapeHtml(d.otherPartyName)} is booked for <strong>${escapeHtml(dateTime(d.startsAt, d.timezone))}</strong>.</p>
+${button(`${ctx.siteUrl}/account`, "View your sessions")}`,
+    ctx.supportEmail,
+  );
+}
+
+export function appointmentChangedEmail(
+  ctx: TemplateContext,
+  d: { name?: string | null; otherPartyName: string; startsAt: string; previousStartsAt?: string | null; timezone?: string | null },
+): RenderedEmail {
+  return build(
+    "Your session has moved",
+    `${greet(d.name)}
+<p>Your session with ${escapeHtml(d.otherPartyName)} has been moved${
+      d.previousStartsAt ? ` from ${escapeHtml(dateTime(d.previousStartsAt, d.timezone))}` : ""
+    } to <strong>${escapeHtml(dateTime(d.startsAt, d.timezone))}</strong>.</p>
+<p>Nothing else about your plan changes.</p>
+${button(`${ctx.siteUrl}/account`, "View your sessions")}`,
+    ctx.supportEmail,
+  );
+}
+
+export function appointmentCancelledEmail(
+  ctx: TemplateContext,
+  d: { name?: string | null; otherPartyName: string; startsAt: string; byCoach: boolean; timezone?: string | null },
+): RenderedEmail {
+  return build(
+    "Your session has been cancelled",
+    `${greet(d.name)}
+<p>The session with ${escapeHtml(d.otherPartyName)} on ${escapeHtml(dateTime(d.startsAt, d.timezone))} has been cancelled${
+      d.byCoach ? " by your coach" : ""
+    }.</p>
+<p>The session is still yours to use — you can book another time.</p>
+${button(`${ctx.siteUrl}/account`, "Book another time")}`,
+    ctx.supportEmail,
+  );
+}
+
+export function appointmentReminderEmail(
+  ctx: TemplateContext,
+  d: { name?: string | null; otherPartyName: string; startsAt: string; timezone?: string | null },
+): RenderedEmail {
+  return build(
+    "A reminder about your session",
+    `${greet(d.name)}
+<p>Your session with ${escapeHtml(d.otherPartyName)} is at <strong>${escapeHtml(dateTime(d.startsAt, d.timezone))}</strong>.</p>
+${button(`${ctx.siteUrl}/account`, "View your sessions")}
+<p style="font-size:13px;color:${MUTED}">You can turn session reminders off in your email settings. Booking changes and cancellations will still reach you.</p>`,
+    ctx.supportEmail,
+  );
+}
+
+export function reservationExpiredEmail(
+  ctx: TemplateContext,
+  d: { name?: string | null; startsAt: string; timezone?: string | null },
+): RenderedEmail {
+  return build(
+    "A held session time has been released",
+    `${greet(d.name)}
+<p>The time you were holding — ${escapeHtml(dateTime(d.startsAt, d.timezone))} — has been released, because the booking was not finished.</p>
+<p>Nothing was charged. The time may still be free.</p>
+${button(`${ctx.siteUrl}/account`, "Book a session")}`,
+    ctx.supportEmail,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Messages
+// ---------------------------------------------------------------------------
+
+/**
+ * WHAT THIS DELIBERATELY DOES NOT CONTAIN: the message. Not in the subject,
+ * not in the body, not in a preview line. A coaching conversation carries
+ * injuries, weights, and what somebody is struggling with — invariant 3. The
+ * email says that a message is waiting and where to read it, and nothing else.
+ */
+export function unreadMessagesEmail(
+  ctx: TemplateContext,
+  d: { name?: string | null; fromName: string; count: number },
+): RenderedEmail {
+  const plural = d.count === 1 ? "message" : "messages";
+  return build(
+    `You have ${d.count} unread ${plural} on TalentYak`,
+    `${greet(d.name)}
+<p>${escapeHtml(d.fromName)} sent you ${d.count} ${plural} you haven't read yet.</p>
+<p>They're in your TalentYak messages — we don't include what was said in email.</p>
+${button(`${ctx.siteUrl}/account`, "Read your messages")}
+<p style="font-size:13px;color:${MUTED}">You can turn these emails off in your email settings.</p>`,
+    ctx.supportEmail,
+  );
+}
+
+export function expectationsUpdatedEmail(
+  ctx: TemplateContext,
+  d: { name?: string | null; coachName: string },
+): RenderedEmail {
+  return build(
+    "Your coach has updated your plan",
+    `${greet(d.name)}
+<p>${escapeHtml(d.coachName)} has updated what you've agreed to work on together.</p>
+${button(`${ctx.siteUrl}/account`, "See what changed")}
+<p style="font-size:13px;color:${MUTED}">You can turn these emails off in your email settings.</p>`,
     ctx.supportEmail,
   );
 }

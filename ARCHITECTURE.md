@@ -191,6 +191,48 @@ deletion_requests   destructive execution switched OFF
 rate_limit_counters   database-backed, works across serverless instances
 ```
 
+### 3.7b Notifications — `0029`
+
+```
+notification_categories(id, label, description, essential, default_email)
+notification_preferences(profile_id, category_id, email_enabled)
+notifications(id, profile_id, category_id, title, body, path, outbox_id,
+              dedupe_key, read_at, created_at)
+```
+
+**Two channels, one of them not optional.** The inbox is the record; email is a
+delivery choice. Everything lands in the inbox, including notices a person has
+switched off by email — turning an email off changes *how* somebody is told,
+never *whether*. A category is either `essential` (security, billing, coaching,
+session changes, data notices — an account cannot be operated safely without
+them) or optional. The essential rule is enforced in
+`set_notification_preference()`, not in the screen, so a direct RPC call cannot
+switch off a failed-payment email.
+
+**What must never reach these tables.** `title` and `body` are summaries the
+server wrote. No message text, no health or body data, no grief data, no
+ceremony detail: the rows are readable by the person, are quoted into email
+subjects, and appear on lock screens. Invariants 2 and 3 apply here in full. A
+notification says a message arrived; it never says what it said. `path` is
+constrained to a same-site path, because a stored absolute URL is an open
+redirect waiting to be rendered as a link.
+
+**The pre-delivery recheck (`src/lib/worker/recheck.ts`) is the non-obvious
+part.** A queued job describes the world as it was when something happened; by
+the time a worker picks it up the session may have moved, been cancelled, or the
+coach may have been reassigned off the client. So `send()` rechecks immediately
+before calling the provider: recipient still valid, preference still allows it,
+appointment still live, still at the stated time, recipient still party to it.
+
+**A failed recheck finishes the job as `done`, not `failed`.** This looks wrong
+and is deliberate: skipping an obsolete reminder is the correct outcome, and
+recording it as a failure would fill the founder console with rows nobody should
+act on. Do not "fix" this. The skip reason is recorded in the job's `result`.
+
+The inbox row is written *before* the provider is called and regardless of the
+preference, so a person is told even when the provider is unreachable and the
+job retries for hours.
+
 ### 3.8 How the database defends itself
 
 Three mechanisms, all exercised by the test suite:

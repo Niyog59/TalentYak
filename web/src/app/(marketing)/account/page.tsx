@@ -30,17 +30,20 @@ export default async function AccountPage() {
   const tz = profile.timezone;
   const supabase = (await createClient())!;
 
-  const [{ data: purchases }, { data: enrollments }, { data: requests }, { data: bookings }] = await Promise.all([
-    supabase
-      .from("purchases")
-      .select("id, state, service_type, charge_currency, charge_amount_minor, paid_through_at, created_at, inclusions_snapshot, provider_id")
-      .eq("customer_id", session.userId)
-      .neq("state", "pending_payment")
-      .order("created_at", { ascending: false }),
-    supabase.from("enrollments").select("id, purchase_id, state").eq("customer_id", session.userId),
-    supabase.from("coach_change_requests").select("enrollment_id, state, created_at").eq("customer_id", session.userId).eq("state", "requested"),
-    supabase.from("bookings").select("id, status, created_at, services(name)").eq("customer_id", session.userId).order("created_at", { ascending: false }),
-  ]);
+  const [{ data: purchases }, { data: enrollments }, { data: requests }, { data: bookings }, { count: unread }] =
+    await Promise.all([
+      supabase
+        .from("purchases")
+        .select("id, state, service_type, charge_currency, charge_amount_minor, paid_through_at, created_at, inclusions_snapshot, provider_id")
+        .eq("customer_id", session.userId)
+        .neq("state", "pending_payment")
+        .order("created_at", { ascending: false }),
+      supabase.from("enrollments").select("id, purchase_id, state").eq("customer_id", session.userId),
+      supabase.from("coach_change_requests").select("enrollment_id, state, created_at").eq("customer_id", session.userId).eq("state", "requested"),
+      supabase.from("bookings").select("id, status, created_at, services(name)").eq("customer_id", session.userId).order("created_at", { ascending: false }),
+      // Row-level security scopes this to the signed-in person.
+      supabase.from("notifications").select("id", { count: "exact", head: true }).is("read_at", null),
+    ]);
 
   // A customer can read the profile of any coach they bought from, even one who
   // is no longer public (migration 0025).
@@ -63,6 +66,9 @@ export default async function AccountPage() {
       </div>
 
       <nav aria-label="Account" className="mt-6 flex flex-wrap gap-3">
+        <ButtonLink href="/account/notifications" variant="secondary" size="sm">
+          Notifications{unread ? <span className="ml-1.5 rounded-full bg-brand px-1.5 text-sm text-white">{unread}</span> : null}
+        </ButtonLink>
         <ButtonLink href="/account/billing" variant="secondary" size="sm">Billing</ButtonLink>
         <ButtonLink href="/account/security" variant="secondary" size="sm">Sign-in security</ButtonLink>
         {session.provider ? <ButtonLink href="/coach" variant="secondary" size="sm">Coach area</ButtonLink> : null}

@@ -32,6 +32,12 @@ export default async function AdminOverviewPage() {
     count(supabase.from("disputes").select("id", head).in("state", ["open", "under_review"])),
   ]);
 
+  // A job can finish while the message bounced. That is a separate failure and
+  // it needs its own number, or it is never noticed.
+  const badDeliveries = await count(
+    supabase.from("notification_deliveries").select("id", head).in("state", ["bounced", "complained", "failed", "uncertain"]),
+  );
+
   const tiles: { label: string; value: number; href: string; urgent?: boolean }[] = [
     { label: "Coaches waiting for review", value: review, href: "/admin/coaches?status=submitted", urgent: review > 0 },
     { label: "Photos to check", value: photos, href: "/admin/coaches#coaches", urgent: photos > 0 },
@@ -41,6 +47,7 @@ export default async function AdminOverviewPage() {
     { label: "Purchases needing review", value: needsReview, href: "/admin/finance#review", urgent: needsReview > 0 },
     { label: "Open card disputes", value: openDisputes, href: "/admin/finance#disputes", urgent: openDisputes > 0 },
     { label: "Failed or blocked emails and jobs", value: jobs, href: "/admin/finance#jobs", urgent: jobs > 0 },
+    { label: "Emails that bounced or never arrived", value: badDeliveries, href: "/admin/finance#deliveries", urgent: badDeliveries > 0 },
     { label: "Stripe events that failed to process", value: events, href: "/admin/finance#events", urgent: events > 0 },
     { label: "Active paid plans", value: activePurchases, href: "/admin/purchases" },
   ];
