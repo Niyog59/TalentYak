@@ -56,9 +56,9 @@ Found during the M00 audit and reconciliation (2026-09-09). All source-inspected
 
 **Agent instructions contradict the repository**
 
-- [ ] `.cursorrules` names protected tables `deceased_records`, `tithi_reminders`, `health_records` — none exist. The real grief table `shraddha_dates` is **not** named in the hard-stop list (safety defect; R-55)
-- [ ] `AGENTS.md` and `.cursorrules` require `docs/STATE.md`, `docs/DIRECTION.md`, `docs/DATA-MAP.md`, `docs/RUNBOOK.md`, `scripts/payout-test.ts`, `scripts/rls-test.ts`, `scripts/lib/with-idle-timeout.mjs` — none exist
-- [ ] `.cursorrules` cites a `CLAUDE.md` "Tone rules" section that does not exist
+- [x] `.cursorrules` protected-table list rebuilt from the migrations (R-55) — fixed in M02
+- [x] `scripts/lib/with-idle-timeout.mjs` now exists. The phantom `docs/STATE.md`, `DIRECTION.md`, `DATA-MAP.md`, `RUNBOOK.md` references were removed from `.cursorrules`; payout and RLS tests are now `npm test`
+- [x] `.cursorrules` no longer cites a nonexistent CLAUDE.md section
 
 **Money and payments**
 
@@ -67,28 +67,74 @@ Found during the M00 audit and reconciliation (2026-09-09). All source-inspected
 - [ ] No handler for payment failure, subscription cancellation, or dispute (R-13)
 - [ ] Payment insert errors are swallowed and acknowledged as processed (`webhook.ts:147`) (R-14)
 - [ ] `payout_ledger` mixes immutable amounts with mutable workflow status; admin RLS is `for all` (R-15)
-- [ ] Payout export mutates state via `GET` (`admin/payouts/export/route.ts:10`) (R-18)
+- [ ] Payout export mutates state via `GET` (`admin/payouts/export/route.ts`) (R-18) — **CSV formula-injection protection landed 2026-09-15**; the GET-mutation fix is M07 work
 - [ ] Batch "paid" is the literal string in a free-text notes field (`admin/payouts/page.tsx:76,142`) (R-16)
 - [ ] No sold-price snapshot on bookings; `/admin/catalog` edits prices in place with no audit (R-20)
 
 **Identity and access**
 
-- [ ] A coach cannot sign in — `providers.profile_id` is only ever read, never written (R-35)
-- [ ] Guest purchases never become owned accounts; `customer_id` is never backfilled (R-36)
-- [ ] Grief data is stored in `bookings.intake_response`, readable by any assigned provider — invariant 2 violation (R-38)
-- [ ] Admin accounts have no second factor, contrary to `CLAUDE.md` → Security operating rules (R-37)
+- [x] Coaches now sign in: invitation acceptance creates the provider and links `profile_id` (migration 0024) (R-35)
+- [x] Guest bookings are claimed on sign-in, but only against a **verified** email address, and every claim is recorded (migration 0024) (R-36)
+- [x] Grief and health keys moved out of `bookings.intake_response` into `protected_intake`, counts reconciled, and a trigger stops them coming back (migration 0021) (R-38)
+- [x] `is_admin()` requires a completed second factor **in the database**, not only in the UI (migration 0017) (R-37)
 
 **Platform safety**
 
-- [ ] No security headers and no CSP (`next.config.ts` empty; `proxy.ts` refreshes cookies only) (R-40)
-- [ ] No rate limiting; `createBooking` inserts via the service-role client and sends an email per call (R-41)
-- [ ] `lib/supabase/admin.ts` lacks `import "server-only"` and a `window` guard, unlike nine sibling modules (R-42)
-- [ ] Cron guard fails open when `CRON_SECRET` is unset, and the variable is absent from `.env.example` (R-43)
-- [ ] Email templates interpolate user text unescaped (`email/index.ts:59,78`) (R-44)
-- [ ] ~16 missing indexes, notably `bookings(stripe_subscription_id)` used by every renewal lookup (R-45)
-- [ ] No test runner, no test script, no test file — contrary to `CLAUDE.md` money-math and RLS test rules (R-46)
+- [x] Seven security headers in `next.config.ts`; nonce-based CSP in `proxy.ts` with a strict `script-src` (R-40)
+- [x] Database-backed rate limiting (migration 0018) on sign-in, sign-up, reset, checkout, photo upload, payout-detail change and coach-change requests; the legacy `createBooking` purchase path is retired (R-41)
+- [x] `lib/supabase/admin.ts` now has all three guards: `server-only`, a throwing `window` check, and a non-public env var name (R-42)
+- [x] Cron guard now **fails closed**, compares in constant time, prefers POST, and `CRON_SECRET` is documented in `.env.example` (R-43)
+- [x] Email templates now HTML-escape every user value, drop non-http(s) link schemes, and send a plain-text alternative (R-44)
+- [x] Indexes added, including `bookings(stripe_subscription_id)` (migration 0008) and every foreign key and ordering column added since (R-45)
+- [x] Test runner added — Node's built-in runner, **no new dependency**. `npm test` / `npm run verify`. 94 tests as of 2026-09-15. **RLS tests still outstanding**, blocked on database access (R-46)
 
 **Presentation**
 
-- [ ] Public navigation is unreachable below 640px (`site-nav.tsx:32`) (R-47)
-- [ ] Marketing claims exceed the product: homepage testimonial of unverified truth (`page.tsx:141`), "direct messaging" (`fitness/catalog.ts:37`), "named coordinator" (`services/[vertical]/[service]/page.tsx:54`) (R-50)
+- [x] Phone navigation exists (`components/shell/mobile-menu.tsx`), and the signed-in areas have their own tab bar (R-47)
+- [x] Marketing copy corrected to what the product does: no invented testimonial, no promised messaging or named coordinator, and no "billed quarterly" — coaches publish their own plans and prices (R-50)
+
+---
+
+## M03–M07 — TalentYak implementation batch (2026-09-15)
+
+Plan and conflict analysis: `docs/implementation/M03-M07-PLAN.md`. Status is tracked with four distinct claims — implemented, tested locally, externally verified, blocked — which are never collapsed into one.
+
+### Stage 0 — foundations — complete
+
+- [x] Test runner with no added dependency; `npm test`, `npm run test:watch`, `npm run verify`
+- [x] Idle-timeout wrapper at `scripts/lib/with-idle-timeout.mjs`, as CLAUDE.md requires
+- [x] Money core — integer minor units, per-currency precision, decimal-safe parsing, range validation, exact largest-remainder allocation, BigInt intermediates
+- [x] Versioned policy layer — commission, discount funding, billing terms, price change, cancellation, payment failure, recognition, payout, eligibility; each carrying `confirmed` or `sandbox_default`
+- [x] Live-billing gate, closed by default and independently blocked by any unapproved policy
+- [x] All five founder money fixtures implemented as tests, plus prepaid allocation and cumulative refund reconciliation
+- [x] TalentYak brand integrated — assets, `BrandLogo`, favicon and app icons, manifest, metadata, forest-green tokens
+- [x] Security repairs: R-40, R-42, R-43, R-44, and CSV formula injection
+- [x] Every hardcoded commission rate removed from components; rates now read from the policy register
+- [x] Documents reconciled to TalentYak and 20% — DECISION_REGISTER §L, CLAUDE.md, .cursorrules, README.md, ARCHITECTURE.md
+
+### Stages 1–6 — done, against the founder's hosted project as the test environment
+
+Status of record: `docs/implementation/M03-M07-STATUS.md`.
+
+- [x] M03 domain model, permissions, migrations — 30 migrations, access matrix exercised as real users
+- [x] M04 accounts, authentication, onboarding, coach invitations, admin bootstrap, second factor
+- [x] M05 coach profiles, plan builder with per-currency prices, capacity, public discovery, founder review
+- [x] M06 checkout, Stripe webhook as the only writer of payment truth, renewals, failed payments, cancellation, refunds, disputes
+- [x] M07 earnings, immutable ledger, reconciliation, payout batches with evidence, coach changes
+- [x] M08 slice — outbox worker, scheduled endpoint, email templates, retention contracts (destructive execution off)
+- [x] Verified: typecheck, lint, 196 unit tests, 95 database tests, production build, browser journey end to end
+- [ ] **Open:** one test purchase must be completed by hand on Stripe's hosted page (founder checklist item 7)
+- [ ] **Open:** coach credential evidence upload screen (database and review screen exist)
+- [ ] **Open:** photo upload not yet exercised through a browser file picker (unit-tested, including EXIF stripping)
+
+### Stage 7 — rename and handover
+
+- [x] Update `origin` from `Niyog59/Aafnai` to the verified `Niyog59/TalentYak`
+- [ ] Rename `/Users/niyoguprety/dev/ghar-tira` → `/Users/niyoguprety/dev/TalentYak` (last, deliberately)
+- [ ] Produce the six deliverable documents in the brief's §15
+
+### Deferred
+
+- [ ] **Maskable PWA icon.** The pack contains none, and one needs a padded export verified against circular launcher crops. All icons ship `purpose: "any"` until then.
+- [ ] **`brand/aafnai/scripts/build-brand.mjs`** generates the retired Aafnai mark. Superseded by the supplied TalentYak pack; retained as history, not wired to anything.
+- [ ] **Business GitHub account and commit identity.** The repo is under a personal account with a personal commit email. Vercel Git Fork Protection will block deployments on this once Vercel is connected.

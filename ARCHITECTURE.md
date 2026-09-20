@@ -1,8 +1,8 @@
-# Ghar Tira / Aafnai — Architecture
+# TalentYak — Architecture
 
-**Written from the codebase at `master @ 2bb3d9f`, 2026-09-09, and amended with the M00 product decisions of the same date.**
+**Written from the codebase at `master @ 2bb3d9f`, 2026-09-09. Sections 3 and 7 were rewritten on 2026-09-19 after M03–M07 were built, applied to a real database and exercised end to end.**
 
-Two truth markers are used throughout. **BUILT** means it exists in the repository and was verified by reading the source. **REQUIRED** means a confirmed M00 decision demands it and it does **not** exist yet. Nothing here has been runtime-tested; no build, migration, or database query has been run against this description.
+Two truth markers are used throughout. **BUILT** means it exists in the repository. **REQUIRED** means a confirmed decision demands it and it does **not** exist yet. Unlike the first version of this file, sections 3 and 7 have been checked against a running system: 30 migrations applied, 95 database tests run as real signed-in users, and a full payment, refund, dispute and payout cycle driven through Stripe in test mode. What each module was and was not verified against is recorded in `docs/implementation/M03-M07-STATUS.md`.
 
 Business context: `docs/HANDOVER.md`. Current product authority: `docs/aafnai/DECISION_REGISTER.md`.
 
@@ -31,8 +31,8 @@ Only two client components exist in the entire application; everything else is a
 | 5 · Money and trust states server-side only | No RLS policy lets a customer write `status`, `payments`, or `payout_ledger`. Booking status moves only via `transitionBooking` (admin-gated) or service role | **BUILT and correct** |
 | 5b · Webhook is the only writer of payment truth | `/book/[service]/received` reads no payment state and grants nothing — it ignores its own `?booking=` parameter | **BUILT and correct** |
 | 6 · RLS on every table, same commit | All 22 tables carry `enable row level security` in their creating migration | **BUILT** |
-| 7 · Service-role key never reaches the browser | Server-only env var name — **but** `web/src/lib/supabase/admin.ts` lacks `import "server-only"` and a `window` check, unlike nine sibling lib modules | **PARTIAL** |
-| 8 · Payout economics disclosed, never discovered | The plan builder must show Customer pays / Coach receives / Aafnai share | **REQUIRED** — no plan builder exists |
+| 7 · Service-role key never reaches the browser | `web/src/lib/supabase/admin.ts` now carries all three guards: `import "server-only"`, a runtime `window` check that throws, and a non-`NEXT_PUBLIC_` env var name | **BUILT** (repaired 2026-09-15) |
+| 8 · Payout economics disclosed, never discovered | `previewEarnings()` in `web/src/lib/policy/` computes Customer pays / TalentYak share / coach share from the same code that computes real money, and `/become-a-coach` renders it rather than a typed-in percentage | **PARTIAL** — the offer builder itself does not exist yet |
 | 9 · No fake data in production | Homepage testimonial of unverified truth — `(marketing)/page.tsx:141`; "direct messaging" sold at `verticals/fitness/catalog.ts:37` with no messaging built | **AT RISK** |
 
 **Structural principle:** isolation is enforced in the **database**, never in the UI alone. Every access rule above that works, works because Postgres refuses — not because a component hides a button.
@@ -117,23 +117,89 @@ progress_photos(id, booking_id, r2_key, taken_on)
 
 Access is governed by two `security definer` helpers with a pinned `search_path`: `booking_belongs_to_me(b_id)` and `booking_coached_by_me(b_id)`.
 
-### 3.6 Index discipline — currently violated
+### 3.6 Index discipline
 
-The rule is an index on every foreign key and every column used in `WHERE` / `ORDER BY`, in the same migration. About sixteen are missing. Two matter now: **`bookings(stripe_subscription_id)`**, scanned by every renewal webhook, and **`bookings(provider_id)`**, used by the coach RLS subquery on every coach page load. Full list in `docs/aafnai/CODEBASE_RECONCILIATION.md` R-45.
+The rule is an index on every foreign key and every column used in `WHERE` / `ORDER BY`, in the same migration. The sixteen that were missing were added in `0008` onwards, including `bookings(stripe_subscription_id)` (scanned by every renewal) and `bookings(provider_id)` (used by the coach RLS subquery). Every table added since carries its own.
 
-### 3.7 What the M00 decisions add — all REQUIRED, none built
+### 3.7 The commercial model — `0008`–`0028`
 
-| Concept | Why the current schema cannot carry it |
-|---|---|
-| **Coach-owned plans** | `services` is a platform-global catalog with **no provider foreign key**. Coach-created plans invert its ownership model |
-| **Immutable plan versions** | No version column; `/admin/catalog` edits `price_cents` in place |
-| **Entitlements** | No such concept. Call, check-in, and form-review allowances must be frozen per purchase |
-| **Service type** | `billing_type` is `one_time`\|`subscription` — a *billing* attribute. A prepaid six-month term reads as `one_time` and would attract the 40% consultation rate |
-| **Availability, slots, appointments** | Nothing exists. `bookings.scheduled_at` is one admin-set timestamp; the only timezone in the system is a free-text intake string |
-| **Earned vs collected vs paid** | `payout_ledger` conflates immutable amounts with mutable workflow status |
-| **Undelivered balance** | Prepaid terms need the unearned portion tracked separately from earned coach balances |
-| **Check-ins, messaging, form-review media** | No tables |
-| **Multi-currency** | `currency` defaults to `'usd'` and the TypeScript type is the **literal** `"usd"` |
+Everything the M00 decisions required and the original schema could not carry now exists. Thirty migrations, additive, never edited after being applied; a checksum in `schema_migrations` enforces that.
+
+**Identity and coaches — `0008`, `0009`, `0024`, `0026`**
+
+```
+profiles            + role (server-controlled), timezone, locale,
+                      display_currency, terms/privacy version, suspended_at
+role_changes        who changed a role, when, and why
+admin_bootstrap     the ONE email address that may ever claim the admin role
+providers           + status (invited→onboarding→submitted→in_review→approved
+                      →suspended→retired), slug, capacity, capacity_ceiling,
+                      accepting_new_clients, approved_at/by, published_at
+provider_public_profiles   what the world sees; photo_path only ever set by review
+provider_private           vetting notes — admin only
+provider_payout_destinations   DENY-ALL; server functions only; masked on read
+provider_credentials       claims vs what was actually verified
+coach_invitations          hashed token, bound to one email, expiring
+provider_status_events     every approval decision, with reason and actor
+```
+
+**Offers — `0010`**
+
+```
+offers          coach-owned, per vertical, draft|published|paused|archived
+offer_versions  IMMUTABLE once published; one live version per offer
+offer_prices    per currency, integer minor units; frozen with their version
+capacity_reservations   a place held while a checkout is in flight
+```
+
+**Purchases and coaching relationships — `0011`, `0019`**
+
+```
+checkout_attempts   idempotent by (customer, key); holds a reservation
+purchases           a full snapshot: price, currency, interval, inclusions,
+                    term, renewal rule and every policy id in force
+subscriptions       mirrors Stripe; last_event_at guards stale events
+billing_cycles      one row per paid period, keyed by source_key
+enrollments         the coaching relationship
+enrollment_assignments   non-overlapping intervals, previous/new coach,
+                    reason, actor, and history_scope — what a new coach may see
+```
+
+**Money — `0012`, `0019`, `0020`**
+
+```
+provider_events     durable Stripe receipts: state, attempts, lease, last_error
+outbox              transactional background work
+ledger_entries      APPEND-ONLY. unique effect_key is the anti-double-count rule
+earning_states      pending|held|eligible|batched|paid — workflow, kept apart
+                    from the immutable amount
+refunds, disputes   requested ≠ succeeded; both recorded from Stripe's answer
+payout_batches      prepared→exported→submitted→paid; exported is NOT paid
+payout_batch_items  destination as it stood, evidence required before 'paid'
+payout_batch_events every operator action, with actor
+reconciliation_exceptions   anything the system could not settle by itself
+coach_balances      per provider AND per currency; never sums across currencies
+```
+
+**Contracts for later modules — `0021`, `0022`**
+
+```
+protected_intake    grief and health answers, moved out of booking JSON
+call_entitlements, appointments   M09's shape, deliberately inert
+consents, retention_policies, retention_candidates, retention_notices,
+deletion_requests   destructive execution switched OFF
+rate_limit_counters   database-backed, works across serverless instances
+```
+
+### 3.8 How the database defends itself
+
+Three mechanisms, all exercised by the test suite:
+
+1. **Row-level security on every table**, deny by default, written in the same migration as the table. `scripts/check-migrations.mjs` fails the build otherwise.
+2. **Action guards.** `in_action('offer_publication')` and friends let the database tell "the coach used the publish action, which validated everything" from "somebody wrote to the table directly". A bug where this returned NULL on a fresh connection made guards pass intermittently; fixed in `0023` and regression-tested.
+3. **Assurance levels.** `is_admin()` is false unless the session completed a second factor, so admin reach is a database fact, not a UI decision.
+
+Views run as the **caller** (`security_invoker`) unless documented otherwise — a view that did not leaked every coach's earnings to anonymous visitors, fixed in `0025` and now checked automatically.
 
 ---
 
@@ -190,51 +256,50 @@ A presigned upload is compatible with this requirement — the quarantine step i
 
 ## 7. Money flow
 
-### 7.1 As built
+### 7.1 As built, and exercised
 
 ```
-Booking form → createBooking (service-role INSERT, status 'requested')
-             → notification job queued
-             → Stripe Checkout (inline price_data; booking_id in metadata)
-             → customer pays
-             → success_url → /received          [UI ONLY — grants nothing ✓]
-             → webhook checkout.session.completed
-                  → payments INSERT (succeeded)
-                  → computePayout() via the vertical's registered rule
-                  → payout_ledger INSERT (pending)
-                  → booking_events INSERT (actor 'stripe')
-             → founder assigns provider          [manual]
-             → /admin/payouts/export             [batch, rows → exported, CSV]
-             → founder pays via Payoneer         [outside the system]
-             → "Mark paid"                       [rows → paid]
+/coaches → coach page → /checkout/<offer version>?currency=USD
+   → startCheckout()  [server derives price, interval, capacity from the DB;
+                       the browser supplies only an id, a currency and a key]
+   → capacity held (~35 min) · checkout_attempt + pending purchase written
+   → Stripe-hosted payment   [card details never reach TalentYak]
+   → /checkout/return         [UI ONLY — grants nothing; reads the DB and waits]
+   → webhook, signature verified, receipt recorded, lease taken
+        → the CURRENT object is fetched back from Stripe
+        → record_cycle_payment(): billing cycle, enrolment, ledger,
+          earning state, purchase state — one transaction
+   → recognise_delivered_cycles()   earnings become eligible when the period ends
+   → admin_prepare_payout_batch()   claims eligible earnings transactionally
+   → CSV export (POST, audited, masked references)   [exported is NOT paid]
+   → founder transfers the money in their own service
+   → admin_record_payout_paid(reference, time, evidence)   → coach notified
 ```
 
-**Four defects on this path**, all confirmed in source:
+The four defects the first version of this file recorded are gone, and each is now covered by a test:
 
-1. **Renewals are not deduplicated.** The only guard is a partial unique index on `stripe_payment_intent_id`; `invoice.payment_succeeded` supplies no intent. A retried renewal double-inserts a payment **and** a ledger row.
-2. **Refunds do not reverse.** `charge.refunded` updates `payments.status` and nothing else. The coach's ledger row stays `pending` and will be exported and paid.
-3. **Payment insert errors are swallowed** and the webhook still returns `{received:true}`, so Stripe never retries.
-4. **The payout export mutates state via `GET`**, linked as a plain anchor. A prefetch or refresh creates a duplicate batch.
+1. **Renewals cannot double-count.** Effects are keyed by what they describe (`cycle:<invoice>:coach_earned`), not by which event carried them, so a replay, a retry, or two different events describing one payment converge on one row. Proven by replaying a real `invoice.paid`.
+2. **Refunds reverse.** A refund writes new negative entries against the coach and the platform in the same proportion, and the reversal comes out of future earnings.
+3. **Failures are visible.** A webhook that cannot be applied marks its receipt failed and returns 500 so Stripe retries; the scheduled sweep also re-fetches stuck events from Stripe. An event describing a payment we have no record of raises a reconciliation exception instead of being dropped.
+4. **The payout export is a POST**, same-origin, admin-only, and audited. The old `GET` route is deleted.
 
-### 7.2 As required by the M00 decisions
+### 7.2 The rules the money obeys
 
-**Three ledgers, never conflated:**
+**Three records, never conflated:** what the customer paid · what the coach has earned by delivering · what has actually been transferred.
 
-```
-CUSTOMER PAYMENTS   what the customer paid, and when it settled
-EARNED BALANCES     what the coach has earned by delivering service
-ACTUAL PAYOUTS      what has actually been transferred, and when
-```
+Commission: **20% on recurring coaching and 20% on one-off consultations**, on the service amount excluding separately identified taxes, after any coach-funded discount. Processing fees come out of TalentYak's share. Integer minor units, **commission rounded first**: `commission = round(base × rate)` half away from zero, `coach = base − commission`, so the two always sum exactly and USD 10.01 splits 2.00 / 8.01.
 
-Commission: **70/30 recurring coaching, 60/40 one-off consultations**, computed on the coaching service amount excluding separately collected taxes. Ordinary processing and payout fees come from Aafnai's share. Arithmetic in integer minor units: `coach = round(base × rate)`, `aafnai = base − coach`, so the two always sum exactly.
+> **Superseded, kept for reading old rows.** The Aafnai-era rule was 70/30 recurring and 60/40 one-off, rounding the *coach's* share first. Both live in `web/src/lib/policy/registry.ts` as `commission.coaching.v2` and `.v1`. A purchase snapshots the policy id it was written under, so an old row is still computed at its own rate.
 
-**Earnings are recognised as service is delivered, not when money arrives.** A $510 six-month package allocates $85 per service month — $59.50 coach, $25.50 Aafnai — and the undelivered balance is tracked separately. After one delivered month, $425.00 remains undelivered.
+**Earnings are recognised as service is delivered, not when money arrives.** A payment sits `pending` until the period it paid for has ended. One-off consultations stay pending until M09 can say an appointment happened.
 
-**Payout schedule:** monthly in arrears, first seven days of the following month, for service delivered through the previous month-end. Partial months prorated consistently.
+**Immutability:** amounts are never edited. Refunds, disputes and adjustments are new compensating entries. Workflow state (`earning_states`) lives apart from the immutable amount.
 
-**Immutability:** financial amounts and history are never edited. Refunds, disputes, and adjustments are **new compensating entries**. Payout *workflow* state lives separately from the immutable amount record.
+**Settlement is a chain, not an event:** customer payment → processor balance → TalentYak's bank → a separate, separately recorded transfer to the coach. A processor balance is not per-coach escrow and is never shown to a coach as their money.
 
-**Settlement is a chain, not an event:** customer payment → pending processor balance → available balance → payout to Aafnai's bank → a separate, separately approved transfer to the coach. Payout scheduling does not accelerate settlement. A processor balance buffer is not per-coach escrow and must never be shown to a coach as their money being held.
+**Live payments are refused** unless all four locks are open: `LIVE_BILLING=true`, every commercial policy approved, final legal documents, and the ability to deliver what the plan promises (`web/src/lib/fulfillment.ts`). The fourth cannot be unlocked by approving anything.
+
+Detail, including what happens when things go wrong: `docs/operations/payments-and-payouts.md`.
 
 ---
 

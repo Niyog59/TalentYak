@@ -1,8 +1,14 @@
-# CLAUDE.md — Ghar Tira
+# CLAUDE.md — TalentYak
 
 **Read this file first, every session. Follow the map at the bottom for depth.**
 
-Ghar Tira is a two-sided marketplace connecting the Nepali diaspora with service providers in Nepal, across two verticals: pandit (shraddha and ancestral rites) and fitness coaching. The business runs agency-first — the founder sets prices, finds customers, matches supply, and controls quality. Business context and pricing live in `docs/HANDOVER.md`.
+TalentYak (`talentyak.com`) is a contractor-delivered managed coaching service for the Nepali diaspora. The customer buys coaching from TalentYak; the independent coach they selected, based in Nepal, delivers it. **Coaches set their own prices, define their own inclusions, and control their own programming — there is no platform package and no price-approval step.** TalentYak handles discovery, billing, support, and coach-change requests, and takes **20%**.
+
+**Fitness is the only active launch vertical.** The pandit vertical (shraddha and ancestral rites) is built, retained, and not publicly sellable; its data and its invariants still apply in full. Tutoring and bookkeeping are catalog-only placeholders.
+
+> **Brand history.** This project was Ghar Tira, then Aafnai, and is now **TalentYak**. Where an older name appears in a document, a file path, or a policy identifier, it is either history being preserved deliberately or a stable identifier that would break if renamed. Do not sweep them.
+
+Current product authority: `docs/aafnai/DECISION_REGISTER.md` — **read §L first.** Business history: `docs/HANDOVER.md` (founder-written; background, not current rules).
 
 ---
 
@@ -87,21 +93,30 @@ Rules written against a named agent apply to every agent unless a rule names one
 
 ## MONEY DISCIPLINE
 
-- **One pricing source of truth.** Prices, payout splits, and direct-cost assumptions live in one module. No price literal in a component or a migration.
-- **The pandit payout model is post-cost, not flat.** Direct ritual costs come out of the ticket first; the remainder splits 50/50. Fitness is 60/40 coach/platform. Never implement "60% of ticket" as a shortcut — see `docs/HANDOVER.md` §5.2.
-- **Every pricing change ships with a test** using the worked examples from HANDOVER §5.2 as fixtures.
+- **One pricing source of truth: `web/src/lib/policy/`.** Commission rates, payout schedules, cancellation terms, grace periods, and direct-cost assumptions live there and nowhere else. **No rate or price literal in a component, a migration, or a marketing page** — that is how a page and the ledger quietly disagree until a coach finds the difference themselves.
+- **Commission is 20% on recurring coaching and 20% on one-off consultations.** The coach receives 80%. `docs/aafnai/DECISION_REGISTER.md` §L, TY-COMM-01.
+- **Commission is rounded first; the coach takes the exact remainder.** `commission = round(base × rate)` to the nearest minor unit, half away from zero, then `coach = base − commission`. Rounding the coach's share first gives a different answer on odd amounts: USD 10.01 at 20% is a 2.00 commission and an 8.01 coach share.
+- **Commission is charged on the service amount, excluding separately identified tax**, after any coach-funded discount. Never on tax. Never on a display-only converted estimate.
+- **A platform-funded promotion reduces platform economics, never the coach's share.** It is recorded explicitly as a subsidy, not as an unexplained imbalance.
+- **Policies are versioned, and a purchase snapshots the version it was made under.** Superseded versions are kept forever so an old ledger row stays explicable. Never edit a version that has been snapshotted.
+- **A rule this codebase invented is not a rule the founder approved.** Every policy carries `confirmed` or `sandbox_default`, and live billing refuses while any active policy is still a sandbox default. An environment variable alone cannot open that gate.
+- **Every pricing change ships with a test** using the worked fixtures in `docs/aafnai/DECISION_REGISTER.md` §L2, already implemented in `web/src/lib/money/split.test.ts`.
+- **The pandit payout model is post-cost, not flat.** Direct ritual costs come out of the ticket first; the remainder splits 50/50. It is a different vertical with a different economic shape, preserved as `commission.pandit.v1`, and it is not superseded by the 20% coaching rate.
 - **Signup price is locked forever** for existing subscribers. Any price change ships with an explicit answer to "what happens to people already paying?"
-- **Money is integer minor units with an explicit currency code.** Never floats.
+- **Money is integer minor units with an explicit currency code.** Never floats. Never a hardcoded division by 100 — JPY has no minor unit and KWD has three.
 
 ---
 
 ## ACCOUNTS, GIT IDENTITY & DEPLOYMENT
 
-> **TODO — fill in when the LLC and business accounts exist.** The pattern below is the one proven on meet-merchants; keep the structure, fill the values. Until then, do not push this repo anywhere.
+**Current state, verified 2026-09-15.** The repository is **`Niyog59/TalentYak`** (private, default branch `main`) — renamed from `Niyog59/Aafnai` by the founder. It is owned by a **personal** GitHub account, and the repo-local commit author is a **personal** email. No LLC and no business account exists yet.
 
-- This machine has multiple GitHub accounts. This repo MUST use the **Ghar Tira business** account only — never a personal account.
-- Commit author identity is set repo-locally and must stay the business name/email. Vercel's Git Fork Protection blocks deployments whose commit author is not a team member — a personal-email commit silently fails to deploy (status BLOCKED).
-- `origin` pushes through a dedicated SSH host alias. Push only through this alias.
+> **TODO — still open.** The rules below describe where this must end up, not where it is. They are the pattern proven on meet-merchants. **Until a business account exists, the personal account is the working reality; do not pretend otherwise and do not invent a business identity.** Migrating the repo and the commit identity is a founder action, listed in `docs/FOUNDER-NEXT-STEPS.md`.
+
+- This machine has **two** authenticated GitHub accounts, `Niyog59` (active) and `meetmerchants2`. `gh auth setup-git` routes git credentials to whichever is *active*, so switching the active account silently changes who pushes. Check before pushing.
+- Once the business account exists, this repo MUST use it — never a personal account.
+- Commit author identity is set repo-locally and must then stay the business name/email. Vercel's Git Fork Protection blocks deployments whose commit author is not a team member — a personal-email commit silently fails to deploy (status BLOCKED). **This is a live risk the moment Vercel is connected.**
+- `origin` should push through a dedicated SSH host alias per account. It currently uses HTTPS.
 - Keep Git Fork Protection ON; do not disable it to work around a deploy block — fix the commit author instead.
 
 ---
@@ -228,13 +243,21 @@ HANGS (no output = hung; elapsed time is never the signal):
 | File | What it holds | Who writes it |
 |---|---|---|
 | `CLAUDE.md` (this) | Invariants, rules, roster, protocols, map | Founder |
-| `docs/HANDOVER.md` | Business source of truth — model, pricing, gates, regulatory | **Founder only** |
+| `docs/aafnai/DECISION_REGISTER.md` | **Current product authority.** Every rule with a status. **§L is the newest pass.** Where this and any other document disagree, this one wins | Founder decides; agents record |
+| `docs/aafnai/PRODUCT_CONTRACT.md` | What the product must do — scope, offer spec, journeys | Agents may propose |
+| `docs/HANDOVER.md` | Business history — model, pricing, gates, regulatory. Background, not current rules | **Founder only** |
 | `ARCHITECTURE.md` (root) | System design, schema, data flow, node registry | Agents may propose |
 | `MIGRATION.md` (root) | Vendor dependencies, portability, backups | Agents may propose |
+| `docs/implementation/` | Per-batch plans, status tables, and checkpoints | Agents |
 | `docs/specs/` | Per-module build specs | Sarathi drafts, founder approves |
 | `TASKS.md` (root) | Deferred items, known debt, someday-sockets | Anyone may append |
+| `brand/talentyak/` | Approved logo pack, masters, and integration notes. Deployed copies live in `web/public/brand/talentyak/` | Founder supplies |
+| `web/src/lib/policy/` | **Every commercial rule, versioned.** Commission, payouts, cancellation, live gate | Agents; changes need founder approval |
+| `web/src/lib/money/` | Money arithmetic. Integer minor units, currency precision, allocation | Agents |
 | `DEVLOG.md` (root, gitignored) | Per-session engineering journal | Every agent, every session |
 | `CTO-BRIEF.md` (root, gitignored) | End-of-session founder briefing | Every agent, every session |
 | `.cursorrules` | Cursor-specific pointer to this file | Founder |
 
-**Before starting work:** read this file, then `ARCHITECTURE.md`, then the relevant spec.
+**Before starting work:** read this file, then `docs/aafnai/DECISION_REGISTER.md` §L, then `ARCHITECTURE.md`, then the relevant spec.
+
+**Verifying work:** `npm run verify` in `web/` runs typecheck, lint and the test suite. The test runner is Node's own — there is no test framework dependency, and adding one needs a reason.

@@ -12,11 +12,26 @@ The actual protected tables, verified against supabase/migrations:
 
 Never write code that auto-sends a ritual date without a recorded human confirmation — that is invariant #1 and it has no exceptions.
 
-**Money math ships with tests.** Any change to pricing, commission splits, take rates, refunds, or proration ships with a test in the same commit, using the worked examples as fixtures: $100 recurring coaching → $70 coach / $30 Aafnai; $20 one-off → $12 / $8; a $510 six-month package → $85 per service month at $59.50 / $25.50. Any migration adding or changing tables or RLS policies ships with an RLS test in the same commit. **No test runner exists yet — building one is part of the first module that touches money or RLS, not a separate someday task.**
+**Money math ships with tests.** Any change to pricing, commission splits, take rates, refunds, or proration ships with a test in the same commit.
+
+Commission is **20% on recurring coaching and 20% on one-off consultations** (`docs/aafnai/DECISION_REGISTER.md` §L, TY-COMM-01). **Commission is rounded first and the coach takes the exact remainder** — rounding the coach's share first gives a different answer on odd amounts (TY-COMM-02). The worked fixtures, already implemented in `web/src/lib/money/split.test.ts`:
+
+- USD 100.00 → coach 80.00, commission 20.00
+- A coach-discounted 600.00 package at 540.00 → coach 432.00, commission 108.00
+- A platform-funded 10.00 promotion on a 100.00 service → customer pays 90.00, coach still 80.00, platform net 10.00
+- Refund 25.00 of a 100.00 service → coach reversal 20.00, commission reversal 5.00
+- USD 10.01 at 20% → commission 2.00, coach 8.01
+- A 510.00 six-month term → 85.00 per service month at 68.00 / 17.00, 425.00 undelivered after one month
+
+The superseded Aafnai-era figures ($70/$30, $12/$8, $59.50/$25.50) are historical. They are preserved as `commission.coaching.v1` and `.v2` in `web/src/lib/policy/registry.ts` so old ledger rows stay explicable — never as the rate for anything new.
+
+**No rate, price, or payout schedule may be written anywhere but `web/src/lib/policy/`.** A percentage typed into a component or a migration is how a marketing page and the ledger quietly drift apart.
+
+Any migration adding or changing tables or RLS policies ships with an RLS test in the same commit. **The test runner exists:** `npm test` in `web/` uses Node's built-in runner with no added dependency; `npm run verify` runs typecheck, lint and tests together.
 
 **Copy and tone convention** (defined here; CLAUDE.md has no tone section): nav items, buttons, and section labels use Title Case. No emoji anywhere in the product. No exclamation marks, urgency mechanics, countdowns, or scarcity language anywhere in the pandit vertical. Ritual terminology is used correctly or not at all; if unsure of a term, ask rather than guess. In fitness, never characterise a weight increase or decrease as automatically good or bad, and never nag or use streaks — daily weighing is a capability, not an obligation.
 
-Treat a command that produces no output/progress for its defined idle window as hung: do not wait on it or retry-loop — follow CLAUDE.md's Interruption & failure protocol ("HANGS"). Never busy-wait or poll in a shell loop. Hang-prone commands (seed, test:rls, test:payout, db:reset, db:push, backup) must enforce this in code via an idle-timeout wrapper rather than by memory; never wrap the dev server. No scripts/ directory exists yet — the module that first adds one of those commands adds the wrapper with it. Elapsed time alone is never the kill signal; preserve diagnostic output before any kill.
+Treat a command that produces no output/progress for its defined idle window as hung: do not wait on it or retry-loop — follow CLAUDE.md's Interruption & failure protocol ("HANGS"). Never busy-wait or poll in a shell loop. Hang-prone commands (seed, RLS tests, db:reset, db:push, backup) must run through `scripts/lib/with-idle-timeout.mjs`, which kills a child only after a no-output window and prints why; never wrap the dev server. Elapsed time alone is never the kill signal; preserve diagnostic output before any kill.
 
 Commit messages must read as a professional human developer's commits: conventional style (feat:, fix:, chore:, refactor:), concise, factual. Never mention AI, agents, models, or tooling in any commit message, code comment, or file.
 
