@@ -32,14 +32,14 @@ export const fitnessServices: Service[] = [
     verticalSlug: "fitness",
     name: "Coached",
     summary:
-      "Program, diet, weekly async check-ins, form checks, messaging, and monthly plan updates.",
+      "Ongoing coaching from a coach you choose, on their own plan.",
     description:
-      "Full coaching: custom program and diet, weekly asynchronous check-ins, form checks by video, direct messaging with your coach, and monthly plan updates. Billed quarterly; your signup price is locked for as long as you stay.",
+      "Ongoing coaching. Each coach publishes their own plans: what is included, and the price. Compare coaches and read exactly what a plan includes before you pay. The price you sign up at stays the same for as long as you stay on that plan.",
     priceCents: 9900,
     currency: "usd",
     billingType: "subscription",
     billingInterval: "month",
-    priceNote: "/month · billed quarterly",
+    priceNote: "coaches set their own monthly price",
     status: "coming_soon",
     sort: 2,
   },

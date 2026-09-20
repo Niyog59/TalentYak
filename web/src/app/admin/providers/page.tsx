@@ -73,8 +73,11 @@ export default async function AdminProvidersPage() {
           />
           <input name="notes" placeholder="Notes" className={inputClass} />
           <label className="flex items-center gap-2 font-sans text-sm">
-            <input type="checkbox" name="founding" className="accent-[#1B2A4A]" />
-            Founding provider (65% fitness split)
+            <input type="checkbox" name="founding" className="accent-brand" />
+            Founding provider
+            <span className="text-ink-muted">
+              — historical marker only; it no longer changes anyone&rsquo;s share
+            </span>
           </label>
           <Button type="submit" variant="secondary">
             Add provider

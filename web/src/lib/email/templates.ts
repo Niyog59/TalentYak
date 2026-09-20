@@ -1,0 +1,277 @@
+/**
+ * Every email TalentYak sends, as pure functions: data in, subject + HTML +
+ * plain text out. No sending, no database — so each can be tested on its own.
+ *
+ * Rules applied to every template:
+ *   · every interpolated value is escaped
+ *   · a plain-text alternative is generated for every message
+ *   · no health details in any subject line or preview (invariant 3)
+ *   · no grief details anywhere (invariant 2)
+ *   · no exclamation marks, no urgency, no tracking pixels
+ */
+
+import { escapeHtml, htmlToText, safeUrl } from "@/lib/email/escape";
+import { formatMinorAsDecimal } from "@/lib/money/money";
+import { isCurrencyCode } from "@/lib/money/currency";
+
+export interface RenderedEmail {
+  subject: string;
+  html: string;
+  text: string;
+}
+
+const BRAND = "#124F43";
+const INK = "#182B2A";
+const MUTED = "#556563";
+const PAPER = "#FCFCFA";
+const LINE = "#DDD6CB";
+
+function money(minor: number, currency: string): string {
+  const code = currency.toUpperCase();
+  if (!isCurrencyCode(code)) return `${minor} ${escapeHtml(code)}`;
+  return `${formatMinorAsDecimal(minor, code)} ${code}`;
+}
+
+function date(iso: string | null | undefined, timeZone?: string | null): string {
+  if (!iso) return "";
+  try {
+    return new Intl.DateTimeFormat("en-GB", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      timeZone: timeZone || "UTC",
+    }).format(new Date(iso)) + (timeZone ? "" : " (UTC)");
+  } catch {
+    return iso.slice(0, 10);
+  }
+}
+
+function button(href: string, label: string): string {
+  const url = safeUrl(href);
+  if (!url) return "";
+  return `<p style="margin:28px 0"><a href="${url}" style="display:inline-block;background:${BRAND};color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:8px">${escapeHtml(label)}</a></p>
+<p style="font-size:13px;color:${MUTED}">If the button does not work, copy this address into your browser:<br>${url}</p>`;
+}
+
+function shell(bodyHtml: string, supportEmail?: string | null): string {
+  const contact = supportEmail
+    ? ` · <a href="mailto:${escapeHtml(supportEmail)}" style="color:${BRAND}">${escapeHtml(supportEmail)}</a>`
+    : "";
+  return `<!doctype html><html><body style="margin:0;background:${PAPER}">
+<div style="padding:40px 16px;font-family:Arial,Helvetica,sans-serif;color:${INK}">
+  <div style="max-width:560px;margin:0 auto">
+    <p style="margin:0 0 24px;font-size:24px;font-weight:700;color:${BRAND}">TalentYak</p>
+    <div style="border-top:1px solid ${LINE};padding-top:24px;font-size:16px;line-height:1.6">${bodyHtml}</div>
+    <p style="margin-top:32px;font-size:13px;color:${MUTED}">TalentYak${contact}</p>
+  </div>
+</div></body></html>`;
+}
+
+function build(subject: string, body: string, supportEmail?: string | null): RenderedEmail {
+  const html = shell(body, supportEmail);
+  return { subject, html, text: htmlToText(html) };
+}
+
+const greet = (name?: string | null) => `<p>Hello${name ? ` ${escapeHtml(name)}` : ""},</p>`;
+
+export interface TemplateContext {
+  siteUrl: string;
+  supportEmail?: string | null;
+}
+
+// ---------------------------------------------------------------------------
+
+export function coachInvitationEmail(
+  ctx: TemplateContext,
+  d: { inviteUrl: string; expiresAt: string },
+): RenderedEmail {
+  return build(
+    "You're invited to coach on TalentYak",
+    `${greet()}
+<p>You've been invited to join TalentYak as a coach.</p>
+<p>On TalentYak you create your own plans, set your own prices and decide what each plan includes. TalentYak handles finding clients, taking payment and support, and keeps 20% of what customers pay.</p>
+<p>Accepting creates your coach account. Your profile is reviewed before it is shown to customers.</p>
+${button(d.inviteUrl, "Accept invitation")}
+<p style="color:${MUTED}">This invitation works once and expires on ${escapeHtml(date(d.expiresAt))}. It was sent to this address, and it can only be accepted by signing in with it.</p>`,
+    ctx.supportEmail,
+  );
+}
+
+export function purchaseConfirmedEmail(
+  ctx: TemplateContext,
+  d: {
+    customerName?: string | null;
+    coachName: string;
+    planTitle: string;
+    amountMinor: number;
+    currency: string;
+    recurring: boolean;
+    paidThrough?: string | null;
+    timezone?: string | null;
+  },
+): RenderedEmail {
+  return build(
+    `Your plan with ${d.coachName} is confirmed`,
+    `${greet(d.customerName)}
+<p>Your payment went through and your plan is active.</p>
+<table style="border-collapse:collapse;margin:16px 0">
+<tr><td style="padding:4px 16px 4px 0;color:${MUTED}">Coach</td><td>${escapeHtml(d.coachName)}</td></tr>
+<tr><td style="padding:4px 16px 4px 0;color:${MUTED}">Plan</td><td>${escapeHtml(d.planTitle)}</td></tr>
+<tr><td style="padding:4px 16px 4px 0;color:${MUTED}">Paid</td><td>${escapeHtml(money(d.amountMinor, d.currency))}${d.recurring ? " per month" : ""}</td></tr>
+${d.paidThrough ? `<tr><td style="padding:4px 16px 4px 0;color:${MUTED}">Paid through</td><td>${escapeHtml(date(d.paidThrough, d.timezone))}</td></tr>` : ""}
+</table>
+${d.recurring ? "<p>This plan renews monthly. You can cancel any time from your billing page; the time you've already paid for continues until its end date.</p>" : ""}
+${button(`${ctx.siteUrl}/account/billing`, "View billing")}`,
+    ctx.supportEmail,
+  );
+}
+
+export function newClientEmail(
+  ctx: TemplateContext,
+  d: { coachName?: string | null; planTitle: string; customerFirstName?: string | null },
+): RenderedEmail {
+  return build(
+    "You have a new client on TalentYak",
+    `${greet(d.coachName)}
+<p>${d.customerFirstName ? escapeHtml(d.customerFirstName) : "A new client"} has started your plan <strong>${escapeHtml(d.planTitle)}</strong>.</p>
+${button(`${ctx.siteUrl}/coach`, "Open your coach area")}`,
+    ctx.supportEmail,
+  );
+}
+
+export function paymentFailedEmail(
+  ctx: TemplateContext,
+  d: { customerName?: string | null; planTitle: string; paidThrough?: string | null; timezone?: string | null },
+): RenderedEmail {
+  return build(
+    "We couldn't take your renewal payment",
+    `${greet(d.customerName)}
+<p>Your renewal for <strong>${escapeHtml(d.planTitle)}</strong> didn't go through. Card providers sometimes decline payments for reasons that have nothing to do with you.</p>
+${d.paidThrough ? `<p>Your plan continues until ${escapeHtml(date(d.paidThrough, d.timezone))}, the end of the time you've already paid for. Nothing you've recorded has been lost.</p>` : ""}
+<p>You can update your payment details from your billing page.</p>
+${button(`${ctx.siteUrl}/account/billing`, "Update payment details")}`,
+    ctx.supportEmail,
+  );
+}
+
+export function subscriptionCancellingEmail(
+  ctx: TemplateContext,
+  d: { customerName?: string | null; planTitle: string; endsAt?: string | null; timezone?: string | null },
+): RenderedEmail {
+  return build(
+    "Your plan won't renew",
+    `${greet(d.customerName)}
+<p>Your plan <strong>${escapeHtml(d.planTitle)}</strong> is set to end${d.endsAt ? ` on ${escapeHtml(date(d.endsAt, d.timezone))}` : ""}. You won't be charged again.</p>
+<p>Cancelling isn't a refund, and it doesn't delete your account or your history.</p>
+${button(`${ctx.siteUrl}/account/billing`, "View billing")}`,
+    ctx.supportEmail,
+  );
+}
+
+export function subscriptionEndedEmail(
+  ctx: TemplateContext,
+  d: { customerName?: string | null; planTitle: string },
+): RenderedEmail {
+  return build(
+    "Your plan has ended",
+    `${greet(d.customerName)}
+<p>Your plan <strong>${escapeHtml(d.planTitle)}</strong> has ended. Your account and your history are still here.</p>
+${button(`${ctx.siteUrl}/coaches`, "Browse coaches")}`,
+    ctx.supportEmail,
+  );
+}
+
+export function refundProcessedEmail(
+  ctx: TemplateContext,
+  d: { customerName?: string | null; amountMinor: number; currency: string },
+): RenderedEmail {
+  return build(
+    "Your refund has been processed",
+    `${greet(d.customerName)}
+<p>We've refunded ${escapeHtml(money(d.amountMinor, d.currency))} to your original payment method. Banks usually take 5 to 10 business days to show it.</p>`,
+    ctx.supportEmail,
+  );
+}
+
+export function coachChangedCustomerEmail(
+  ctx: TemplateContext,
+  d: { customerName?: string | null; newCoachName: string; effectiveAt: string; timezone?: string | null },
+): RenderedEmail {
+  return build(
+    "Your coach change is confirmed",
+    `${greet(d.customerName)}
+<p>From ${escapeHtml(date(d.effectiveAt, d.timezone))}, your coach is <strong>${escapeHtml(d.newCoachName)}</strong>. Your plan and price haven't changed.</p>`,
+    ctx.supportEmail,
+  );
+}
+
+export function coachChangedPreviousCoachEmail(
+  ctx: TemplateContext,
+  d: { coachName?: string | null; effectiveAt: string },
+): RenderedEmail {
+  return build(
+    "A client has moved to another coach",
+    `${greet(d.coachName)}
+<p>At the client's request, one of your clients moved to another coach from ${escapeHtml(date(d.effectiveAt))}. Earnings for coaching you delivered remain yours.</p>`,
+    ctx.supportEmail,
+  );
+}
+
+export function coachChangedNewCoachEmail(
+  ctx: TemplateContext,
+  d: { coachName?: string | null; effectiveAt: string },
+): RenderedEmail {
+  return build(
+    "You have a new client on TalentYak",
+    `${greet(d.coachName)}
+<p>A client has moved to you from another coach, from ${escapeHtml(date(d.effectiveAt))}.</p>
+${button(`${ctx.siteUrl}/coach`, "Open your coach area")}`,
+    ctx.supportEmail,
+  );
+}
+
+export function payoutPaidEmail(
+  ctx: TemplateContext,
+  d: { coachName?: string | null; amountMinor: number; currency: string; paidAt: string; reference?: string | null },
+): RenderedEmail {
+  return build(
+    "A payout has been sent",
+    `${greet(d.coachName)}
+<p>A payout of ${escapeHtml(money(d.amountMinor, d.currency))} was recorded as sent on ${escapeHtml(date(d.paidAt))}. How long it takes to arrive depends on the transfer route.</p>
+${d.reference ? `<p>Transfer reference: <strong>${escapeHtml(d.reference)}</strong>. Quote this if you need to ask your bank or transfer service about it.</p>` : ""}
+${button(`${ctx.siteUrl}/coach/earnings`, "View earnings")}`,
+    ctx.supportEmail,
+  );
+}
+
+export function profileApprovedEmail(ctx: TemplateContext, d: { coachName?: string | null }): RenderedEmail {
+  return build(
+    "Your coach profile is approved",
+    `${greet(d.coachName)}
+<p>Your coach profile has been approved. You can now publish it, publish your plans, and choose when to accept new clients.</p>
+${button(`${ctx.siteUrl}/coach`, "Open your coach area")}`,
+    ctx.supportEmail,
+  );
+}
+
+export function adminAlertEmail(ctx: TemplateContext, d: { title: string; detail: string; path: string }): RenderedEmail {
+  return build(
+    `Needs attention: ${d.title}`,
+    `<p>${escapeHtml(d.detail)}</p>${button(`${ctx.siteUrl}${d.path}`, "Open the founder console")}`,
+    ctx.supportEmail,
+  );
+}
+
+export function retentionNoticeEmail(
+  ctx: TemplateContext,
+  d: { daysBefore: number; deletionDueAt: string; resourceLabel: string; timezone?: string | null },
+): RenderedEmail {
+  return build(
+    `Some of your TalentYak data is scheduled for deletion in ${d.daysBefore} day${d.daysBefore === 1 ? "" : "s"}`,
+    `${greet()}
+<p>Your ${escapeHtml(d.resourceLabel)} is scheduled to be deleted on ${escapeHtml(date(d.deletionDueAt, d.timezone))}, because it has passed the period we keep it for.</p>
+<p>If you'd like a copy first, you can request an export before that date.</p>
+${button(`${ctx.siteUrl}/account`, "Review your data")}`,
+    ctx.supportEmail,
+  );
+}

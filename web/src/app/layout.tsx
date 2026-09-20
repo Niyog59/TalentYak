@@ -1,38 +1,76 @@
-import type { Metadata } from "next";
-import { Inter, Noto_Serif_Devanagari } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import {
+  Atkinson_Hyperlegible_Next,
+  Newsreader,
+  Noto_Serif_Devanagari,
+} from "next/font/google";
 import "./globals.css";
+import { ConnectionStatus } from "@/components/pwa/connection-status";
+import { env } from "@/lib/env";
 
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
+// Interface and body text. Drawn for legibility at small sizes and on
+// low-quality screens, which matters for dense coaching and logging screens.
+const sans = Atkinson_Hyperlegible_Next({
+  variable: "--font-sans-src",
+  subsets: ["latin", "latin-ext"],
+  display: "swap",
 });
 
+// Public headings only. A warm editorial serif with optical sizing.
+const display = Newsreader({
+  variable: "--font-display-src",
+  subsets: ["latin", "latin-ext"],
+  axes: ["opsz"],
+  display: "swap",
+});
+
+// Kept for existing pages that render Devanagari. Not preloaded on every page.
 const devanagari = Noto_Serif_Devanagari({
-  variable: "--font-devanagari",
+  variable: "--font-devanagari-src",
   subsets: ["devanagari"],
   weight: ["400", "500"],
+  preload: false,
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(env.siteUrl),
+  applicationName: "TalentYak",
   title: {
-    default: "Ghartira — Some things must still happen at home",
-    template: "%s — Ghartira",
+    default: "TalentYak — Online coaching with Nepali fitness coaches",
+    template: "%s · TalentYak",
   },
   description:
-    "Ghartira connects Nepali families abroad with trusted professionals in Nepal — ancestral rites, coaching, and services handled back home on your behalf.",
-  icons: {
-    icon: [{ url: "/favicon-32.png", sizes: "32x32" }],
-    apple: [{ url: "/apple-touch-icon-180.png", sizes: "180x180" }],
+    "TalentYak is preparing online fitness coaching with independent Nepali coaches. Your coach builds your training plan; you follow it and track your progress.",
+  appleWebApp: {
+    capable: true,
+    title: "TalentYak",
+    statusBarStyle: "default",
   },
+  formatDetection: { telephone: false },
+};
+
+// The icons themselves come from the file conventions in this directory:
+// favicon.ico, icon.png and apple-icon.png. Next generates the link tags with
+// the correct type and size attributes, so none are declared by hand here.
+
+export const viewport: Viewport = {
+  themeColor: "#124f43",
+  colorScheme: "light",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${devanagari.variable} h-full antialiased`}
+      className={`${sans.variable} ${display.variable} ${devanagari.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="flex min-h-full flex-col">
+        <a href="#main" className="skip-link">
+          Skip to content
+        </a>
+        <ConnectionStatus />
+        {children}
+      </body>
     </html>
   );
 }

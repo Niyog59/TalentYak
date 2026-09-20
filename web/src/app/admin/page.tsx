@@ -1,70 +1,86 @@
 import Link from "next/link";
+import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { statusLabels, type BookingStatus } from "@/lib/bookings/status";
+import { PageHeader, Panel } from "@/components/ui/panel";
+import { evaluateLiveReadiness } from "@/lib/policy/live-gate";
+import { CURRENT_LEGAL } from "@/lib/legal";
+import { FULFILLMENT } from "@/lib/fulfillment";
+
+export const metadata = { title: "Overview" };
+
+async function count(query: PromiseLike<{ count: number | null }>) {
+  return (await query).count ?? 0;
+}
 
 export default async function AdminOverviewPage() {
-  const supabase = await createClient();
-  if (!supabase) return null;
-  const { data: bookings } = await supabase
-    .from("bookings")
-    .select("id, status, customer_name, customer_email, created_at, services(name)")
-    .order("created_at", { ascending: false })
-    .limit(10);
+  await requireAdmin("/admin");
+  const supabase = (await createClient())!;
+  const head = { count: "exact" as const, head: true };
 
-  const counts: Record<string, number> = {};
-  const { data: allStatuses } = await supabase.from("bookings").select("status");
-  for (const row of allStatuses ?? []) {
-    counts[row.status] = (counts[row.status] ?? 0) + 1;
-  }
+  const [review, photos, destinations, exceptions, jobs, events, changes, needsReview, activePurchases, openDisputes] = await Promise.all([
+    count(supabase.from("providers").select("id", head).in("status", ["submitted", "in_review"])),
+    count(supabase.from("provider_public_profiles").select("provider_id", head).not("photo_pending_path", "is", null)),
+    supabase.rpc("admin_payout_destinations", { p_provider_id: null }).then(({ data }) =>
+      ((data ?? []) as { review_state: string; superseded_at: string | null }[]).filter((d) => d.review_state === "pending_review" && !d.superseded_at).length,
+    ),
+    count(supabase.from("reconciliation_exceptions").select("id", head).in("state", ["open", "investigating"])),
+    count(supabase.from("outbox").select("id", head).in("state", ["failed", "blocked"])),
+    count(supabase.from("provider_events").select("id", head).eq("processing_state", "failed")),
+    count(supabase.from("coach_change_requests").select("id", head).eq("state", "requested")),
+    count(supabase.from("purchases").select("id", head).eq("requires_review", true)),
+    count(supabase.from("purchases").select("id", head).in("state", ["active", "cancelling", "past_due"])),
+    count(supabase.from("disputes").select("id", head).in("state", ["open", "under_review"])),
+  ]);
 
-  const statusOrder: BookingStatus[] = [
-    "requested",
-    "confirmed",
-    "scheduled",
-    "delivered",
-    "completed",
+  const tiles: { label: string; value: number; href: string; urgent?: boolean }[] = [
+    { label: "Coaches waiting for review", value: review, href: "/admin/coaches?status=submitted", urgent: review > 0 },
+    { label: "Photos to check", value: photos, href: "/admin/coaches#coaches", urgent: photos > 0 },
+    { label: "Payout details to check", value: destinations, href: "/admin/coaches#coaches", urgent: destinations > 0 },
+    { label: "Coach change requests", value: changes, href: "/admin/coach-changes", urgent: changes > 0 },
+    { label: "Open finance exceptions", value: exceptions, href: "/admin/finance", urgent: exceptions > 0 },
+    { label: "Purchases needing review", value: needsReview, href: "/admin/finance#review", urgent: needsReview > 0 },
+    { label: "Open card disputes", value: openDisputes, href: "/admin/finance#disputes", urgent: openDisputes > 0 },
+    { label: "Failed or blocked emails and jobs", value: jobs, href: "/admin/finance#jobs", urgent: jobs > 0 },
+    { label: "Stripe events that failed to process", value: events, href: "/admin/finance#events", urgent: events > 0 },
+    { label: "Active paid plans", value: activePurchases, href: "/admin/purchases" },
   ];
+
+  const readiness = evaluateLiveReadiness();
+  const unbuilt = Object.values(FULFILLMENT).filter((f) => !f.ready);
 
   return (
     <div>
-      <h1 className="font-display text-3xl">Overview</h1>
+      <PageHeader title="Overview">Things that need a person, first.</PageHeader>
 
-      <div className="mt-8 grid max-w-3xl grid-cols-5 gap-px border border-line bg-line">
-        {statusOrder.map((s) => (
-          <Link
-            key={s}
-            href={`/admin/bookings?status=${s}`}
-            className="bg-paper p-4 hover:bg-paper-raised"
-          >
-            <p className="font-display text-3xl">{counts[s] ?? 0}</p>
-            <p className="label mt-1 text-ink/50">{statusLabels[s]}</p>
-          </Link>
+      <ul className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {tiles.map((t) => (
+          <li key={t.label}>
+            <Link
+              href={t.href}
+              className={`block rounded-xl border p-4 hover:border-ink ${t.urgent ? "border-brand bg-brand-tint" : "border-line bg-surface"}`}
+            >
+              <span className="block font-display text-3xl">{t.value}</span>
+              <span className="mt-1 block">{t.label}</span>
+            </Link>
+          </li>
         ))}
-      </div>
-
-      <h2 className="label mt-12 mb-4 text-ink/50">Latest bookings</h2>
-      <ul className="max-w-3xl">
-        {(bookings ?? []).map((b) => {
-          const service = Array.isArray(b.services) ? b.services[0] : b.services;
-          return (
-            <li key={b.id} className="rule first:border-t-0">
-              <Link
-                href={`/admin/bookings/${b.id}`}
-                className="flex items-baseline justify-between gap-4 py-3 hover:text-terracotta"
-              >
-                <span className="font-sans text-sm">
-                  {(service as { name: string } | null)?.name ?? b.id.slice(0, 8)}
-                  <span className="text-ink/50"> · {b.customer_name ?? b.customer_email}</span>
-                </span>
-                <span className="label text-ink/50">{b.status}</span>
-              </Link>
-            </li>
-          );
-        })}
-        {(bookings ?? []).length === 0 && (
-          <p className="text-sm text-ink/60">No bookings yet.</p>
-        )}
       </ul>
+
+      <Panel title="Can TalentYak take real money yet?" id="live">
+        <p className="font-semibold">No.</p>
+        <p className="mt-1 text-ink-muted">Every item below must be resolved first. Approving policies alone does not open this.</p>
+        <ul className="mt-3 list-disc space-y-1 pl-6">
+          {readiness.blockers.map((b) => (
+            <li key={b}>{b}</li>
+          ))}
+          {!CURRENT_LEGAL.approved ? <li>Terms of service and privacy notice are drafts.</li> : null}
+          {unbuilt.map((f) => (
+            <li key={f.label}>
+              Not built yet: {f.label} ({f.module}). Plans that include it can&rsquo;t be sold for real money.
+            </li>
+          ))}
+        </ul>
+      </Panel>
     </div>
   );
 }
