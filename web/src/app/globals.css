@@ -1,37 +1,94 @@
 @import "tailwindcss";
 
 /*
- * Ghartira design tokens — editorial / heritage system.
- * Paper cream, indigo ink, terracotta accent. No gradients, no shadows.
+ * TalentYak design tokens.
+ *
+ * Restrained warm-neutral near-white ground, charcoal text, forest green for
+ * action, restrained terracotta as a graphic accent. Every text pairing below
+ * was measured against --paper for WCAG 2.2 contrast.
+ *
+ * Two values are not free choices:
+ *
+ * --surface is pure white because the approved horizontal logo is a raster
+ * file with an OPAQUE white background. On any other ground it shows as a
+ * rectangle, which the brand pack explicitly forbids. The public header uses
+ * --surface for that reason.
+ *
+ * --brand-deep is #0f5546, sampled directly from the dark horizontal logo file
+ * so that artwork's opaque green background meets the surrounding surface
+ * invisibly. Do not "tidy" it toward --brand; they are different jobs.
+ *
+ * Legacy names (terracotta, ink-deep, label, rule) are kept on purpose so the
+ * existing founder and coach pages pick up the palette without being rewritten.
  */
 :root {
-  --paper: #f5f3ef;
-  --ink: #1b2a4a;
-  --ink-deep: #12203a;
-  --terracotta: #b8734a;
-  --terracotta-dark: #9d5f3b;
-  --line: #ddd6cb;
-  --paper-raised: #efece5;
+  --paper: #fcfcfa; /* page ground */
+  --paper-raised: #f2f1ec; /* quiet panels */
+  --surface: #ffffff; /* cards, inputs, and the logo's own ground */
+
+  --ink: #182b2a; /* body text — 14.2:1 */
+  --ink-muted: #556563; /* secondary text — 5.9:1 */
+  --ink-deep: #0f1e1d;
+
+  --brand: #124f43; /* primary actions and links — 9.0:1 */
+  --brand-strong: #0d3b32; /* hover and pressed */
+  --brand-deep: #0f5546; /* large green surfaces; matches the dark logo file */
+  --brand-tint: #e5eeeb; /* selected and highlighted backgrounds */
+
+  --accent: #b4592f; /* graphic accent only, never small text */
+  --accent-text: #a34e28; /* terracotta used as text — 5.3:1 */
+  --accent-tint: #f7e9e0; /* sample-data notices */
+  --terracotta: #a34e28; /* legacy alias */
+  --terracotta-dark: #8f4f2c; /* legacy alias */
+
+  --line: #ddd6cb; /* decorative dividers only */
+  --line-strong: #8e8778; /* form-control borders — 3.3:1 */
+
+  --danger: #9b2c22; /* errors — 7.0:1 */
+  --danger-tint: #f6e4e0;
+  --success: #1f6a3a; /* confirmed saves only — 6.1:1 */
+
+  --focus: #124f43;
 }
 
 @theme inline {
   --color-paper: var(--paper);
   --color-paper-raised: var(--paper-raised);
+  --color-surface: var(--surface);
   --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
   --color-ink-deep: var(--ink-deep);
+  --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
+  --color-brand-deep: var(--brand-deep);
+  --color-brand-tint: var(--brand-tint);
+  --color-accent: var(--accent);
+  --color-accent-text: var(--accent-text);
+  --color-accent-tint: var(--accent-tint);
   --color-terracotta: var(--terracotta);
   --color-terracotta-dark: var(--terracotta-dark);
   --color-line: var(--line);
-  --font-display: var(--font-inter);
-  --font-serif: var(--font-inter);
-  --font-sans: var(--font-inter);
-  --font-devanagari: var(--font-devanagari);
+  --color-line-strong: var(--line-strong);
+  --color-danger: var(--danger);
+  --color-danger-tint: var(--danger-tint);
+  --color-success: var(--success);
+
+  --font-sans: var(--font-sans-src), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-display-src), ui-serif, Georgia, serif;
+  --font-serif: var(--font-display-src), ui-serif, Georgia, serif;
+  --font-devanagari: var(--font-devanagari-src), serif;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
   background: var(--paper);
   color: var(--ink);
-  font-family: var(--font-inter), system-ui, sans-serif;
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -39,17 +96,63 @@ h1,
 h2,
 h3,
 h4 {
-  font-family: var(--font-inter), system-ui, sans-serif;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
 }
 
-/* Letterspaced small-caps label, used for prices, nav, section markers */
+p {
+  text-wrap: pretty;
+}
+
+/* Never let a form control fall below 16px — below that, iOS zooms the page. */
+input,
+select,
+textarea {
+  font-size: max(1rem, 16px);
+}
+
+/* One visible focus style everywhere. Outlines follow each element's radius. */
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Teal focus rings disappear on charcoal; dark sections switch to ivory. */
+.on-dark :focus-visible {
+  outline-color: var(--paper);
+}
+
+::selection {
+  background: var(--brand-tint);
+  color: var(--ink);
+}
+
+.skip-link {
+  position: absolute;
+  left: 1rem;
+  top: -4rem;
+  z-index: 100;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  background: var(--ink);
+  color: var(--paper);
+  font-weight: 600;
+}
+.skip-link:focus {
+  top: 1rem;
+}
+
+/* Numbers that sit in columns — prices, weights, times. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Legacy: letterspaced label used by the existing founder and coach pages. */
 .label {
-  font-family: var(--font-inter), sans-serif;
   text-transform: uppercase;
-  letter-spacing: 0.14em;
-  font-size: 0.72rem;
-  font-weight: 500;
+  letter-spacing: 0.12em;
+  font-size: 0.75rem;
+  font-weight: 600;
 }
 
 .rule {
@@ -57,5 +160,16 @@ h4 {
 }
 
 .devanagari {
-  font-family: var(--font-devanagari), serif;
+  font-family: var(--font-devanagari);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
