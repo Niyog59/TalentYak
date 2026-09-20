@@ -1,0 +1,31 @@
+-- Prelude · Remove the stray signup trigger left by the same starter template.
+--
+-- `0000_clear_stray_profiles.sql` dropped the template's `profiles` table, but a
+-- trigger lives on the table it fires FOR, not the table it writes TO. So
+-- `on_auth_user_created` on `auth.users` survived the cascade, still pointing at
+-- `public.handle_new_user()`, which still tries to insert into a table that no
+-- longer exists. In that state **every signup would fail**.
+--
+-- 0001 creates its own trigger of the same name, and a bare CREATE TRIGGER on an
+-- existing name is an error — which is exactly how this was found.
+--
+-- Written as a separate file rather than an edit to 0000, because 0000 has
+-- already been applied. Editing an applied migration leaves the database and the
+-- repository disagreeing, and the runner refuses it by checksum. A follow-up is
+-- the honest fix.
+--
+-- Sorts between 0000 and 0001: '_' (0x5F) sorts before 'a' (0x61), and 'a'
+-- sorts before '1'.
+--
+-- **`public.rls_auto_enable()` is deliberately left alone.** It is an event
+-- trigger that switches on row-level security for every table created in the
+-- public schema. It does not conflict with anything here — every table in this
+-- project enables RLS explicitly in its own migration — and it is a useful
+-- backstop against a future table shipping without it. Removing a working
+-- safety net because it was not in our migrations would be the wrong instinct.
+
+drop trigger if exists on_auth_user_created on auth.users;
+
+-- The function itself is NOT dropped here. 0001 replaces it with
+-- `create or replace function handle_new_user()`, which keeps the correct
+-- version's ownership and permissions without a drop-and-recreate gap.
