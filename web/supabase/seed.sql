@@ -1,3 +1,23 @@
+-- ===========================================================================
+-- DO NOT RUN THIS FILE AGAINST ANY ENVIRONMENT.  Retained as history only.
+-- ===========================================================================
+--
+-- The `services` rows below are the old platform-defined packages — fixed
+-- prices ($49, $99/month, $159/month) and copy claiming "certified Nepali
+-- coaches" and "messaging". All of it has been retired by founder decision:
+--
+--   · coaches set their own prices, no platform package   (AAF-PLAN-01, SUP-01)
+--   · the fixed prices are superseded                     (SUP-05)
+--   · no claim may be made that is not verified or built  (invariant 9)
+--
+-- The `verticals` rows moved to migration 0014_reference_verticals.sql, because
+-- every environment needs them and a seed file is optional. They were also
+-- rewritten there without the unverified claims.
+--
+-- Kept rather than deleted under the node protection rule, so the history of
+-- what was once planned stays readable.
+-- ===========================================================================
+
 -- Catalog seed: mirrors src/verticals/*/catalog.ts.
 -- Idempotent — safe to re-run.
 
