@@ -1,6 +1,8 @@
 # M03–M07 — status of record
 
-**Written 2026-09-18 (UTC). This file replaces every earlier status note for this batch.** Where an older document, a checkpoint, or a chat summary disagrees with this file, this file is the one that was checked against the running system.
+**Written 2026-09-18 (UTC), amended 2026-09-20. This file replaces every earlier status note for this batch.** Where an older document, a checkpoint, or a chat summary disagrees with this file, this file is the one that was checked against the running system.
+
+**What changed on 2026-09-20.** The batch was committed, pushed and deployed, and the four things this file listed as blocked are no longer blocked: email sends, Google sign-in works, the redirect configuration is correct, and a real Stripe test event reaches the deployed application. Struck-through lines below are kept rather than deleted, so the record shows what was true when it was written. No code changed on that date; the work was configuration and verification.
 
 Each module below states five things, and nothing else is implied:
 
@@ -83,8 +85,8 @@ Test accounts are synthetic, created for this run, and named `talentyak-test-…
 **Not done.** Nothing in scope.
 
 **Blocked on.**
-- **Google sign-in is not enabled in the Supabase project**, so the button cannot succeed yet (founder checklist item 3).
-- **Supabase's redirect allowlist does not include `talentyak.com`**, so confirmation and reset links would return to localhost (founder checklist item 4).
+- ~~Google sign-in is not enabled in the Supabase project.~~ **Resolved 2026-09-20.** The provider is enabled, the authorisation handoff to Google was verified, and the button is live on sign-in and sign-up.
+- ~~Supabase's redirect allowlist does not include `talentyak.com`.~~ **Resolved 2026-09-20.** The allowlist carries `https://www.talentyak.com/**` and the Site URL was corrected from `http://localhost:3000`, which had been silently breaking every link an auth email would have carried.
 - Password sign-in was exercised through the API rather than typed into the browser form in this session, because I do not type credentials into forms. The form itself was checked earlier in the batch with a deliberately wrong password (refused neutrally) and a correct one (signed in).
 
 ---
@@ -165,17 +167,17 @@ Test accounts are synthetic, created for this run, and named `talentyak-test-…
 
 **Not done.** Retention notices exist as contracts with destructive execution switched off — deliberately, and it stays off in this batch.
 
-**Blocked on.** **Resend's sending domain is not verified and `EMAIL_FROM` is empty**, so every real email would be `blocked` rather than sent. The system says so on screen rather than pretending (founder checklist item 1).
+**Blocked on.** ~~Resend's sending domain is not verified and `EMAIL_FROM` is empty.~~ **Resolved 2026-09-20.** The domain is verified, `EMAIL_FROM` is set, and a job queued into the outbox was carried all the way out by the *deployed* worker: `state=done`, `sent=true`, delivery row `accepted` with a provider message id. Supabase Auth's own SMTP was pointed at Resend separately on the same day.
 
 ---
 
 ## Known limitations, stated plainly
 
-1. **No email can be delivered yet.** Sending is unconfigured; the console shows blocked jobs instead of claiming success.
-2. **Google sign-in cannot succeed yet.** The provider is not enabled in Supabase.
-3. **Nothing is deployed.** There is no public URL, so Stripe cannot deliver webhooks to a real endpoint yet; locally this was proven with a relay of real test events.
+1. ~~No email can be delivered yet.~~ **Resolved 2026-09-20.** App email and Supabase Auth email both send through Resend. `SUPPORT_EMAIL` is still empty, so outgoing mail carries no reply address.
+2. ~~Google sign-in cannot succeed yet.~~ **Resolved 2026-09-20.**
+3. ~~Nothing is deployed.~~ **Resolved 2026-09-20.** `https://www.talentyak.com` serves the app from Vercel, the apex redirects to www, and Stripe's test webhook delivers there: a payment event created at the API reached the deployed endpoint in three seconds, its signature was verified, and — matching no checkout of ours — it was recorded `ignored` rather than invented into the ledger.
 4. **Live payments are refused** by the gate, which needs approved policies, final legal documents, and deliverable promises.
 5. **The test project holds synthetic data** from this batch's tests, including coaches and purchases. Production must be a separate, clean project, recreated from `supabase/migrations/` (see `docs/operations/database-and-migrations.md`).
 6. **The keyboard `Enter` key could not be confirmed** as submitting a form through my browser automation; the forms are ordinary forms with a submit button, which browsers submit on Enter, but this was not proven with a real keypress.
 7. **A coach's credential evidence has no upload screen yet**, only database support and the founder's review view.
-8. **The Supabase access token** created for applying migrations is still in `web/.env.local`. Nothing in the running application uses it (founder checklist item 5).
+8. **Three access tokens are still live and should be revoked** (founder checklist item 5): the Supabase database token in `web/.env.local`, a Vercel token in `~/.talentyak-vercel-token`, and a Supabase personal access token in `~/.talentyak-supabase-pat`. Nothing in the running application uses any of them.

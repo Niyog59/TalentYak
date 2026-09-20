@@ -1,8 +1,23 @@
 # What only you can do
 
-**Updated 2026-09-18.** Everything on this list needs your identity, your login, your money, or a decision that is yours to make. Everything that did not is already done and checked.
+**Updated 2026-09-20.** Everything on this list needs your identity, your login, your money, or a decision that is yours to make. Everything that did not is already done and checked.
 
 Ordered so each step unblocks the next. **Items 1 to 4 are what stand between today and letting a real person use this.** Items 8 to 11 are the ones that stand between that and taking real money.
+
+### Where this list stands on 2026-09-20
+
+| Item | State |
+|---|---|
+| 1. Make email work | **Done.** Domain verified; app email and Supabase Auth email both send through Resend |
+| 2. A mailbox a person reads | **Outstanding.** `SUPPORT_EMAIL` is empty, so mail carries no reply address |
+| 3. Turn on Google sign-in | **Done.** Verified end to end |
+| 4. Add the site addresses to Supabase | **Done.** Allowlist and Site URL corrected |
+| 5. Revoke the database token | **Outstanding**, and now also a Vercel token (`~/.talentyak-vercel-token`) and a Supabase personal access token (`~/.talentyak-supabase-pat`) |
+| 6. Deploy, connect Stripe's webhook | **Done.** Live at `www.talentyak.com`; a real test event reached it and was handled correctly |
+| 7. Make one test purchase yourself | **Outstanding.** The only step I cannot do — it needs card details typed into Stripe's page |
+| 8–11. Money rules, payout route, legal, business accounts | **Outstanding.** All decisions, none of them mine |
+
+Items 1, 3, 4 and 6 below are kept for the record of what was done, not as things still to do.
 
 Throughout: **never paste a secret into a chat.** Put it where it belongs and tell me it is there.
 
@@ -149,9 +164,9 @@ http://localhost:3001/auth/callback
 
 ## What I have not done, and why
 
-- **Nothing is committed or pushed.** Your rules say stop before committing; the work is sitting in the project folder, ready for you to review.
-- **Nothing is deployed.**
-- **No real money has moved**, and no real card was ever entered anywhere.
-- **No email reached anybody.** Test accounts use a reserved address that cannot receive mail.
+- ~~Nothing is committed or pushed.~~ Committed and pushed to `Niyog59/TalentYak` on 2026-09-19, with your authorisation.
+- ~~Nothing is deployed.~~ Deployed to Vercel on 2026-09-19 as a test deployment.
+- **No real money has moved**, and no real card was ever entered anywhere. Stripe remains in test mode, the live-billing gate is shut, and the Stripe account has not submitted business details.
+- **No email has reached a person.** Sending now works and is proven, but every address used in testing is either a reserved test domain or Resend's discard sink.
 - **I have not edited `docs/HANDOVER.md`** — it is yours.
 - **No account, subscription or paid service was created.**

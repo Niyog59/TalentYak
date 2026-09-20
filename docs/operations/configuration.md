@@ -1,6 +1,6 @@
 # Configuration
 
-**Updated 2026-09-18.** Variable names and non-secret values only. **No real secret appears in this file, and none may be added to it.**
+**Updated 2026-09-20.** Variable names and non-secret values only. **No real secret appears in this file, and none may be added to it.**
 
 ## 0. What is actually configured today
 
@@ -8,12 +8,15 @@
 |---|---|
 | Supabase (hosted project, used as the **test** environment) | Working. 30 migrations applied |
 | Stripe | Working, **test mode only**. Checkout, webhook, refunds and disputes exercised |
-| Stripe webhook secret | A **local relay value** only (see §7). The deployed endpoint will have its own |
-| Resend | API key present, **sending domain not verified, `EMAIL_FROM` empty** → every email is recorded as `blocked`, not sent |
-| Google sign-in | **Not enabled** in Supabase. The button exists and cannot succeed yet |
-| Supabase redirect allowlist | Localhost only. `talentyak.com` **not** listed |
-| Deployment | **None.** No public URL exists |
-| Live payments | Refused by the gate (§5) |
+| Stripe webhook secret | Deployed endpoint `we_1UHZwi…` at `https://www.talentyak.com/api/webhooks/stripe`, 23 events, its own signing secret. §7's relay value remains local-only |
+| Resend (app email) | Working. Domain verified, `EMAIL_FROM` set to `TalentYak <notifications@talentyak.com>`. Proven end to end through the deployed worker |
+| Supabase Auth email | Working. Custom SMTP through Resend (§4). Username is the literal word `resend`, port 587 |
+| Google sign-in | **Enabled.** Authorisation handoff verified, button live on sign-in and sign-up |
+| Supabase redirect allowlist | `https://www.talentyak.com/**` plus `http://localhost:3001/**` for development |
+| Supabase Site URL | `https://www.talentyak.com` — auth email links are built from this |
+| Deployment | Vercel project `talentyak`, root `web/`. `www.talentyak.com` serves it; apex redirects to www; `talentyak.vercel.app` preserved |
+| Live payments | Refused by the gate (§5). The Stripe account has not submitted business details either |
+| `SUPPORT_EMAIL` | **Still empty** — outgoing email carries no reply address |
 
 Actual values live in `web/.env.local`, which is gitignored. If a value ever reaches a commit, a log, a screenshot, or a chat message, it is **rotated, not excused**.
 
@@ -68,9 +71,21 @@ They are configured in different places and neither implies the other.
 | | Sends | Configured where |
 |---|---|---|
 | **App transactional email** | Booking confirmations, reminders, recording delivery | `RESEND_API_KEY` + `EMAIL_FROM` in this app's environment |
-| **Supabase Auth email** | Sign-up confirmation, password reset, magic links | **Supabase dashboard → Authentication → SMTP Settings.** Resend's SMTP credentials go here, separately |
+| **Supabase Auth email** | Sign-up confirmation, password reset, magic links | **Supabase dashboard → Authentication → Emails → SMTP Settings.** Resend's SMTP credentials go here, separately |
 
-Setting the app's Resend key does **not** configure Supabase Auth's SMTP. Until the dashboard SMTP is set, auth mail goes through Supabase's shared sender, which is heavily rate-limited and not suitable for real users.
+Setting the app's Resend key does **not** configure Supabase Auth's SMTP. Without the dashboard SMTP, auth mail goes through Supabase's shared sender, which is heavily rate-limited and not suitable for real users.
+
+Both are now pointed at Resend. The settings that work, recorded because two of them are easy to get wrong:
+
+| Field | Value |
+|---|---|
+| Host | `smtp.resend.com` |
+| Port | `587` |
+| **Username** | **`resend`** — the literal word, not a mailbox address |
+| Password | the Resend API key (the same one the app uses) |
+| Sender | `notifications@talentyak.com`, name `TalentYak` |
+
+A mailbox address in the username field fails with a bare `500 Error sending recovery email`, which names neither the field nor the cause. **Supabase's Site URL is what auth email links are built from** — if it points at localhost, every confirmation link in every email is dead, and nothing in the send path reports a problem.
 
 **A sending address is not a receiving mailbox.** `notifications@talentyak.com` can send without anyone being able to read replies to it. Do not promise a reply reaches someone unless a real inbox exists.
 
