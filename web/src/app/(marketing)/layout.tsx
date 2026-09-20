@@ -9,7 +9,9 @@ export default function MarketingLayout({
   return (
     <>
       <SiteNav />
-      <main className="flex-1">{children}</main>
+      <main id="main" className="flex-1">
+        {children}
+      </main>
       <SiteFooter />
     </>
   );

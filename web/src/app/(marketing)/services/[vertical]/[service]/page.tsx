@@ -49,12 +49,12 @@ export default async function ServiceDetailPage({
           </p>
 
           <div className="rule mt-10 pt-8">
-            <p className="label mb-3 text-ink/50">Included in every booking</p>
+            <p className="label mb-3 text-ink/50">How TalentYak works</p>
             <ul className="max-w-xl space-y-2 text-sm leading-relaxed text-ink/80">
-              <li>A named coordinator you can reach directly, in Nepali or English</li>
-              <li>Confirmation before anything is scheduled — no surprises</li>
-              <li>Recordings and documentation are always included, never an upsell</li>
-              <li>If anything is not done right, we make it right</li>
+              <li>You see the full price, in its currency, before you pay anything</li>
+              <li>You see exactly what a plan includes — and what it does not</li>
+              <li>Support in Nepali or English, from TalentYak rather than only your coach</li>
+              <li>If something is not right, ask us and we will sort it out</li>
             </ul>
           </div>
         </div>

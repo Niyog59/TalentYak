@@ -1,6 +1,6 @@
 import "server-only";
 import type { Vertical, Service, IntakeSchema } from "@/lib/catalog/types";
-import { getModules, getModule } from "@/verticals/registry";
+import { getModules, getModule, isPublicVertical } from "@/verticals/registry";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/env";
 
@@ -120,6 +120,27 @@ export async function getService(serviceId: string): Promise<Service | null> {
     if (found) return found;
   }
   return null;
+}
+
+/* ------------------------------------------------------------------ */
+/* Public reads — only verticals open at launch (see registry).        */
+/* Public pages must use these, never the unfiltered reads above.      */
+/* ------------------------------------------------------------------ */
+
+export async function getPublicVerticals(): Promise<Vertical[]> {
+  return (await getVerticals()).filter((v) => isPublicVertical(v.slug));
+}
+
+export async function getPublicVertical(slug: string): Promise<Vertical | null> {
+  if (!isPublicVertical(slug)) return null;
+  return getVertical(slug);
+}
+
+/** A service is public only if its vertical is open at launch. */
+export async function getPublicService(serviceId: string): Promise<Service | null> {
+  const service = await getService(serviceId);
+  if (!service || !isPublicVertical(service.verticalSlug)) return null;
+  return service;
 }
 
 export function getIntakeSchema(serviceId: string): IntakeSchema | null {

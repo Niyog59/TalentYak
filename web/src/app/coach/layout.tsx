@@ -1,54 +1,47 @@
-import Link from "next/link";
-import Image from "next/image";
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import type { Metadata } from "next";
+import { requireCoach } from "@/lib/auth";
 import { isSupabaseConfigured } from "@/lib/env";
+import { Logo } from "@/components/brand/logo";
+import { AppShell } from "@/components/shell/app-shell";
+import { coachNav } from "@/components/shell/nav";
+import { PROVIDER_STATUS_LABEL } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-/** Coach dashboard: for signed-in users with a provider record. */
-export default async function CoachLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export const metadata: Metadata = {
+  title: { default: "Coach area", template: "%s · Coach · TalentYak" },
+  robots: { index: false },
+};
+
+/** Coach area: signed in, onboarded, with a coach record that is not retired. */
+export default async function CoachLayout({ children }: { children: React.ReactNode }) {
   if (!isSupabaseConfigured()) {
     return (
-      <div className="mx-auto max-w-xl px-6 py-24">
-        <h1 className="font-display text-2xl">Coach dashboard</h1>
-        <p className="mt-4 text-sm text-ink/70">
-          Not available yet — Supabase is not configured.
-        </p>
-      </div>
+      <main id="main" className="mx-auto flex w-full max-w-xl flex-1 flex-col justify-center px-6 py-20">
+        <Logo className="self-start text-2xl" />
+        <h1 className="mt-12 font-display text-4xl">Coach area</h1>
+        <p className="mt-3 text-ink-muted">This area needs the database to be connected.</p>
+      </main>
     );
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase!.auth.getUser();
-  if (!user) redirect("/account/sign-in");
-
-  const { data: provider } = await supabase!
-    .from("providers")
-    .select("id, display_name")
-    .eq("profile_id", user.id)
-    .maybeSingle();
-  if (!provider) redirect("/account");
+  const session = await requireCoach("/coach");
+  const { provider } = session;
+  const suspended = provider.status === "suspended" || Boolean(provider.suspended_at);
 
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-line bg-paper-raised">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-          <Link href="/coach" className="flex items-center gap-2">
-            <Image src="/logo/ghartira-mark.svg" alt="" width={24} height={24} />
-            <span className="font-display">Ghartira</span>
-            <span className="label text-ink/40">coach</span>
-          </Link>
-          <p className="font-sans text-sm text-ink/60">{provider.display_name}</p>
-        </div>
-      </header>
-      <main className="mx-auto max-w-5xl px-6 py-10">{children}</main>
-    </div>
+    <AppShell
+      nav={coachNav("/coach", { clientsIndex: true, extras: true })}
+      identity={{ name: provider.display_name, detail: PROVIDER_STATUS_LABEL[provider.status] ?? "Coach" }}
+      banner={
+        suspended ? (
+          <p role="alert" className="bg-danger-tint px-4 py-3 text-center font-medium">
+            Your coach account is suspended. Your profile is hidden and you can&rsquo;t take new clients. Contact TalentYak support for details.
+          </p>
+        ) : null
+      }
+    >
+      {children}
+    </AppShell>
   );
 }

@@ -1,162 +1,86 @@
-import { revalidatePath } from "next/cache";
+import Link from "next/link";
+import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { isAdmin } from "@/lib/auth";
-import { ButtonLink, Button } from "@/components/button";
+import { ActionForm } from "@/components/form/action-form";
+import { SelectField, SubmitButton, TextField } from "@/components/form/fields";
+import { DataTable, Notice, PageHeader, Panel } from "@/components/ui/panel";
+import { formatDate, formatMinor } from "@/lib/format";
+import { CHARGE_CURRENCIES } from "@/lib/payments/currencies";
+import { prepareBatchAction } from "../actions";
 
-interface LedgerRow {
-  id: string;
-  provider_id: string | null;
-  provider_share_cents: number;
-  platform_share_cents: number;
-  gross_cents: number;
-  rule: string;
-  status: string;
-  providers: { display_name: string; payout_reference: string | null } | null;
-}
+export const metadata = { title: "Payouts" };
+
+const BATCH_STATE: Record<string, string> = {
+  prepared: "Prepared — not sent",
+  exported: "File downloaded — NOT paid",
+  submitted: "Sent to transfer service — confirm each transfer",
+  paid: "All transfers recorded as paid",
+  failed: "Has failed transfers",
+  cancelled: "Cancelled",
+};
 
 export default async function AdminPayoutsPage() {
-  const supabase = await createClient();
-  if (!supabase) return null;
+  await requireAdmin("/admin/payouts");
+  const supabase = (await createClient())!;
+  const [{ data: batches }, { data: balances }] = await Promise.all([
+    supabase.from("payout_batches").select("id, label, state, currency, total_minor, created_at, exported_at, submitted_at").not("currency", "is", null).order("created_at", { ascending: false }).limit(50),
+    supabase.from("coach_balances").select("currency, eligible_minor, held_minor, pending_minor"),
+  ]);
 
-  const { data: pendingRaw } = await supabase
-    .from("payout_ledger")
-    .select(
-      "id, provider_id, provider_share_cents, platform_share_cents, gross_cents, rule, status, providers(display_name, payout_reference)",
-    )
-    .eq("status", "pending");
-
-  const pending = (pendingRaw ?? []).map((r) => ({
-    ...r,
-    providers: Array.isArray(r.providers) ? r.providers[0] : r.providers,
-  })) as LedgerRow[];
-
-  const { data: batches } = await supabase
-    .from("payout_batches")
-    .select("id, label, exported_at, notes")
-    .order("created_at", { ascending: false })
-    .limit(12);
-
-  // Group pending by provider.
-  const byProvider = new Map<
-    string,
-    { name: string; ref: string | null; total: number; count: number }
-  >();
-  let unassignedTotal = 0;
-  for (const row of pending) {
-    if (!row.provider_id) {
-      unassignedTotal += row.provider_share_cents;
-      continue;
-    }
-    const key = row.provider_id;
-    const entry = byProvider.get(key) ?? {
-      name: row.providers?.display_name ?? key.slice(0, 8),
-      ref: row.providers?.payout_reference ?? null,
-      total: 0,
-      count: 0,
-    };
-    entry.total += row.provider_share_cents;
-    entry.count += 1;
-    byProvider.set(key, entry);
+  const totals = new Map<string, { eligible: number; held: number; pending: number }>();
+  for (const b of balances ?? []) {
+    const t = totals.get(b.currency) ?? { eligible: 0, held: 0, pending: 0 };
+    t.eligible += Number(b.eligible_minor);
+    t.held += Number(b.held_minor);
+    t.pending += Number(b.pending_minor);
+    totals.set(b.currency, t);
   }
-
-  async function markBatchPaid(formData: FormData) {
-    "use server";
-    if (!(await isAdmin())) return;
-    const admin = createAdminClient();
-    if (!admin) return;
-    const batchId = String(formData.get("batch_id"));
-    await admin
-      .from("payout_ledger")
-      .update({ status: "paid" })
-      .eq("batch_id", batchId)
-      .eq("status", "exported");
-    await admin
-      .from("payout_batches")
-      .update({ notes: "Paid" })
-      .eq("id", batchId);
-    revalidatePath("/admin/payouts");
-  }
+  const today = new Date().toISOString().slice(0, 10);
 
   return (
-    <div className="max-w-4xl">
-      <h1 className="font-display text-3xl">Payouts</h1>
-      <p className="mt-2 max-w-xl font-sans text-sm text-ink/60">
-        Provider earnings accrue per payment via each vertical&rsquo;s payout
-        rule. Export a Payoneer CSV monthly; mark the batch paid once
-        transfers clear.
-      </p>
+    <div>
+      <PageHeader title="Payouts">
+        Preparing a batch reserves coaches&rsquo; ready earnings so they can&rsquo;t be paid twice. Downloading the file does not pay anyone.
+        A coach is shown as paid only when you record the transfer reference.
+      </PageHeader>
 
-      <section className="mt-10">
-        <div className="flex items-baseline justify-between">
-          <h2 className="label text-ink/50">Pending by provider</h2>
-          {byProvider.size > 0 && (
-            <ButtonLink href="/admin/payouts/export" variant="secondary">
-              Export Payoneer CSV
-            </ButtonLink>
-          )}
-        </div>
-        {byProvider.size > 0 ? (
-          <table className="mt-4 w-full border-collapse font-sans text-sm">
-            <thead>
-              <tr className="border-b border-line text-left">
-                <th className="label py-3 pr-4 font-medium text-ink/50">Provider</th>
-                <th className="label py-3 pr-4 font-medium text-ink/50">Payoneer ref</th>
-                <th className="label py-3 pr-4 font-medium text-ink/50">Entries</th>
-                <th className="label py-3 text-right font-medium text-ink/50">Owed</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[...byProvider.values()].map((p) => (
-                <tr key={p.name} className="border-b border-line">
-                  <td className="py-3 pr-4">{p.name}</td>
-                  <td className="py-3 pr-4 text-ink/60">{p.ref ?? "missing"}</td>
-                  <td className="py-3 pr-4 text-ink/60">{p.count}</td>
-                  <td className="py-3 text-right">${(p.total / 100).toFixed(2)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <p className="mt-4 text-sm text-ink/60">Nothing pending.</p>
-        )}
-        {unassignedTotal > 0 && (
-          <p className="mt-3 text-sm text-terracotta-dark">
-            ${(unassignedTotal / 100).toFixed(2)} in provider shares has no
-            provider assigned — assign providers on those bookings before
-            exporting.
-          </p>
-        )}
-      </section>
+      <Notice>
+        No transfer service has been confirmed for paying coaches in Nepal. TalentYak does not send money itself: you make each transfer in
+        the service you choose, then record it here.
+      </Notice>
 
-      <section className="mt-12">
-        <h2 className="label text-ink/50">Batches</h2>
-        <ul className="mt-4 font-sans text-sm">
-          {(batches ?? []).map((b) => (
-            <li key={b.id} className="rule flex items-center justify-between py-3 first:border-t-0">
-              <span>
-                {b.label}
-                <span className="text-ink/50">
-                  {" "}
-                  · exported {b.exported_at ? new Date(b.exported_at).toLocaleDateString() : "—"}
-                  {b.notes === "Paid" && " · paid"}
-                </span>
-              </span>
-              {b.notes !== "Paid" && (
-                <form action={markBatchPaid}>
-                  <input type="hidden" name="batch_id" value={b.id} />
-                  <Button variant="link" type="submit">
-                    Mark paid
-                  </Button>
-                </form>
-              )}
-            </li>
-          ))}
-          {(batches ?? []).length === 0 && (
-            <p className="text-sm text-ink/60">No batches yet.</p>
-          )}
-        </ul>
-      </section>
+      <Panel title="Owed to coaches, by currency" id="totals">
+        <DataTable
+          caption="Totals owed"
+          head={["Currency", "Ready to pay", "Held", "Pending delivery"]}
+          empty="Nothing owed."
+          rows={[...totals.entries()].map(([c, t]) => [c, formatMinor(t.eligible, c), formatMinor(t.held, c), formatMinor(t.pending, c)])}
+        />
+      </Panel>
+
+      <Panel title="Prepare a batch" id="prepare" description="Includes each coach whose ready earnings in this currency are positive, whose payout details have been checked, and who is at or above the minimum. Everyone else is listed with the reason.">
+        <ActionForm action={prepareBatchAction} className="grid gap-4 sm:max-w-lg">
+          <SelectField name="currency" label="Currency" required options={CHARGE_CURRENCIES.map((c) => ({ value: c.code, label: c.label }))} />
+          <TextField name="eligible_through" label="Earnings ready on or before" type="date" required defaultValue={today} />
+          <TextField name="minimum" label="Minimum per coach" required={false} inputMode="decimal" help="Leave empty for no minimum." />
+          <TextField name="label" label="Label" required={false} maxLength={120} />
+          <div><SubmitButton pendingLabel="Preparing…">Prepare batch</SubmitButton></div>
+        </ActionForm>
+      </Panel>
+
+      <Panel title="Batches" id="batches">
+        <DataTable
+          caption="Payout batches"
+          head={["Prepared", "Label", "Total", "Status"]}
+          empty="No batches yet."
+          rows={(batches ?? []).map((b) => [
+            <Link key="l" href={`/admin/payouts/${b.id}`} className="underline">{formatDate(b.created_at, null, true)}</Link>,
+            b.label,
+            formatMinor(b.total_minor, b.currency),
+            BATCH_STATE[b.state] ?? b.state,
+          ])}
+        />
+      </Panel>
     </div>
   );
 }

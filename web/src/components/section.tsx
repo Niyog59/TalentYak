@@ -1,5 +1,12 @@
 import type { ReactNode } from "react";
 
+/*
+ * Section heading used by existing pages.
+ *
+ * The PullQuote component that lived here was removed: its only use was a
+ * testimonial whose truth could not be established. Quotes may return only
+ * with a verified, consented source.
+ */
 export function SectionLabel({
   children,
   ne,
@@ -8,29 +15,9 @@ export function SectionLabel({
   ne?: string;
 }) {
   return (
-    <div className="mb-8 flex items-baseline gap-4">
-      <p className="label text-terracotta">{children}</p>
-      {ne && <p className="devanagari text-sm text-ink/40">{ne}</p>}
-      <div className="rule flex-1 self-center" />
+    <div className="mb-6 flex items-baseline gap-3">
+      <h2 className="text-lg font-semibold text-ink">{children}</h2>
+      {ne && <p className="devanagari text-sm text-ink-muted">{ne}</p>}
     </div>
-  );
-}
-
-export function PullQuote({
-  quote,
-  attribution,
-}: {
-  quote: string;
-  attribution: string;
-}) {
-  return (
-    <figure className="rule border-b border-line py-12">
-      <blockquote className="mx-auto max-w-3xl text-center font-display text-2xl leading-relaxed sm:text-3xl">
-        &ldquo;{quote}&rdquo;
-      </blockquote>
-      <figcaption className="label mt-6 text-center text-ink/60">
-        {attribution}
-      </figcaption>
-    </figure>
   );
 }

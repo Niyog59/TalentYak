@@ -20,7 +20,7 @@ function getR2(): S3Client | null {
   });
 }
 
-const bucket = () => process.env.R2_BUCKET ?? "ghartira-recordings";
+const bucket = () => process.env.R2_BUCKET ?? "talentyak-recordings";
 
 const SEVEN_DAYS = 7 * 24 * 60 * 60;
 

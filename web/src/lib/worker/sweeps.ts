@@ -1,0 +1,93 @@
+import "server-only";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getStripe } from "@/lib/payments/stripe";
+
+/**
+ * Time-based housekeeping, run by the scheduled job endpoint.
+ *
+ * Each step is idempotent: running the sweep twice in a row changes nothing the
+ * second time. That is what makes it safe to run from more than one scheduler,
+ * or to re-run by hand after an outage.
+ */
+
+export interface SweepSummary {
+  checkoutsExpired: number;
+  checkoutsSkippedComplete: number;
+  earningsRecognised: number;
+  enrollmentsEnded: number;
+  eventsRecovered: number;
+  rateLimitRowsPruned: number;
+  errors: string[];
+}
+
+export async function runSweeps(): Promise<SweepSummary> {
+  const summary: SweepSummary = {
+    checkoutsExpired: 0,
+    checkoutsSkippedComplete: 0,
+    earningsRecognised: 0,
+    enrollmentsEnded: 0,
+    eventsRecovered: 0,
+    rateLimitRowsPruned: 0,
+    errors: [],
+  };
+  const admin = createAdminClient();
+  if (!admin) return summary;
+
+  // 1. Abandoned checkouts: expire the Stripe session FIRST, then release the
+  //    hold. If Stripe says the session actually completed, leave it alone — the
+  //    payment webhook owns that outcome, and releasing the place under a paying
+  //    customer is exactly the race this ordering prevents.
+  const { data: stale } = await admin
+    .from("checkout_attempts")
+    .select("id, stripe_checkout_session_id")
+    .in("state", ["created", "redirected"])
+    .lt("expires_at", new Date(Date.now() - 60_000).toISOString())
+    .limit(50);
+
+  const stripe = getStripe();
+  for (const attempt of stale ?? []) {
+    try {
+      if (attempt.stripe_checkout_session_id && stripe) {
+        const session = await stripe.checkout.sessions.retrieve(attempt.stripe_checkout_session_id);
+        if (session.status === "complete") {
+          summary.checkoutsSkippedComplete++;
+          continue;
+        }
+        if (session.status === "open") {
+          await stripe.checkout.sessions.expire(session.id);
+        }
+      }
+      const { data: closed } = await admin.rpc("close_checkout_attempt", {
+        p_attempt_id: attempt.id, p_state: "expired", p_reason: "checkout_expired",
+      });
+      if (closed) summary.checkoutsExpired++;
+    } catch (err) {
+      summary.errors.push(`checkout ${attempt.id}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // 2. Delivered service periods become payable.
+  const recognised = await admin.rpc("recognise_delivered_cycles");
+  if (recognised.error) summary.errors.push(`recognise: ${recognised.error.message}`);
+  else summary.earningsRecognised = Number(recognised.data) || 0;
+
+  // 3. Relationships whose paid time has run out.
+  const ended = await admin.rpc("end_lapsed_enrollments");
+  if (ended.error) summary.errors.push(`enrollments: ${ended.error.message}`);
+  else summary.enrollmentsEnded = Number(ended.data) || 0;
+
+  // 4. Payment events that were received but never finished processing — a
+  //    crash, a timeout, a database error. Reprocessed from Stripe's own copy.
+  try {
+    const { recoverStuckEvents } = await import("@/lib/payments/webhook");
+    summary.eventsRecovered = await recoverStuckEvents(20);
+  } catch (err) {
+    summary.errors.push(`event recovery: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  // 5. Old rate-limit windows.
+  const pruned = await admin.rpc("prune_rate_limits");
+  if (!pruned.error) summary.rateLimitRowsPruned = Number(pruned.data) || 0;
+
+  return summary;
+}

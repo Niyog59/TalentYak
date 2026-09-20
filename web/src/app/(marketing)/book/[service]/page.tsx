@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getService, getIntakeSchema } from "@/lib/catalog";
+import { getPublicService, getIntakeSchema } from "@/lib/catalog";
 import { formatPrice } from "@/lib/catalog/types";
 import { BookingForm } from "./booking-form";
 
@@ -10,7 +10,7 @@ export default async function BookServicePage({
   params: Promise<{ service: string }>;
 }) {
   const { service: serviceId } = await params;
-  const service = await getService(serviceId);
+  const service = await getPublicService(serviceId);
   if (!service || service.status !== "active") notFound();
 
   const schema = getIntakeSchema(serviceId);

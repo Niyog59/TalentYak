@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isAdmin } from "@/lib/auth";
-import { enqueueJob } from "@/lib/jobs";
+import { enqueueShraddhaReminder } from "@/lib/jobs";
 import {
   bsMonths,
   pakshas,
@@ -95,21 +95,14 @@ export default async function AdminPanditPage() {
       timeZone: "UTC",
     });
 
-    await enqueueJob({
-      kind: "reminder",
-      recipientEmail: row.customer_email,
-      subject: `${row.deceased_name}'s shraddha is coming up — ${dateText}`,
-      payload: {
-        customerName: row.customer_name ?? "friend",
-        bodyHtml: `
-          <p>This year, the shraddha tithi for <strong>${row.deceased_name}</strong>
-          (${formatTithi(row)}) falls on <strong>${dateText}</strong>.</p>
-          <p>If you would like us to arrange the ceremony at Gokarna on your
-          behalf, simply reply to this email or book online — we already have
-          the details from last time.</p>
-        `,
-      },
+    await enqueueShraddhaReminder({
+      email: row.customer_email,
+      customerName: row.customer_name ?? null,
+      rememberedName: row.deceased_name,
+      tithi: formatTithi(row),
+      dateText,
       scheduledFor: remindAt < new Date() ? new Date() : remindAt,
+      shraddhaDateId: row.id,
     });
 
     await admin
