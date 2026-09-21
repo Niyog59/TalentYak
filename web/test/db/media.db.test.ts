@@ -523,6 +523,24 @@ describe("uploads before they are processed", { skip }, () => {
     assert.ok(row?.source_path, "the original was discarded instead of being retried");
   });
 
+  test("a file that keeps outliving its processor is failed after three tries, not requeued forever", async () => {
+    const r = await reserveUpload("video");
+    await adminClient().rpc("mark_media_uploaded", { p_id: r.id, p_owner: owner.id, p_bytes: 10 });
+    await adminClient().rpc("claim_media_processing", { p_id: r.id });
+    await adminClient()
+      .from("media_assets")
+      .update({ processing_attempts: 3, processing_started_at: new Date(Date.now() - 20 * 60_000).toISOString() })
+      .eq("id", r.id);
+
+    const { data } = await adminClient().rpc("sweep_abandoned_media", { p_older_than_minutes: 1440 });
+    const mine = ((data ?? []) as { id: string; outcome: string }[]).find((x) => x.id === r.id);
+    assert.equal(mine?.outcome, "gave_up");
+    const { data: row } = await adminClient().from("media_assets").select("state, failure_reason, source_path").eq("id", r.id).single();
+    assert.equal(row?.state, "failed");
+    assert.match(row?.failure_reason ?? "", /three times/);
+    assert.ok(row?.source_path, "the original was discarded; the owner could no longer retry");
+  });
+
   test("an upload that never finished is failed after a day, and its partial bytes are released", async () => {
     const r = await reserveUpload();
     await adminClient().from("media_assets").update({ created_at: new Date(Date.now() - 25 * 3600_000).toISOString() }).eq("id", r.id);
