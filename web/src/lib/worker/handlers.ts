@@ -79,6 +79,24 @@ async function coachPerson(ctx: HandlerContext, providerId: unknown): Promise<(P
   return { ...p, displayName: publicName || data.display_name };
 }
 
+/**
+ * The person this message was for no longer exists — their account was
+ * deleted between queueing and sending. That is not a failure anyone can act
+ * on, so the job finishes as skipped, like a reminder for a cancelled session.
+ * (A missing PURCHASE is different: purchases are never deleted, so a missing
+ * one means a bug, and those still fail visibly.)
+ */
+function gone(who: string): Outcome {
+  return { kind: "done", result: { sent: false, reason: "skipped", detail: `${who} no longer exists` } };
+}
+
+async function stillAdmin(ctx: HandlerContext, profileId: string): Promise<Decision> {
+  const { data } = await ctx.admin.from("profiles").select("role, suspended_at").eq("id", profileId).maybeSingle();
+  if (!data || data.role !== "admin") return { proceed: false, reason: "recipient is no longer an administrator" };
+  if (data.suspended_at) return { proceed: false, reason: "recipient account is suspended" };
+  return { proceed: true };
+}
+
 async function adminPeople(ctx: HandlerContext): Promise<Person[]> {
   const { data } = await ctx.admin
     .from("profiles")
@@ -271,7 +289,7 @@ export const HANDLERS: Record<string, Handler> = {
     if (!pu) return { kind: "fail", error: "purchase not found" };
     const customer = await person(ctx, pu.customer_id);
     const coach = await coachPerson(ctx, pu.provider_id);
-    if (!customer || !coach) return { kind: "fail", error: "recipient not found" };
+    if (!customer || !coach) return gone("recipient");
     const title = str((pu.inclusions_snapshot as Record<string, unknown>)?.title) || "your plan";
 
     await ctx.enqueue("email.new_client", { purchase_id: pu.id }, `new_client:${pu.id}`);
@@ -288,7 +306,7 @@ export const HANDLERS: Record<string, Handler> = {
     if (!pu) return { kind: "fail", error: "purchase not found" };
     const coach = await coachPerson(ctx, pu.provider_id);
     const customer = await person(ctx, pu.customer_id);
-    if (!coach) return { kind: "fail", error: "coach not found" };
+    if (!coach) return gone("coach");
     return send(job, ctx, "new_client", coach, T.newClientEmail(tctx(), {
       coachName: coach.name,
       planTitle: str((pu.inclusions_snapshot as Record<string, unknown>)?.title) || "a plan",
@@ -301,7 +319,7 @@ export const HANDLERS: Record<string, Handler> = {
     const pu = await purchaseContext(ctx, job.payload.purchase_id);
     if (!pu) return { kind: "fail", error: "purchase not found" };
     const customer = await person(ctx, pu.customer_id);
-    if (!customer) return { kind: "fail", error: "customer not found" };
+    if (!customer) return gone("customer");
     return send(job, ctx, "payment_failed", customer, T.paymentFailedEmail(tctx(), {
       customerName: customer.name, planTitle: str((pu.inclusions_snapshot as Record<string, unknown>)?.title) || "your plan",
       paidThrough: pu.paid_through_at, timezone: customer.timezone,
@@ -312,7 +330,7 @@ export const HANDLERS: Record<string, Handler> = {
     const pu = await purchaseContext(ctx, job.payload.purchase_id);
     if (!pu) return { kind: "fail", error: "purchase not found" };
     const customer = await person(ctx, pu.customer_id);
-    if (!customer) return { kind: "fail", error: "customer not found" };
+    if (!customer) return gone("customer");
     const title = str((pu.inclusions_snapshot as Record<string, unknown>)?.title) || "your plan";
     const state = str(job.payload.state);
     if (state === "cancelling") {
@@ -332,7 +350,7 @@ export const HANDLERS: Record<string, Handler> = {
     const pu = await purchaseContext(ctx, job.payload.purchase_id);
     if (!pu) return { kind: "fail", error: "purchase not found" };
     const customer = await person(ctx, pu.customer_id);
-    if (!customer) return { kind: "fail", error: "customer not found" };
+    if (!customer) return gone("customer");
     return send(job, ctx, "refund_processed", customer, T.refundProcessedEmail(tctx(), {
       customerName: customer.name, amountMinor: num(job.payload.amount_minor), currency: str(job.payload.currency) || pu.charge_currency,
     }), { category: "billing", path: "/account/billing" });
@@ -358,7 +376,7 @@ export const HANDLERS: Record<string, Handler> = {
   "email.coach_changed_customer": async (job, ctx) => {
     const customer = await person(ctx, job.payload.customer_id);
     const coach = await coachPerson(ctx, job.payload.new_provider_id);
-    if (!customer || !coach) return { kind: "fail", error: "recipient not found" };
+    if (!customer || !coach) return gone("recipient");
     return send(job, ctx, "coach_changed_customer", customer, T.coachChangedCustomerEmail(tctx(), {
       customerName: customer.name, newCoachName: coach.displayName, effectiveAt: str(job.payload.effective_at), timezone: customer.timezone,
     }), { category: "coaching", path: "/account" });
@@ -366,7 +384,7 @@ export const HANDLERS: Record<string, Handler> = {
 
   "email.coach_changed_previous": async (job, ctx) => {
     const coach = await coachPerson(ctx, job.payload.previous_provider_id);
-    if (!coach) return { kind: "fail", error: "coach not found" };
+    if (!coach) return gone("coach");
     return send(job, ctx, "coach_changed_previous", coach,
       T.coachChangedPreviousCoachEmail(tctx(), { coachName: coach.name, effectiveAt: str(job.payload.effective_at) }),
       { category: "coaching", path: "/coach/clients" });
@@ -374,7 +392,7 @@ export const HANDLERS: Record<string, Handler> = {
 
   "email.coach_changed_new": async (job, ctx) => {
     const coach = await coachPerson(ctx, job.payload.new_provider_id);
-    if (!coach) return { kind: "fail", error: "coach not found" };
+    if (!coach) return gone("coach");
     return send(job, ctx, "coach_changed_new", coach,
       T.coachChangedNewCoachEmail(tctx(), { coachName: coach.name, effectiveAt: str(job.payload.effective_at) }),
       { category: "coaching", path: "/coach/clients" });
@@ -382,7 +400,7 @@ export const HANDLERS: Record<string, Handler> = {
 
   "email.payout_paid": async (job, ctx) => {
     const coach = await coachPerson(ctx, job.payload.provider_id);
-    if (!coach) return { kind: "fail", error: "coach not found" };
+    if (!coach) return gone("coach");
     return send(job, ctx, "payout_paid", coach, T.payoutPaidEmail(tctx(), {
       coachName: coach.name, amountMinor: num(job.payload.amount_minor), currency: str(job.payload.currency), paidAt: str(job.payload.paid_at),
       reference: str(job.payload.external_reference) || null,
@@ -391,17 +409,25 @@ export const HANDLERS: Record<string, Handler> = {
 
   "email.profile_approved": async (job, ctx) => {
     const coach = await coachPerson(ctx, job.payload.provider_id);
-    if (!coach) return { kind: "fail", error: "coach not found" };
+    if (!coach) return gone("coach");
     return send(job, ctx, "profile_approved", coach, T.profileApprovedEmail(tctx(), { coachName: coach.name }),
       { category: "coaching", path: "/coach/profile" });
   },
 
   "email.admin_alert": async (job, ctx) => {
     const admin = await person(ctx, job.payload.admin_id);
-    if (!admin) return { kind: "fail", error: "admin not found" };
+    if (!admin) return gone("admin");
     return send(job, ctx, "admin_alert", admin, T.adminAlertEmail(tctx(), {
       title: str(job.payload.title), detail: str(job.payload.detail), path: str(job.payload.path) || "/admin",
-    }), { category: "account_security", path: str(job.payload.path) || "/admin" });
+    }), {
+      category: "account_security",
+      path: str(job.payload.path) || "/admin",
+      // The recipient was an administrator when this was queued. They must
+      // still be one when it is sent: founder alerts describe other people's
+      // accounts, and somebody whose admin role was removed in between is no
+      // longer entitled to read them.
+      recheck: () => stillAdmin(ctx, admin.id),
+    });
   },
 
   // --- Sessions -------------------------------------------------------------
@@ -415,7 +441,7 @@ export const HANDLERS: Record<string, Handler> = {
     const ap = await appointmentContext(ctx, job.payload.appointment_id);
     if (!ap) return { kind: "fail", error: "appointment not found" };
     const to = recipientOf(ap, job.payload.recipient);
-    if (!to) return { kind: "fail", error: "recipient not found" };
+    if (!to) return gone("recipient");
 
     return send(job, ctx, "appointment_confirmed", to.person,
       T.appointmentConfirmedEmail(tctx(), {
@@ -434,7 +460,7 @@ export const HANDLERS: Record<string, Handler> = {
     const ap = await appointmentContext(ctx, job.payload.appointment_id);
     if (!ap) return { kind: "fail", error: "appointment not found" };
     const to = recipientOf(ap, job.payload.recipient);
-    if (!to) return { kind: "fail", error: "recipient not found" };
+    if (!to) return gone("recipient");
 
     return send(job, ctx, "appointment_changed", to.person,
       T.appointmentChangedEmail(tctx(), {
@@ -456,7 +482,7 @@ export const HANDLERS: Record<string, Handler> = {
     const ap = await appointmentContext(ctx, job.payload.appointment_id);
     if (!ap) return { kind: "fail", error: "appointment not found" };
     const to = recipientOf(ap, job.payload.recipient);
-    if (!to) return { kind: "fail", error: "recipient not found" };
+    if (!to) return gone("recipient");
 
     // Deliberately NOT rechecked against a live state: a cancellation is the
     // one session message whose whole purpose is that the session is gone.
@@ -472,7 +498,7 @@ export const HANDLERS: Record<string, Handler> = {
     const ap = await appointmentContext(ctx, job.payload.appointment_id);
     if (!ap) return { kind: "fail", error: "appointment not found" };
     const to = recipientOf(ap, job.payload.recipient);
-    if (!to) return { kind: "fail", error: "recipient not found" };
+    if (!to) return gone("recipient");
 
     return send(job, ctx, "appointment_reminder", to.person,
       T.appointmentReminderEmail(tctx(), {
@@ -496,7 +522,7 @@ export const HANDLERS: Record<string, Handler> = {
 
   "email.reservation_expired": async (job, ctx) => {
     const customer = await person(ctx, job.payload.customer_id);
-    if (!customer) return { kind: "fail", error: "customer not found" };
+    if (!customer) return gone("customer");
     return send(job, ctx, "reservation_expired", customer,
       T.reservationExpiredEmail(tctx(), {
         name: customer.name, startsAt: str(job.payload.starts_at), timezone: customer.timezone,
@@ -508,7 +534,7 @@ export const HANDLERS: Record<string, Handler> = {
 
   "email.unread_messages": async (job, ctx) => {
     const to = await person(ctx, job.payload.profile_id);
-    if (!to) return { kind: "fail", error: "recipient not found" };
+    if (!to) return gone("recipient");
     const count = num(job.payload.count);
     if (count < 1) return { kind: "done", result: { sent: false, reason: "nothing unread" } };
 
@@ -530,7 +556,7 @@ export const HANDLERS: Record<string, Handler> = {
   "email.expectations_updated": async (job, ctx) => {
     const customer = await person(ctx, job.payload.customer_id);
     const coach = await coachPerson(ctx, job.payload.provider_id);
-    if (!customer || !coach) return { kind: "fail", error: "recipient not found" };
+    if (!customer || !coach) return gone("recipient");
     return send(job, ctx, "expectations_updated", customer,
       T.expectationsUpdatedEmail(tctx(), { name: customer.name, coachName: coach.displayName }),
       { category: "expectations", path: "/account" });

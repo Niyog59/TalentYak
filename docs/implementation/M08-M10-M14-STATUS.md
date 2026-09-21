@@ -215,7 +215,7 @@ Encode runs at roughly **1.0–1.35× the clip's length**. That is why clips are
 
 **90 % smaller**, upright, exact 3:4 proportions (no crop, no stretch), long edge 2048 px, WebP quality 82. Downloaded independently afterwards: `exif=false xmp=false iptc=false icc=false orientation=none`, and a raw byte search for "GPS", "iPhone", "Apple" and the artist's name finds nothing.
 
-**Formats.** Accepted: JPEG, PNG, WebP, AVIF; MP4, MOV, 3GP, WebM. **iPhone HEIC is refused, not accepted**: the image library on our servers has no HEVC decoder. It is refused instantly in the browser with instructions ("Settings → Camera → Formats → Most Compatible, or share as JPEG"), and — if the browser check is bypassed — refused again by the server, with the original deleted. Earlier code would have misread a HEIC as a video (same container family); that is fixed and tested. The HEIC test file is a HEIC-branded container, not a real iPhone capture: no HEVC encoder is available to produce one.
+**Formats.** *(Superseded by the completion pass below: HEIC is now accepted.)* Accepted at the time: JPEG, PNG, WebP, AVIF; MP4, MOV, 3GP, WebM. **iPhone HEIC was refused, not accepted**: the image library on our servers has no HEVC decoder. It is refused instantly in the browser with instructions ("Settings → Camera → Formats → Most Compatible, or share as JPEG"), and — if the browser check is bypassed — refused again by the server, with the original deleted. Earlier code would have misread a HEIC as a video (same container family); that is fixed and tested. The HEIC test file is a HEIC-branded container, not a real iPhone capture: no HEVC encoder is available to produce one.
 
 ### Security and cleanup
 
@@ -250,13 +250,9 @@ Encode runs at roughly **1.0–1.35× the clip's length**. That is why clips are
 
 Unit **214** (was 213; media tests replaced and extended: format detection incl. HEIC-vs-video, photo orientation/metadata/proportions/no-enlarge, clip rotation/metadata/audio/fps, junk refused permanently, truncated clip refused retryably). Database **media 25/25** (holding path ownership, completion ownership, concurrent claims take a file once, coaches never see unprocessed uploads, only completion marks a file clean, retry rules, crashed-processor requeue, abandoned-upload cleanup, holding bucket unreadable from a browser).
 
-### What is still not done, stated plainly
+### What was still not done at this point
 
-- **HEIC** is refused, not converted. Supporting it needs an HEVC-capable decoder.
-- **Longer or larger clips.** Beyond 2 minutes or 50 MB, both limits are the environment's, not the code's — see "Decisions and costs" below.
-- **No content scanning** of any kind is implemented or claimed.
-- **Pause/resume** exists in the uploader but was not separately exercised on the deployed site; the resume mechanism it uses is the one verified above.
-- **Coach-side media screens** do not exist (M11–M13). Access rules are enforced and tested in the database; no coach has viewed media in a browser.
+*(Resolved or reassigned in the completion pass below.)* HEIC was refused; pause/resume had not been exercised on the deployed site; coach-side media screens did not exist.
 
 ### Decisions and costs — nothing needed today
 
@@ -278,7 +274,7 @@ Ordered as they will be built — one usable workflow finished at a time.
 | 3 | **Pre-delivery recheck.** Handlers send what the payload says. Nothing rechecks appointment version, recipient authorisation, cancellation/reschedule state, or preferences at delivery time. Obsolete reminders are not skipped. | `src/lib/worker/handlers.ts` + a shared recheck module | **done (pass A–C)** |
 | 4 | **Unread-message debounce/aggregation.** No aggregation window, no read-status recheck. | worker + sweep | handler + recheck built and **refuses to send**; **producer and debounce window pending (Batch 2)** |
 | 5 | **Appointment job family** — confirmation, change requested, change accepted, cancellation, reminder, expired reservation/proposal. Table exists; no handlers, no templates. | handlers + templates | handlers, templates and rechecks **done**; **producers pending (Batch 4)** |
-| 6 | **Media assets.** No `media_assets` table, no ownership/purpose metadata, no processing states, no chat/video path, no abandoned-upload cleanup, no thumbnail/preview authorisation, no signed-link policy. | new migration + `src/lib/media/` + upload UI | **done (pass D)** — video uncompressed, stated |
+| 6 | **Media assets.** No `media_assets` table, no ownership/purpose metadata, no processing states, no chat/video path, no abandoned-upload cleanup, no thumbnail/preview authorisation, no signed-link policy. | new migration + `src/lib/media/` + upload UI | **done** — photos and clips processed, including HEIC and HDR (completion pass) |
 | 7 | **Reassignment media revocation** honouring `history_scope`, covering new fetches and subscriptions. | media authorisation layer | **done (pass D)** — reuses `coach_may_read_record`; 2-minute residual link window documented |
 | 8 | **Retention execution** — dry-run eligibility, notice retry/failure handling, holds, cancellation on changed eligibility, final eligibility recheck. Destructive execution stays **off**. | sweeps + admin screen | **done (pass E)** — destructive execution still off |
 | 9 | **Admin failed-job / delivery screen.** `retryJobAction` and a failed/blocked **count** exist; there is no screen listing jobs or deliveries to act on. | `/admin` surface | **done (pass A–C)** |
@@ -323,7 +319,7 @@ The account shows no billing plan, which is the **Hobby (free)** tier.
 - The **daily 04:00 UTC sweep** is only the safety net for work that missed that pass.
 - What this does **not** support is **time-based work that must fire at a particular hour** — chiefly session reminders (Batch 4). A reminder queued for 15:00 would not be sent until the following 04:00, by which point the recheck built in this pass would correctly **skip it as obsolete**. The system would behave honestly; the reminder simply would not arrive.
 
-**A manual run does not prove unattended processing.** What was proven here is that the worker endpoint works, is protected, and processes queued work correctly when invoked. The current deployment is about an hour old, so no scheduled firing has occurred under it yet — the next is 04:00 UTC.
+**Unattended processing is now evidenced.** An outbox job queued on 2026-09-20 at 22:39 UTC was completed at **04:18 UTC on 2026-09-21** by the scheduled job, with nobody invoking it — the daily cron fires on its own. (Vercel's Hobby plan runs a daily cron somewhere within its scheduled hour, hence 04:18 rather than 04:00.)
 
 ### Options, with real cost
 
@@ -339,25 +335,80 @@ The account shows no billing plan, which is the **Hobby (free)** tier.
 
 ## Blockers — founder action required
 
-1. ~~**Designated test inbox for the email-delivery proof.**~~ **Resolved 2026-09-20:** the founder designated `talentyak@gmail.com`, and one message was delivered to it and accepted by Resend.
-2. **`SUPPORT_EMAIL` is still empty** (`docs/FOUNDER-NEXT-STEPS.md` item 2). Mail therefore carries no reply address — the delivery-check message that arrived has no address to reply to. Not blocking code; visible in every message sent.
-3. **An account now exists for `talentyak@gmail.com` in the test project**, created by the delivery check (profile `3c0b7f0d-aae8-47ff-a212-581337118a9c`). It has a random password nobody holds and **no admin role** — the check briefly set one and it was removed the same session; the script no longer grants it. Delete the account if it is not wanted; deleting an account is a founder action and was not done unilaterally.
+1. ~~**Designated test inbox for the email-delivery proof.**~~ **Resolved 2026-09-20:** `talentyak@gmail.com`; one message delivered and accepted by Resend.
+2. ~~**`SUPPORT_EMAIL` is empty.**~~ **Resolved 2026-09-20:** set to `talentyak@gmail.com` in Vercel (production and preview) and redeployed.
+3. **`RESEND_WEBHOOK_SECRET` — the one open item.** The delivered/bounced/complained endpoint is built, signature-verified and tested, and deployed at `/api/webhooks/resend`, where it correctly **refuses everything (503) until the secret is set**. Until then every email stays at "accepted" on the founder console. Founder steps: Resend → Webhooks → add `https://www.talentyak.com/api/webhooks/resend` with events `email.delivered`, `email.bounced`, `email.complained`, `email.failed` → copy its signing secret (`whsec_…`) → Vercel → Project → Settings → Environment Variables → `RESEND_WEBHOOK_SECRET` (production) → redeploy. This cannot be done here: creating a webhook on the Resend account is an account-configuration change that needs you, and the Vercel token this work used earlier has since been revoked (as intended).
+4. **An account exists for `talentyak@gmail.com` in the test project** (profile `3c0b7f0d-…`), created by the delivery check, with no admin role. **One consequence, now fixed:** a founder alert queued during the single minute in which the check had briefly given that account the admin role was sent to it at 04:18 UTC on 2026-09-21 ("Needs attention: Coach change requested", about a test fixture). The handler now re-checks that the recipient is still an administrator at send time. Delete the account if it is not wanted.
 
-### Housekeeping noticed, not fixed
+### Housekeeping — resolved
 
-The outbox holds several `failed` jobs reading `coach not found` / `recipient not found`, dated 2026-09-17 and 2026-09-20. These are **orphaned test fixtures** — jobs queued during database test runs whose users were deleted in teardown. They are the system behaving correctly (failing visibly rather than disappearing), not a defect, and they were not caused by this pass. They do make the founder console's "failed or blocked" count read higher than reality. Worth a teardown fix in `test/db/` later; noted in `TASKS.md`.
+The outbox's 29 `failed` jobs ("coach not found" / "recipient not found") were all messages to test accounts deleted after queueing. Handlers now treat a deleted recipient as **skipped**, not failed (a missing purchase or appointment still fails visibly), and those 29 rows were reclassified accordingly with a note. The founder console's failed-or-blocked count went from 29 to **0**.
+
+---
+
+## M08 completion pass — 2026-09-21
+
+### Built
+
+- **HEIC photos accepted.** `lib/media/heic.ts` decodes with libheif compiled to WebAssembly (`libheif-js` 1.23.2, with the libde265 HEVC decoder) in a **separate worker thread** with a 30 s deadline and a 50-megapixel cap checked before the pixel buffer is allocated. The camera's rotation is applied by the decoder; only bare pixels come back, which are re-encoded, so no metadata can survive. The 30 MB photo cap is unchanged.
+- **iPhone HDR video.** 10-bit HLG/PQ clips are tone-mapped to standard-range BT.709 H.264 (`zscale` + `tonemap`) instead of coming out grey; if the filter were missing the clip would still be made playable and the report would say it was not converted.
+- **Processed clips always fit storage.** A maximum bitrate guarantees the output is under ~44 MB whatever the clip. (A faster encoder preset was tried for heavy clips, deployed, and **reverted**: on a 119 s clip it produced 79.7 MB, which storage refused, for a 7 % time saving.) A storage size refusal is reported as such and is not offered a retry. Encode cut-off 265 s, inside the 300 s function limit.
+- **No endless requeue** (`0035`): a processing claim that has outlived its function three times is failed with a reason; the original is kept for a manual retry.
+- **Delivery events** (`/api/webhooks/resend`, `lib/email/events.ts`): Svix signature verified in constant time, 5-minute replay window, fails closed without a secret, and a delivery never moves backwards (a late "delivered" cannot undo a bounce).
+- **Recipient authorisation rechecked for founder alerts** at send time; **deleted recipients skipped, not failed** (above).
+- **Security updates:** `next` 16.3.0 → **16.3.5** (two critical advisories, including remote code execution in the image optimiser with AVIF files), `sharp` → **0.35.4** as a direct dependency (libheif advisory), `js-yaml` → 4.3.2. `npm audit`: **0 vulnerabilities**.
+
+### Residual risk, stated
+
+`libheif-js` 1.23.2 is the newest published, and bundles libheif 1.23.2. libheif released further fixes (1.23.3–1.23.5, the last on 2026-09-21), some in parsing code every HEIC passes through. They are not yet in any published `libheif-js`. Mitigation in place: WebAssembly cannot corrupt memory outside its sandbox, the decode runs in its own thread with a deadline and a pixel cap, and the file is size-capped. Upgrade `libheif-js` when a release carrying libheif ≥ 1.23.5 appears (`TASKS.md`).
+
+### Samples used — and what they are not
+
+No real phone captures were available to this work. Samples were produced with **Apple's own encoders on this Mac**: HEIC by `sips` (brands `heic mif1 MiPr miaf MiHB`, as an iPhone writes, carrying GPS, make/model and a rotation box), HEVC video by `avconvert`. The HDR clip is 10-bit HLG HEVC with BT.2020 tags and a rotation matrix, made with x265 to match an iPhone's stream parameters. These exercise the same decode paths as phone files, but they are not phone captures; see "Samples needed from the founder" below.
+
+### Verified on the deployed site (commits `2ec88ed`, `aec968c`, `0acfc6d`)
+
+| Check | Result |
+|---|---|
+| Apple HEIC, 8.3 MB, GPS + EXIF + rotation box | Upright **1536×2048 WebP, 0.96 MB (88.5 % smaller)**; downloaded independently: no EXIF, XMP, IPTC, ICC or orientation flag; no GPS/Apple/iPhone strings in the bytes |
+| iPhone-style HDR clip, 10-bit HLG HEVC, portrait, 5 identifying tags | **Tone-mapped** to 8-bit BT.709 H.264, upright 720×1280, stereo kept, 9.1 → 3.3 MB (63.9 %), **31.7 s** for 20 s; no tags |
+| Apple-encoded HEVC clip, 44.4 MB, 1080p60 | 8.5 MB (80.9 %), 60 fps kept, tags removed, **48.0 s** for 26 s |
+| Worst case: 119 s of 1080p60 HEVC, 45.8 MB | **163 s** alone (cut-off 265 s), 48.0 → 23.8 MB, 60 fps. Under the reverted fast preset it had **failed** — "The processed file couldn't be stored" — keeping its original; **Try processing again** then succeeded on attempt 2 |
+| Pause / resume with the real buttons | Paused at 12.0 of 48.0 MB with a clear message; **Resume** continued from byte 12,582,912; the result was **byte-identical** (17,489,915 bytes) to an uninterrupted upload of the same file |
+| Founder console behind two-factor sign-in | `/admin/retention` (switch Off, proposed rules, dry run computed, no delete button), `/admin/finance` delivery panel, overview bounced-email tile — all rendered for a two-factor test admin |
+| Resend webhook | Deployed; **503 without the secret**, as designed |
+
+Measured processing rates on the deployed function: H.264 1080p60 ~1.35× the clip's length, HEVC 1080p60 ~1.85×, HDR tone-mapping ~1.6× at 1080p30. At the 50 MB cap an ordinary iPhone clip is only 15–30 s long; the 2-minute limit is only reachable by a heavily compressed clip, and the measured worst case fits with ~100 s to spare. Two uploads processed at the same moment share the machine and take roughly twice as long each.
+
+### Tests
+
+Unit **228/228**. Database **155/155** before this pass's final fixes, then media 26/26 after them; worker and delivery events 10/10 (concurrent claims never overlap, a dead worker's job is reclaimed, a stale worker cannot overwrite the outcome, backoff, visible final failure, future jobs not taken early, a person cannot claim or queue work, delivery states move only forward).
+
+### Samples needed from the founder
+
+The code paths are proven with Apple-encoded samples. To confirm against genuine captures, please provide:
+
+1. **One iPhone photo as HEIC** — straight from the Photos app via AirDrop or "Save to Files" (not shared through a messaging app, which converts it), taken in **portrait orientation with Location Services on for the Camera**.
+2. **One iPhone video** — portrait, **15–25 seconds**, recorded at the default settings (HEVC, HDR on), under 50 MB, also shared as the original file.
+3. *(Optional)* **One Android photo and one Android video**, originals.
+
+Put them in a folder and give me the path; nothing will be uploaded anywhere but the test project, and they will be deleted afterwards.
 
 ---
 
 ## Next unfinished action
 
-**M08 is finished as far as this batch can take it.** What remains is owned elsewhere or needs a decision:
+**M08 is complete.** Nothing in its scope remains except the founder action above (`RESEND_WEBHOOK_SECRET`) and the optional confirmation with genuine phone captures. Work assigned elsewhere, and its owner:
 
-- **Producers** for the handlers built here — unread messages (Batch 2), expectations (Batch 3), session reminders and expiry (Batch 4), call outcomes (Batch 5).
-- **Video compression** needs a transcoding service; none is available on the current hosting.
-- **A retention policy** must be approved by the founder before any notice reaches a real person, and a deletion job must then be written and reviewed against it.
-- **Processing deletion requests** end to end (what is erased, what is anonymised) — the request is recorded and visible; fulfilling it is a founder-supervised process not built here.
-- **Scheduling** below daily — see the scheduling section.
+| Deferred item | Owning batch |
+|---|---|
+| Unread-message notifications (producer, debounce window, read-status recheck) and chat attachments UI | **Batch 2** — conversations |
+| Expectations-updated notifications | **Batch 3** — expectations |
+| Session confirmations, changes, cancellations, reminders, expired holds (producers); reminders at a specific hour, which need scheduling finer than daily | **Batch 4** — scheduling |
+| Call-outcome notifications | **Batch 5** — calls |
+| Coach-side screens that view a client's photos and clips; progress and form-review workflows | **M11–M13** — progress and form review |
+| An approved retention policy, then a deletion job written and reviewed against it | **Founder decision**; destructive execution stays off until then |
+| Fulfilling deletion requests end to end | **Founder-supervised process**; requests are recorded and visible now |
 
 Do not start Batch 2 from this file; it has its own prompt.
 
