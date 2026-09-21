@@ -76,7 +76,16 @@ export async function run(args: string[], timeoutMs: number): Promise<RunResult>
 
 export interface Probe {
   durationSeconds: number | null;
-  video: { codec: string; width: number; height: number; fps: number | null } | null;
+  video: {
+    codec: string;
+    width: number;
+    height: number;
+    fps: number | null;
+    /** e.g. "yuv420p10le" — iPhone HDR clips are 10-bit. */
+    pixelFormat: string | null;
+    /** Transfer characteristic: "arib-std-b67" is HLG (iPhone HDR), "smpte2084" is PQ. */
+    transfer: string | null;
+  } | null;
   audio: { codec: string; channels: string | null } | null;
   /** Degrees from the display matrix, if the file asks to be rotated. */
   rotation: number;
@@ -103,8 +112,27 @@ export async function probe(file: string): Promise<Probe> {
   if (videoLine) {
     const dims = /\b(\d{2,5})x(\d{2,5})\b/.exec(videoLine[0]);
     const fps = /([\d.]+) fps/.exec(videoLine[0]);
+    // "yuv420p10le(tv, bt2020nc/bt2020/arib-std-b67)" — pixel format, then
+    // matrix/primaries/transfer when the file declares them.
+    const pix = /, (yuv[\w]+|nv12|p010le|gbrp[\w]*|rgb[\w]*)(?:\(([^)]*)\))?/.exec(videoLine[0]);
+    const colour = pix?.[2]?.split(",").map((s) => s.trim()) ?? [];
+    // FFmpeg prints "matrix/primaries/transfer", or a single name when all
+    // three are the same (e.g. "bt709").
+    const triple =
+      colour.find((c) => c.includes("/"))?.split("/") ??
+      (() => {
+        const single = colour.find((c) => /^(bt709|bt2020|bt2020nc|smpte170m|bt470bg|smpte240m)$/.test(c));
+        return single ? [single, single, single] : [];
+      })();
     if (dims) {
-      video = { codec: videoLine[1], width: Number(dims[1]), height: Number(dims[2]), fps: fps ? Number(fps[1]) : null };
+      video = {
+        codec: videoLine[1],
+        width: Number(dims[1]),
+        height: Number(dims[2]),
+        fps: fps ? Number(fps[1]) : null,
+        pixelFormat: pix?.[1] ?? null,
+        transfer: triple.length === 3 ? triple[2] : null,
+      };
     }
   }
 

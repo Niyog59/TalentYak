@@ -58,9 +58,10 @@ const securityHeaders = [
 
 /**
  * The routes that run media processing, and therefore need the ffmpeg binary
- * in their deployed bundle. ffmpeg-static exposes the binary as a file path,
- * which the build's file tracing cannot follow on its own — so it is included
- * explicitly, and ONLY here: ~45 MB added to every function would slow every
+ * and the HEIC decoder in their deployed bundle. Both are loaded by file path
+ * at runtime (ffmpeg as a process, libheif-js inside a worker thread), which
+ * the build's file tracing cannot follow on its own — so they are included
+ * explicitly, and ONLY here: ~55 MB added to every function would slow every
  * cold start for no reason.
  */
 const MEDIA_PROCESSING_ROUTES = ["/api/media/complete", "/api/media/retry", "/api/jobs/process"];
@@ -72,10 +73,18 @@ const nextConfig: NextConfig = {
 
   // Resolved at runtime from node_modules rather than bundled, so the path it
   // returns points at the real binary.
-  serverExternalPackages: ["ffmpeg-static"],
+  serverExternalPackages: ["ffmpeg-static", "libheif-js"],
 
   outputFileTracingIncludes: Object.fromEntries(
-    MEDIA_PROCESSING_ROUTES.map((route) => [route, ["./node_modules/ffmpeg-static/ffmpeg"]]),
+    MEDIA_PROCESSING_ROUTES.map((route) => [
+      route,
+      [
+        "./node_modules/ffmpeg-static/ffmpeg",
+        "./node_modules/libheif-js/package.json",
+        "./node_modules/libheif-js/wasm-bundle.js",
+        "./node_modules/libheif-js/libheif-wasm/libheif-bundle.js",
+      ],
+    ]),
   ),
 
   async headers() {

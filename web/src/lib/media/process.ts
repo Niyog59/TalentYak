@@ -6,6 +6,7 @@ import { join } from "node:path";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { probe, run } from "@/lib/media/ffmpeg";
+import { decodeHeic, HeicDecodeError } from "@/lib/media/heic";
 import { MAX_VIDEO_SECONDS, sniff } from "@/lib/media/sniff";
 
 /**
@@ -83,31 +84,83 @@ function hasGpsPointer(exif: Buffer | undefined): boolean {
   return exif.includes(Buffer.from([0x88, 0x25, 0x00, 0x04])) || exif.includes(Buffer.from([0x25, 0x88, 0x04, 0x00]));
 }
 
-export async function processPhoto(input: Buffer): Promise<Output> {
+/** An EXIF item, as HEIC stores it, begins with this marker. */
+function hasExifMarker(bytes: Buffer): boolean {
+  return bytes.includes(Buffer.from("Exif\0\0", "latin1"));
+}
+
+export async function processPhoto(input: Buffer, format: string = "unknown"): Promise<Output> {
   const sharp = (await import("sharp")).default;
-  // A decompression bomb is refused by pixel count before it is decoded.
-  const source = sharp(input, { limitInputPixels: 80_000_000, failOn: "error" });
 
-  let meta;
-  try {
-    meta = await source.metadata();
-  } catch {
-    throw new MediaProcessingError("That file couldn't be read as a photo.", true);
+  let oriented: import("sharp").Sharp;
+  let shownWidth: number;
+  let shownHeight: number;
+  let sourceReport: Record<string, unknown>;
+
+  if (format === "heic") {
+    // iPhone HEIC: decoded to bare pixels, with the camera's rotation already
+    // applied, in an isolated thread (lib/media/heic.ts). Nothing but pixels
+    // comes back, so no metadata can reach the output.
+    let decoded;
+    try {
+      decoded = await decodeHeic(input);
+    } catch (err) {
+      const slow = err instanceof HeicDecodeError && /too long/.test(err.message);
+      throw new MediaProcessingError(err instanceof Error ? err.message : "That HEIC photo couldn't be read.", !slow);
+    }
+    shownWidth = decoded.width;
+    shownHeight = decoded.height;
+    // HEIC photos from a camera are opaque; flattening drops the alpha channel
+    // the decoder always returns, which would otherwise bloat the output.
+    oriented = sharp(decoded.rgba, { raw: { width: decoded.width, height: decoded.height, channels: 4 } }).flatten({
+      background: "#ffffff",
+    });
+    sourceReport = {
+      format: "heic",
+      bytes: input.byteLength,
+      width: shownWidth,
+      height: shownHeight,
+      rotationBox: input.includes(Buffer.from("irot", "latin1")),
+      exif: hasExifMarker(input),
+      gps: hasGpsPointer(input),
+      decoder: "libheif (WebAssembly)",
+    };
+  } else {
+    // A decompression bomb is refused by pixel count before it is decoded.
+    const source = sharp(input, { limitInputPixels: 80_000_000, failOn: "error" });
+    let meta;
+    try {
+      meta = await source.metadata();
+    } catch {
+      throw new MediaProcessingError("That file couldn't be read as a photo.", true);
+    }
+    if (!meta.width || !meta.height) throw new MediaProcessingError("That file couldn't be read as a photo.", true);
+
+    // Orientations 5–8 turn the picture on its side: its displayed width is the
+    // stored height. Reported as the person sees it.
+    const sideways = (meta.orientation ?? 1) >= 5;
+    shownWidth = sideways ? meta.height : meta.width;
+    shownHeight = sideways ? meta.width : meta.height;
+
+    // `.rotate()` with no angle applies the camera's orientation to the pixels.
+    // It MUST run before the metadata is dropped, or the photo is stored on its
+    // side forever. sharp writes no metadata unless asked to, so the output
+    // carries no EXIF, GPS, XMP, IPTC or colour profile; colours are converted
+    // to sRGB first so a phone's wide-gamut photo does not come out dull.
+    oriented = sharp(input, { limitInputPixels: 80_000_000 }).rotate();
+    sourceReport = {
+      format: meta.format,
+      bytes: input.byteLength,
+      width: shownWidth,
+      height: shownHeight,
+      orientation: meta.orientation ?? 1,
+      exif: Boolean(meta.exif),
+      gps: hasGpsPointer(meta.exif),
+      xmp: Boolean(meta.xmp),
+      iptc: Boolean(meta.iptc),
+      iccProfile: Boolean(meta.icc),
+    };
   }
-  if (!meta.width || !meta.height) throw new MediaProcessingError("That file couldn't be read as a photo.", true);
-
-  // Orientations 5–8 turn the picture on its side: its displayed width is the
-  // stored height. Reported as the person sees it.
-  const sideways = (meta.orientation ?? 1) >= 5;
-  const shownWidth = sideways ? meta.height : meta.width;
-  const shownHeight = sideways ? meta.width : meta.height;
-
-  // `.rotate()` with no angle applies the camera's orientation to the pixels.
-  // It MUST run before the metadata is dropped, or the photo is stored on its
-  // side forever. sharp writes no metadata unless asked to, so the output
-  // carries no EXIF, GPS, XMP, IPTC or colour profile; colours are converted
-  // to sRGB first so a phone's wide-gamut photo does not come out dull.
-  const oriented = sharp(input, { limitInputPixels: 80_000_000 }).rotate();
 
   let bytes: Buffer;
   let preview: Buffer;
@@ -141,18 +194,7 @@ export async function processPhoto(input: Buffer): Promise<Output> {
     preview,
     report: {
       kind: "image",
-      source: {
-        format: meta.format,
-        bytes: input.byteLength,
-        width: shownWidth,
-        height: shownHeight,
-        orientation: meta.orientation ?? 1,
-        exif: Boolean(meta.exif),
-        gps: hasGpsPointer(meta.exif),
-        xmp: Boolean(meta.xmp),
-        iptc: Boolean(meta.iptc),
-        iccProfile: Boolean(meta.icc),
-      },
+      source: sourceReport,
       output: {
         format: "webp",
         bytes: bytes.byteLength,
@@ -221,24 +263,47 @@ export async function processVideo(input: Buffer): Promise<Output> {
     // stream is dropped; `bitexact` stops ffmpeg writing its own version into
     // the file.
     const scale = `scale=w='trunc(min(1\\,${VIDEO_LONG_EDGE}/max(iw\\,ih))*iw/2)*2':h='trunc(min(1\\,${VIDEO_LONG_EDGE}/max(iw\\,ih))*ih/2)*2'`;
-    const encode = await run(
-      [
-        "-hide_banner", "-nostdin", "-y",
-        "-i", inPath,
-        "-map", "0:v:0", "-map", "0:a:0?",
-        "-vf", scale,
-        "-fpsmax", "60",
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", String(VIDEO_CRF),
-        "-profile:v", "high", "-pix_fmt", "yuv420p",
-        "-c:a", "aac", "-b:a", "128k",
-        "-map_metadata", "-1", "-map_metadata:s:v", "-1", "-map_metadata:s:a", "-1", "-map_chapters", "-1",
-        "-fflags", "+bitexact", "-flags:v", "+bitexact", "-flags:a", "+bitexact",
-        "-movflags", "+faststart",
-        "-t", String(MAX_VIDEO_SECONDS + 1),
-        outPath,
-      ],
-      VIDEO_TIMEOUT_MS,
-    );
+
+    // iPhones record HDR (HLG, 10-bit) by default. Squeezed into ordinary
+    // 8-bit video without conversion it looks grey and flat — a coach would be
+    // judging form from a washed-out picture. So HDR is tone-mapped to standard
+    // range, after scaling down (cheaper on one CPU).
+    const hdr = src.video.transfer === "arib-std-b67" || src.video.transfer === "smpte2084";
+    const tonemap =
+      "zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709," +
+      "tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p";
+
+    const encodeWith = (filters: string) =>
+      run(
+        [
+          "-hide_banner", "-nostdin", "-y",
+          "-i", inPath,
+          "-map", "0:v:0", "-map", "0:a:0?",
+          "-vf", filters,
+          "-fpsmax", "60",
+          "-c:v", "libx264", "-preset", "veryfast", "-crf", String(VIDEO_CRF),
+          "-profile:v", "high", "-pix_fmt", "yuv420p",
+          "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709",
+          "-c:a", "aac", "-b:a", "128k",
+          "-map_metadata", "-1", "-map_metadata:s:v", "-1", "-map_metadata:s:a", "-1", "-map_chapters", "-1",
+          "-fflags", "+bitexact", "-flags:v", "+bitexact", "-flags:a", "+bitexact",
+          "-movflags", "+faststart",
+          "-t", String(MAX_VIDEO_SECONDS + 1),
+          outPath,
+        ],
+        VIDEO_TIMEOUT_MS,
+      );
+
+    let hdrTonemapped = false;
+    let encode = await encodeWith(hdr ? `${scale},${tonemap}` : scale);
+    if (hdr && encode.code === 0) {
+      hdrTonemapped = true;
+    } else if (hdr && !encode.timedOut) {
+      // If the tone-mapping filter is unavailable on this host, the clip is
+      // still made playable rather than refused — and the report says the
+      // colours were not converted, instead of pretending they were.
+      encode = await encodeWith(`${scale},format=yuv420p`);
+    }
 
     if (encode.timedOut) {
       throw new MediaProcessingError("That clip took too long to process. Try again, or upload a shorter clip.", false);
@@ -298,6 +363,8 @@ export async function processVideo(input: Buffer): Promise<Output> {
           durationSeconds: src.durationSeconds,
           rotation: src.rotation,
           audio: src.audio ? `${src.audio.codec} ${src.audio.channels ?? ""}`.trim() : null,
+          pixelFormat: src.video.pixelFormat,
+          hdr: hdr ? src.video.transfer : false,
           identifyingTags: src.identifyingTags,
         },
         output: {
@@ -311,6 +378,8 @@ export async function processVideo(input: Buffer): Promise<Output> {
           audio: out.audio ? `${out.audio.codec} ${out.audio.channels ?? ""}`.trim() : null,
           identifyingTags: out.identifyingTags,
           crf: VIDEO_CRF,
+          pixelFormat: out.video!.pixelFormat,
+          hdrTonemapped,
         },
         savedBytes: input.byteLength - outBytes,
         savedPercent: Math.round((1 - outBytes / input.byteLength) * 1000) / 10,
@@ -354,7 +423,7 @@ export async function processMedia(assetId: string): Promise<ProcessOutcome> {
       throw new MediaProcessingError("That file isn't the kind of file it was uploaded as.", true);
     }
 
-    const output = kind.kind === "image" ? await processPhoto(input) : await processVideo(input);
+    const output = kind.kind === "image" ? await processPhoto(input, kind.format) : await processVideo(input);
 
     // New paths every time, and `upsert: false`: a processed file is never
     // overwritten, and a retry never writes over the result of another run.

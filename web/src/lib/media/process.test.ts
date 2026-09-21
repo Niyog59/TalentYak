@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { sniff, HEIC_REASON } from "@/lib/media/sniff";
+import { sniff } from "@/lib/media/sniff";
 import { MediaProcessingError, processPhoto, processVideo } from "@/lib/media/process";
 import { probe, run } from "@/lib/media/ffmpeg";
 
@@ -42,13 +42,11 @@ describe("what a file really is", () => {
     assert.deepEqual(sniff(new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, 0, 0])), { kind: "video", format: "webm" });
   });
 
-  test("an iPhone HEIC photo is refused with instructions — and is NOT mistaken for a video", () => {
+  test("an iPhone HEIC photo is recognised as a photo — and NOT mistaken for a video", () => {
     // HEIC and MP4 share a container. A check that only looked for `ftyp`
     // would have called this a clip and handed it to the video encoder.
     for (const brands of [["heic", "mif1", "heic"], ["mif1", "mif1", "heic"], ["heix", "mif1"], ["hevc", "msf1"]]) {
-      const result = sniff(ftyp(brands[0], ...brands.slice(1)));
-      assert.equal(result.kind, "unsupported", `brands ${brands.join(",")}`);
-      assert.equal(result.kind === "unsupported" && result.reason, HEIC_REASON);
+      assert.deepEqual(sniff(ftyp(brands[0], ...brands.slice(1))), { kind: "image", format: "heic" }, `brands ${brands.join(",")}`);
     }
   });
 
@@ -104,6 +102,38 @@ describe("optimising a photo", () => {
     const preview = await sharp(out.preview).metadata();
     assert.equal(preview.exif, undefined, "the thumbnail carries metadata");
     assert.ok(Math.max(preview.width!, preview.height!) <= 480);
+  });
+
+  test("an Apple-encoded HEIC photo is uprighted, re-encoded, and loses its GPS and device details", async (t) => {
+    const sharp = await sharpOrSkip();
+    if (!sharp) return t.skip("sharp is not available");
+    // Encoded by Apple's own HEIC encoder (macOS `sips`, the same encoder an
+    // iPhone uses): 600x400 stored sideways with a rotation box, carrying GPS,
+    // make and model in its EXIF item.
+    const heic = await readFile(join(process.cwd(), "test", "fixtures", "apple-portrait-gps.heic"));
+    assert.equal(sniff(new Uint8Array(heic.subarray(0, 64))).kind, "image");
+
+    const out = await processPhoto(heic, "heic");
+    const report = out.report as { source: Record<string, unknown> };
+    assert.equal(report.source.format, "heic");
+    assert.equal(report.source.gps, true, "the fixture really carries GPS");
+    assert.equal(report.source.rotationBox, true, "the fixture really carries a rotation box");
+
+    const stored = await sharp(out.bytes).metadata();
+    assert.equal(stored.format, "webp");
+    assert.equal(stored.exif, undefined, "EXIF survived");
+    assert.equal(stored.icc, undefined);
+    // Upright: 600x400 turned to portrait.
+    assert.equal(out.width, 400);
+    assert.equal(out.height, 600);
+    for (const s of ["GPS", "Apple", "iPhone"]) {
+      assert.ok(!out.bytes.includes(Buffer.from(s)), `"${s}" is still in the stored file`);
+    }
+  });
+
+  test("a file that claims to be HEIC but is not one is refused permanently", async () => {
+    const fake = Buffer.concat([Buffer.from(ftyp("heic", "mif1", "heic")), Buffer.alloc(4096, 7)]);
+    await assert.rejects(() => processPhoto(fake, "heic"), (err: unknown) => err instanceof MediaProcessingError && err.permanent);
   });
 
   test("a small photo is never enlarged", async (t) => {
@@ -162,6 +192,36 @@ describe("processing a clip", () => {
       assert.ok(Math.abs((after.durationSeconds ?? 0) - 3) < 0.2);
       assert.ok(out.preview.byteLength > 0, "no poster frame");
       assert.ok(out.bytes.byteLength < source.byteLength);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("an iPhone-style HDR (HLG, 10-bit HEVC) clip is tone-mapped to ordinary video, not left grey and flat", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "clip-test-"));
+    try {
+      const hdrPath = join(dir, "hdr.mov");
+      const made = await run([
+        "-hide_banner", "-loglevel", "error", "-y",
+        "-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=30", "-t", "2",
+        "-c:v", "libx265", "-preset", "ultrafast", "-pix_fmt", "yuv420p10le",
+        "-x265-params", "colorprim=bt2020:transfer=arib-std-b67:colormatrix=bt2020nc:log-level=error",
+        "-color_primaries", "bt2020", "-color_trc", "arib-std-b67", "-colorspace", "bt2020nc", "-tag:v", "hvc1", "-f", "mov", hdrPath,
+      ], 60_000);
+      assert.equal(made.code, 0, made.stderr);
+      const source = await readFile(hdrPath);
+      const before = await probe(hdrPath);
+      assert.equal(before.video?.transfer, "arib-std-b67", "the fixture really is HLG");
+      assert.equal(before.video?.pixelFormat, "yuv420p10le");
+
+      const out = await processVideo(source);
+      const report = out.report as { output: Record<string, unknown>; source: Record<string, unknown> };
+      assert.equal(report.source.hdr, "arib-std-b67");
+      assert.equal(report.output.hdrTonemapped, true, "HDR was not converted");
+      const after = await probe(await writeTemp(dir, "out.mp4", out.bytes));
+      assert.equal(after.video?.codec, "h264");
+      assert.equal(after.video?.pixelFormat, "yuv420p", "the output is not ordinary 8-bit video");
+      assert.equal(after.video?.transfer, "bt709", "the output is not tagged as standard range");
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
