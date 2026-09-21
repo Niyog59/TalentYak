@@ -69,6 +69,7 @@ export default async function AccountPage() {
         <ButtonLink href="/account/notifications" variant="secondary" size="sm">
           Notifications{unread ? <span className="ml-1.5 rounded-full bg-brand px-1.5 text-sm text-white">{unread}</span> : null}
         </ButtonLink>
+        <ButtonLink href="/account/media" variant="secondary" size="sm">Photos and clips</ButtonLink>
         <ButtonLink href="/account/billing" variant="secondary" size="sm">Billing</ButtonLink>
         <ButtonLink href="/account/security" variant="secondary" size="sm">Sign-in security</ButtonLink>
         {session.provider ? <ButtonLink href="/coach" variant="secondary" size="sm">Coach area</ButtonLink> : null}

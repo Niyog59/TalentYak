@@ -17,6 +17,9 @@ export interface SweepSummary {
   enrollmentsEnded: number;
   eventsRecovered: number;
   rateLimitRowsPruned: number;
+  abandonedMediaCleared: number;
+  mediaRequeued: number;
+  retentionCancelled: number;
   errors: string[];
 }
 
@@ -28,6 +31,9 @@ export async function runSweeps(): Promise<SweepSummary> {
     enrollmentsEnded: 0,
     eventsRecovered: 0,
     rateLimitRowsPruned: 0,
+    abandonedMediaCleared: 0,
+    mediaRequeued: 0,
+    retentionCancelled: 0,
     errors: [],
   };
   const admin = createAdminClient();
@@ -88,6 +94,35 @@ export async function runSweeps(): Promise<SweepSummary> {
   // 5. Old rate-limit windows.
   const pruned = await admin.rpc("prune_rate_limits");
   if (!pruned.error) summary.rateLimitRowsPruned = Number(pruned.data) || 0;
+
+  // 6. Uploads that were started and never finished — a closed laptop, a
+  //    dropped connection. The row is marked failed and the bytes are removed
+  //    together, so the bucket never holds a file no record points at.
+  //
+  //    This is housekeeping, not retention. It only ever touches uploads that
+  //    never became anything. The retention policies in 0022 remain PROPOSED
+  //    and their destructive execution remains switched OFF; nothing in this
+  //    sweep deletes material a person actually has.
+  try {
+    const { sweepAbandonedMedia } = await import("@/lib/media");
+    const swept = await sweepAbandonedMedia();
+    summary.abandonedMediaCleared = swept.abandoned + swept.released;
+    summary.mediaRequeued = swept.requeued;
+  } catch (err) {
+    summary.errors.push(`abandoned media: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  // 7. Retention candidates whose reason for deletion has gone away — a hold,
+  //    a lapsed customer who came back, a file already deleted by its owner —
+  //    are cancelled, and their pending notices with them. This step can only
+  //    ever LET SOMETHING OFF. Nothing here deletes, and no executor exists:
+  //    `retention_settings.destructive_execution_enabled` stays false.
+  const rechecked = await admin.rpc("recheck_retention_candidates");
+  if (rechecked.error) summary.errors.push(`retention recheck: ${rechecked.error.message}`);
+  else {
+    summary.retentionCancelled = ((rechecked.data ?? []) as { outcome: string }[])
+      .filter((r) => r.outcome.startsWith("cancelled")).length;
+  }
 
   return summary;
 }

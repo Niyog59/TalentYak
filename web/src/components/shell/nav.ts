@@ -106,6 +106,7 @@ export function founderNav(
       { label: "Finance & exceptions", shortLabel: "Finance", href: at("/finance"), icon: "alert", available: opts.real, phone: true },
       { label: "Payouts", href: at("/payouts"), icon: "earnings", available: opts.real },
       { label: "Coach changes", href: at("/coach-changes"), icon: "clients", available: opts.real },
+      { label: "Data and retention", shortLabel: "Retention", href: at("/retention"), icon: "lock", available: opts.real },
       { label: "Legacy bookings", href: at("/bookings"), icon: "catalog", available: opts.real },
     ],
     groups: opts.serviceTools?.length

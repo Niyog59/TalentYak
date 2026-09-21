@@ -536,12 +536,20 @@ export const HANDLERS: Record<string, Handler> = {
       { category: "expectations", path: "/account" });
   },
 
-  "email.retention_notice": async (job) => {
+  "email.retention_notice": async (job, ctx) => {
     // Retention policies are PROPOSALS and destructive execution is off. Only
     // synthetic candidates can reach this handler, and nothing is emailed for
     // them: the notice pipeline is exercised, no person is told about a
     // deletion nobody has approved.
     if (job.payload.synthetic !== true) {
+      // Recorded against the NOTICE as well as the job. An undelivered notice
+      // moves its candidate to `notice_failed`, which stops the clock: nobody
+      // may ever be deleted on the strength of a warning they never received.
+      await ctx.admin.rpc("record_notice_outcome", {
+        p_outbox_id: job.id,
+        p_delivered: false,
+        p_error: "retention notices for real people are disabled until a retention policy is approved",
+      });
       return { kind: "fail", error: "retention notices for real people are disabled until a retention policy is approved" };
     }
     return { kind: "done", result: { sent: false, reason: "synthetic_retention_candidate" } };

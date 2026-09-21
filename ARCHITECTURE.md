@@ -279,20 +279,34 @@ This extends to the **pandit vertical as a whole**. It is not deleted for a fitn
 
 ## 6. Storage architecture
 
-**Current — BUILT, and inadequate.** Cloudflare R2 via the S3 client (`web/src/lib/recordings.ts`). `getDownloadUrl` issues 7-day signed URLs and is used for ceremony delivery. `getUploadUrl` issues a presigned PUT with no validation, no size cap, no re-encode, no metadata strip — **and is called from nowhere.**
+**Ceremony recordings — unchanged.** Cloudflare R2 via `web/src/lib/recordings.ts`, retained pandit vertical only, not configured in any environment. Its 7-day links are far too long-lived for body data and it is not used for fitness media.
 
-**Required — the quarantine pipeline.** Progress photos and form-review video carry EXIF, including GPS. Stripping it is a privacy control, not an optimisation.
+**Private media — BUILT (`0030`, `0032`, `0033`).** Progress photos, form-review clips and chat attachments live in Supabase Storage in two private buckets, neither with any storage policy, so no browser session can read, list or write them directly.
 
 ```
-client → presigned PUT → QUARANTINE bucket (never served, never public)
-       → server-side: validate magic bytes, enforce size cap,
-                      re-encode, strip all metadata
-       → write to PRIVATE serving bucket
-       → delete the quarantine original
-       → serve only via short-lived signed URLs scoped to the requester
+browser ──(1) POST /api/media/uploads ──> reserve row + single-use token for ONE path
+browser ──(2) resumable 6 MB chunks (tus) ──> media-uploads/<owner>/<asset>/source   (holding area, never served)
+browser ──(3) POST /api/media/complete ──> server confirms the object exists and measures it
+server  ──(4) processMedia(): claim (atomic, 10-min lease)
+             → read bytes, decide type from bytes (lib/media/sniff.ts)
+             → photo: sharp — orient, ≤2048 px long edge, no crop, WebP q82, no metadata
+               clip:  ffmpeg — upright, ≤1280 px, ≤60 fps, H.264 High + AAC, faststart, no tags
+             → re-read the output and check it (format, no metadata, no rotation flag, proportions/duration)
+             → write to private-media (upsert false), download it back, compare byte for byte
+             → mark ready (the ONLY place metadata_stripped becomes true)
+             → only then delete the original
+viewer  ──(5) GET /api/media/<id> ──> RLS read AS THE VIEWER → 302 to a 120-second signed link, or 404
 ```
 
-A presigned upload is compatible with this requirement — the quarantine step is what makes it so. What is not compatible is exposing an unvalidated original, which is what the current helper would do.
+Why this shape: our hosting refuses request bodies over 4.5 MB, so bytes must not pass through our functions. The storage plan's own per-file ceiling is **50 MB** (measured: 49 MB accepted, 51 MB refused), which is the clip cap; photos are capped at 30 MB. A token cannot overwrite an object once written (measured: 409 duplicate). Nothing unprocessed is ever visible to a coach: the coach policy only matches `ready` rows.
+
+**Who may see media.** The owner, always. The current coach, via `coach_may_read_record(enrollment, recorded_at, p_media => true)` from `0021` — reused, not re-implemented. A reassigned coach matches nothing from the moment of reassignment; an incoming coach sees media from before their takeover only when the customer chose the `full` history scope.
+
+**Signed-link residual validity.** A signed link is a bearer token. When access changes, new requests are refused at once, but a link already issued keeps working until it expires: **at most 120 seconds**. Links are minted per request and redirected to, never written into HTML or stored records, so that window is the whole exposure. Uploaded content is served from the storage origin, never from ours, and `X-Content-Type-Options: nosniff` applies.
+
+**Failure and recovery.** A processing failure keeps the original so the owner can retry (up to five attempts, never for a permanent refusal such as HEIC). A processor that dies mid-job is requeued after its lease by the scheduled sweep, which also processes up to two stranded uploads per run. Upload tokens that never became a file are failed after 24 hours with their partial bytes removed, and a failed file's held original is released after 14 days. **None of this is retention** — see below.
+
+**Retention — operations built, deletion OFF (`0022`, `0031`).** The order is fixed: *dry run* (who a proposed rule would catch; creates nothing) → *schedule* (approved policies only) → *advance notice* (a failed notice stops the clock) → *holds* (a reason is required; they outrank the schedule) → *final eligibility check* → *execution*. Execution does not exist: `retention_settings.destructive_execution_enabled` is false, every policy is `proposed`, and `retention_execution_allowed()` — the guard any future deletion job must pass — refuses on the switch first. Retention expiry, a person's own deletion request, and housekeeping of abandoned uploads are three different things and are never handled by the same code.
 
 ---
 
@@ -375,7 +389,9 @@ Every vendor sits behind a local `/lib/*` module so it can be replaced. **No ven
 | Database, auth | Supabase | `lib/supabase/{client,server,admin}.ts` | **Partial leak** — query builders are used directly in page components, so the DB is not fully behind the seam |
 | Payments | Stripe | `lib/payments/{stripe,checkout,webhook}.ts` | Clean |
 | Email | Resend | `lib/email/index.ts` | Clean |
-| Object storage | Cloudflare R2 | `lib/recordings.ts` | Clean |
+| Object storage — media | Supabase Storage | `lib/media/{index,process}.ts` | Clean. Direct resumable uploads use the tus protocol, which other stores also speak |
+| Object storage — recordings | Cloudflare R2 | `lib/recordings.ts` | Clean; retained pandit vertical only |
+| Media processing | sharp; FFmpeg 6.0 via `ffmpeg-static` | `lib/media/{process,ffmpeg}.ts` | Clean. Runs inside our own functions; see §6 for limits |
 | BS calendar | `nepali-date-converter` | `verticals/pandit/tithi.ts` | Clean, but the version floats |
 | Payouts | Payoneer (manual CSV) | `lib/payouts/index.ts` | Route under review |
 | Video calls | — | — | **REQUIRED**, unbuilt. Daily is an unverified candidate |

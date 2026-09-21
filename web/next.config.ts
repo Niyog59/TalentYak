@@ -56,10 +56,27 @@ const securityHeaders = [
   },
 ];
 
+/**
+ * The routes that run media processing, and therefore need the ffmpeg binary
+ * in their deployed bundle. ffmpeg-static exposes the binary as a file path,
+ * which the build's file tracing cannot follow on its own — so it is included
+ * explicitly, and ONLY here: ~45 MB added to every function would slow every
+ * cold start for no reason.
+ */
+const MEDIA_PROCESSING_ROUTES = ["/api/media/complete", "/api/media/retry", "/api/jobs/process"];
+
 const nextConfig: NextConfig = {
   experimental: {
     serverActions: { bodySizeLimit: "6mb" },
   },
+
+  // Resolved at runtime from node_modules rather than bundled, so the path it
+  // returns points at the real binary.
+  serverExternalPackages: ["ffmpeg-static"],
+
+  outputFileTracingIncludes: Object.fromEntries(
+    MEDIA_PROCESSING_ROUTES.map((route) => [route, ["./node_modules/ffmpeg-static/ffmpeg"]]),
+  ),
 
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];

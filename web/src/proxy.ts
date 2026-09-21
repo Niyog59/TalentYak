@@ -41,8 +41,15 @@ function buildCsp(nonce: string): string {
     // uses eval to rebuild server stack traces for the error overlay.
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
     "style-src 'self' 'unsafe-inline'",
-    // Approved coach photos are served from the public storage bucket.
+    // Approved coach photos are served from the public storage bucket;
+    // progress photos and their thumbnails come from the private one, as
+    // short-lived signed links on the same origin.
     `img-src 'self' blob: data: ${supabaseOrigin[0] ?? ""}`.trim(),
+    // Form-review clips, played from a signed link. Without this, video falls
+    // back to default-src and will not play. Note that uploaded media is served
+    // from the storage origin and NEVER from ours, so an uploaded file cannot
+    // execute anything under the app's own origin.
+    `media-src 'self' blob: ${supabaseOrigin[0] ?? ""}`.trim(),
     "font-src 'self' data:",
     `connect-src 'self' ${supabaseOrigin.join(" ")}`.trim(),
     // Stripe Checkout is a full redirect, not an embedded frame, so nothing
