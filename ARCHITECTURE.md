@@ -281,7 +281,7 @@ This extends to the **pandit vertical as a whole**. It is not deleted for a fitn
 
 **Ceremony recordings — unchanged.** Cloudflare R2 via `web/src/lib/recordings.ts`, retained pandit vertical only, not configured in any environment. Its 7-day links are far too long-lived for body data and it is not used for fitness media.
 
-**Private media — BUILT (`0030`, `0032`, `0033`).** Progress photos, form-review clips and chat attachments live in Supabase Storage in two private buckets, neither with any storage policy, so no browser session can read, list or write them directly.
+**Private media — BUILT (`0030`, `0032`, `0033`, `0034`).** Progress photos, form-review clips and chat attachments live in Supabase Storage in two private buckets, neither with any storage policy, so no browser session can read, list or write them directly.
 
 ```
 browser ──(1) POST /api/media/uploads ──> reserve row + single-use token for ONE path
@@ -298,13 +298,13 @@ server  ──(4) processMedia(): claim (atomic, 10-min lease)
 viewer  ──(5) GET /api/media/<id> ──> RLS read AS THE VIEWER → 302 to a 120-second signed link, or 404
 ```
 
-Why this shape: our hosting refuses request bodies over 4.5 MB, so bytes must not pass through our functions. The storage plan's own per-file ceiling is **50 MB** (measured: 49 MB accepted, 51 MB refused), which is the clip cap; photos are capped at 30 MB. A token cannot overwrite an object once written (measured: 409 duplicate). Nothing unprocessed is ever visible to a coach: the coach policy only matches `ready` rows.
+Why this shape: our hosting refuses request bodies over 4.5 MB, so bytes must not pass through our functions. The storage plan's own per-file ceiling is **50 MB** (measured: 49 MB accepted, 51 MB refused), which is the clip cap; photos are capped at 30 MB and clips at 2 minutes. The length cap comes from measurement on the deployed function: re-encoding runs at 1.0–1.35× the clip's length (30.5 s of 1080p60 took 41.3 s; 75 s took 73.4 s), so 2 minutes fits inside the 230-second processing limit with margin and 3 minutes would not. A token cannot overwrite an object once written (measured: 409 duplicate). Nothing unprocessed is ever visible to a coach: the coach policy only matches `ready` rows.
 
 **Who may see media.** The owner, always. The current coach, via `coach_may_read_record(enrollment, recorded_at, p_media => true)` from `0021` — reused, not re-implemented. A reassigned coach matches nothing from the moment of reassignment; an incoming coach sees media from before their takeover only when the customer chose the `full` history scope.
 
 **Signed-link residual validity.** A signed link is a bearer token. When access changes, new requests are refused at once, but a link already issued keeps working until it expires: **at most 120 seconds**. Links are minted per request and redirected to, never written into HTML or stored records, so that window is the whole exposure. Uploaded content is served from the storage origin, never from ours, and `X-Content-Type-Options: nosniff` applies.
 
-**Failure and recovery.** A processing failure keeps the original so the owner can retry (up to five attempts, never for a permanent refusal such as HEIC). A processor that dies mid-job is requeued after its lease by the scheduled sweep, which also processes up to two stranded uploads per run. Upload tokens that never became a file are failed after 24 hours with their partial bytes removed, and a failed file's held original is released after 14 days. **None of this is retention** — see below.
+**Failure and recovery.** A failure retrying could fix keeps the original so the owner can retry (up to five attempts). A permanent refusal — HEIC, a document, an over-length clip — deletes the original immediately (`0034`), because nothing can ever be done with it. A processor that dies mid-job is requeued after its lease by the scheduled sweep, which also processes up to two stranded uploads per run. Upload tokens that never became a file are failed after 24 hours with their partial bytes removed, and a failed file's held original is released after 14 days. **None of this is retention** — see below.
 
 **Retention — operations built, deletion OFF (`0022`, `0031`).** The order is fixed: *dry run* (who a proposed rule would catch; creates nothing) → *schedule* (approved policies only) → *advance notice* (a failed notice stops the clock) → *holds* (a reason is required; they outrank the schedule) → *final eligibility check* → *execution*. Execution does not exist: `retention_settings.destructive_execution_enabled` is false, every policy is `proposed`, and `retention_execution_allowed()` — the guard any future deletion job must pass — refuses on the switch first. Retention expiry, a person's own deletion request, and housekeeping of abandoned uploads are three different things and are never handled by the same code.
 
