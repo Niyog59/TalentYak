@@ -228,7 +228,7 @@ Encode runs at roughly **1.0–1.35× the clip's length**. That is why clips are
 
 **Residual validity of issued links, measured:** a 120-second link returned 200 at issue and at 60 s, and was **refused at 125 s** (400). When a coach is reassigned, new requests are refused at once; a link they already hold works for at most the rest of its two minutes.
 
-### Deployed verification — `www.talentyak.com`, commit `5f4d6fc`, signed in as synthetic test accounts
+### Deployed verification — `www.talentyak.com`, commits `5f4d6fc` and `0e97c0e`, signed in as synthetic test accounts
 
 | Check | Result |
 |---|---|
@@ -237,11 +237,13 @@ Encode runs at roughly **1.0–1.35× the clip's length**. That is why clips are
 | Oversized, via the page | 55 MB clip refused instantly with the 50 MB message; **no request made** |
 | Unsupported, via the page | HEIC refused with instructions; a PDF renamed `.jpg` refused. **No request made** for either |
 | Oversized, bypassing the page | Declaring 60 MB → 422. Declaring 31 MB for a photo → 422. Declaring 1,000 bytes then sending 51 MB → **storage refused, 413** |
-| Unsupported, bypassing the page | HEIC and PDF uploaded to holding, then **refused by the server**, permanent, never marked clean |
+| Unsupported, bypassing the page | HEIC and PDF uploaded to holding, then **refused by the server**, permanent, never marked clean. On `5f4d6fc` their originals were still held for 14 days; that is what `0034` fixed |
 | Interrupted upload and retry | Third chunk of the 48 MB clip failed as a dropped connection → "The connection dropped at 12.0 of 48.0 MB. Try again…". **Try again** asked storage for its offset (HEAD 200) and resumed at byte 12,582,912, not 0. The finished file encoded to exactly the same 17,489,893 bytes as the uninterrupted upload — the resumed file was byte-identical |
 | Processing failure and retry | A clip cut short mid-export failed: "Processing check failed (the duration changed). Nothing was stored." **Try processing again** reprocessed it (attempt 2); it failed again, correctly, because the file is damaged. Permanent refusals show no retry button |
 | Authorised viewing | Thumbnail loaded (360×480); both clips loaded through the view route (720×1280 and 1280×720, correct durations); **played 4 s with an audio track**, 18 s buffered |
 | Unrelated account | 12 of 12 requests — original, preview and download for each of 4 files — **404**; their page lists nothing; retrying the owner's failed clip → 409 |
+| Over-length clip (after `0e97c0e`) | A 130-second clip refused: "That clip is 130 seconds long. Clips can be up to 2 minutes — trim it and upload again." Permanent; **original deleted at once** |
+| Refused originals (after `0e97c0e`) | A HEIC sent around the browser check was refused and its original deleted immediately: the account's holding folder was empty afterwards, and the object could not be fetched even with the server key |
 | Coach-change access | Unchanged rule, reused; covered by 25 database tests as real users, including a reassigned coach losing access and an incoming coach seeing earlier media only with full history shared. Not re-driven in the browser: there is no coach media screen yet (M11–M13) |
 
 ### Tests
@@ -358,3 +360,7 @@ The outbox holds several `failed` jobs reading `coach not found` / `recipient no
 - **Scheduling** below daily — see the scheduling section.
 
 Do not start Batch 2 from this file; it has its own prompt.
+
+### Cleanup after the deployed checks
+
+All synthetic accounts used above were deleted, with their rows and 21 stored objects across both buckets; the staged test files were removed from the holding bucket. Nothing test-made remains in storage.
