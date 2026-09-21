@@ -131,6 +131,8 @@ Private media, retention execution, export/deletion plumbing, reassignment media
 
 ### D — Private media
 
+> **Superseded in part on 2026-09-21 ("Media uploads and processing", below).** The upload path described here went through our own server, which on Vercel cannot accept a request over 4.5 MB, and video was stored unprocessed. Both are replaced. The access rules, the reassignment behaviour and the tests in this section still hold.
+
 **Built.** `media_assets` with an owner, a coaching relationship, a purpose (`progress_photo` / `form_review_clip` / `chat_attachment`) and processing states (`reserved` → `ready` / `failed` / `deleted`). One private bucket, `private-media`, with **no storage policy of any kind**, so browsers can neither read nor write it. `src/lib/media/accept.ts` decides a file's type from its leading bytes, caps images at 12 MB and clips at 150 MB, re-encodes photos to WebP keeping their **whole frame and proportions** (unlike the square-cropped profile photo), applies camera orientation before dropping metadata, and makes a 400px thumbnail held under the same protection. `src/lib/media/index.ts` reserves the row before any bytes are written, removes the bytes if anything after that fails, and issues links **only after the viewer's own session has read the row**. `POST /api/media/upload` (a route handler rather than a server action, because only XHR reports upload progress), `components/media/uploader.tsx` (progress bar, explicit retry, never automatic), `/account/media` (upload, thumbnails, download, delete), abandoned-upload sweep in the scheduled job. CSP gained `media-src` for clip playback.
 
 **The reassignment rule was reused, not invented.** `coach_may_read_record()` from `0021` already required the customer's `full` history scope before a new coach sees media from before their takeover. `0030` applies that same function; there is no second rule to drift.
@@ -169,6 +171,97 @@ Private media, retention execution, export/deletion plumbing, reassignment media
 ### F — Scheduled work
 
 The sweep was run through the protected endpoint after these changes: `abandonedMediaCleared: 0`, `retentionCancelled: 0`, `errors: []`. The scheduling gap is unchanged and stated above: once a day on the current plan.
+
+---
+
+## Media uploads and processing — built and verified on the deployed site, 2026-09-21
+
+**What changed.** Files no longer pass through our server. The browser uploads straight to a private holding bucket in resumable chunks; the server then validates, cleans and compresses the file, stores the result, checks it, and only then deletes the original. Video is now actually re-encoded — the earlier "stored unchanged" limitation is gone.
+
+### Limits, and where each one comes from
+
+| Limit | Value | Source |
+|---|---|---|
+| Request body through our functions | 4.5 MB | Vercel. Why files no longer go through them |
+| One file in storage | **50 MB** | Supabase free plan. **Measured**: 49 MB accepted, 51 MB refused `EntityTooLarge`. The API token in use cannot read the setting directly |
+| Photo | 30 MB | Ours; decoding is also bounded at 80 megapixels |
+| Clip | 50 MB and **2 minutes** | Storage ceiling, and **measured** encode speed on the deployed function (below) |
+| Function time for processing | 300 s configured, 230 s encode cut-off | A 78-second processing run completed after the response, so the deployed function is **not** capped at 60 s |
+| Signed viewing link | 120 s | Ours |
+
+### How video is processed
+
+`ffmpeg-static` 5.3.0 (maintained; last release November 2025) ships FFmpeg 6.0 with libx264 and AAC. It is added to the three processing routes only (`/api/media/complete`, `/api/media/retry`, `/api/jobs/process`) — about 115 MB per route including the image library, inside Vercel's 250 MB limit. A bundling fix stopped the build tracing the entire project into those routes (it had been 120 MB of unrelated files). `ffprobe-static` was rejected: 350 MB and unmaintained; ffmpeg reports the same stream facts.
+
+Output: H.264 High / yuv420p / AAC, MP4 with the index at the front, upright (the rotation matrix is applied to the pixels, not kept as a flag), at most 1280 px on the long edge, frame rate kept up to 60 fps, audio kept. Every container and stream tag is dropped; the only tag left in the output is `encoder: Lavc libx264`, which names our tool, not the person or device.
+
+**Measured on the deployed function (one CPU):**
+
+| Clip | Source | Output | Saved | Encode time |
+|---|---|---|---|---|
+| 30.5 s, 1080p60 portrait, 13 Mbps, location + make/model | 48.0 MB (50,307,290 B) | 16.7 MB (17,489,893 B), 720×1280, 60 fps, stereo AAC | 65.2 % | 41.3 s |
+| 75 s, 1080p60 landscape, 5 Mbps, location | 44.1 MB (46,192,162 B) | 16.5 MB (17,277,349 B), 1280×720, 60 fps | 62.6 % | 73.4 s |
+
+Encode runs at roughly **1.0–1.35× the clip's length**. That is why clips are capped at 2 minutes (worst case ~160 s against the 230 s cut-off); 3 minutes would not fit reliably. Test clips are synthetic (generated to carry a phone's rotation matrix, location, make, model and creation-time tags, at phone bitrates), and are deliberately hard to compress; real footage usually compresses better.
+
+### Photos
+
+**Measured on the deployed site** — a 12-megapixel JPEG stored sideways (orientation 6) with a GPS block, make, model and artist, as a phone writes a portrait shot:
+
+| | Bytes | Dimensions (as shown) | Metadata |
+|---|---|---|---|
+| Uploaded | 9,391,759 (9.0 MB) | 3024×4032 | EXIF, GPS, colour profile, orientation 6 |
+| Stored | 936,242 (0.9 MB) | 1536×2048 | none |
+
+**90 % smaller**, upright, exact 3:4 proportions (no crop, no stretch), long edge 2048 px, WebP quality 82. Downloaded independently afterwards: `exif=false xmp=false iptc=false icc=false orientation=none`, and a raw byte search for "GPS", "iPhone", "Apple" and the artist's name finds nothing.
+
+**Formats.** Accepted: JPEG, PNG, WebP, AVIF; MP4, MOV, 3GP, WebM. **iPhone HEIC is refused, not accepted**: the image library on our servers has no HEVC decoder. It is refused instantly in the browser with instructions ("Settings → Camera → Formats → Most Compatible, or share as JPEG"), and — if the browser check is bypassed — refused again by the server, with the original deleted. Earlier code would have misread a HEIC as a video (same container family); that is fixed and tested. The HEIC test file is a HEIC-branded container, not a real iPhone capture: no HEVC encoder is available to produce one.
+
+### Security and cleanup
+
+- Upload tokens are single-use, for one path, issued only for the signed-in person's own reserved row. The owner is the session, never a form field.
+- **Overwrite after upload is refused** by storage (measured: reusing the token → 409). Processed files are written with `upsert: false` at new paths, and a retry never writes over an earlier result.
+- The holding bucket has no storage policy: a browser session cannot read or list it (database test, as the owner and as a coach).
+- The original is deleted **only after** the cleaned copy is stored, downloaded back, compared byte for byte, and recorded. A retryable failure keeps the original for retry; **a permanent refusal deletes it immediately** (`0034`).
+- A processing claim holds a 10-minute lease; a processor that dies is requeued by the scheduled sweep after 15 minutes, which also processes up to two stranded uploads per run. An upload that never finished is failed after 24 hours and its partial bytes removed; a failed file's original is released after 14 days. **None of this is retention**, whose deletion stays off.
+- Viewing, preview and download all go through `/api/media/<id>`, which reads the row **as the viewer** and redirects to a 120-second link, or returns 404 for any refusal.
+
+**Residual validity of issued links, measured:** a 120-second link returned 200 at issue and at 60 s, and was **refused at 125 s** (400). When a coach is reassigned, new requests are refused at once; a link they already hold works for at most the rest of its two minutes.
+
+### Deployed verification — `www.talentyak.com`, commit `5f4d6fc`, signed in as synthetic test accounts
+
+| Check | Result |
+|---|---|
+| Photo over 4.5 MB (9.4 MB) | Uploaded as two 6 MB chunks straight to storage; our server saw only two small JSON calls. Processed as in the photo table |
+| Clip near the cap (48.0 MB) | Uploaded in 9 chunks, processed in 41.3 s, as in the video table |
+| Oversized, via the page | 55 MB clip refused instantly with the 50 MB message; **no request made** |
+| Unsupported, via the page | HEIC refused with instructions; a PDF renamed `.jpg` refused. **No request made** for either |
+| Oversized, bypassing the page | Declaring 60 MB → 422. Declaring 31 MB for a photo → 422. Declaring 1,000 bytes then sending 51 MB → **storage refused, 413** |
+| Unsupported, bypassing the page | HEIC and PDF uploaded to holding, then **refused by the server**, permanent, never marked clean |
+| Interrupted upload and retry | Third chunk of the 48 MB clip failed as a dropped connection → "The connection dropped at 12.0 of 48.0 MB. Try again…". **Try again** asked storage for its offset (HEAD 200) and resumed at byte 12,582,912, not 0. The finished file encoded to exactly the same 17,489,893 bytes as the uninterrupted upload — the resumed file was byte-identical |
+| Processing failure and retry | A clip cut short mid-export failed: "Processing check failed (the duration changed). Nothing was stored." **Try processing again** reprocessed it (attempt 2); it failed again, correctly, because the file is damaged. Permanent refusals show no retry button |
+| Authorised viewing | Thumbnail loaded (360×480); both clips loaded through the view route (720×1280 and 1280×720, correct durations); **played 4 s with an audio track**, 18 s buffered |
+| Unrelated account | 12 of 12 requests — original, preview and download for each of 4 files — **404**; their page lists nothing; retrying the owner's failed clip → 409 |
+| Coach-change access | Unchanged rule, reused; covered by 25 database tests as real users, including a reassigned coach losing access and an incoming coach seeing earlier media only with full history shared. Not re-driven in the browser: there is no coach media screen yet (M11–M13) |
+
+### Tests
+
+Unit **214** (was 213; media tests replaced and extended: format detection incl. HEIC-vs-video, photo orientation/metadata/proportions/no-enlarge, clip rotation/metadata/audio/fps, junk refused permanently, truncated clip refused retryably). Database **media 25/25** (holding path ownership, completion ownership, concurrent claims take a file once, coaches never see unprocessed uploads, only completion marks a file clean, retry rules, crashed-processor requeue, abandoned-upload cleanup, holding bucket unreadable from a browser).
+
+### What is still not done, stated plainly
+
+- **HEIC** is refused, not converted. Supporting it needs an HEVC-capable decoder.
+- **Longer or larger clips.** Beyond 2 minutes or 50 MB, both limits are the environment's, not the code's — see "Decisions and costs" below.
+- **No content scanning** of any kind is implemented or claimed.
+- **Pause/resume** exists in the uploader but was not separately exercised on the deployed site; the resume mechanism it uses is the one verified above.
+- **Coach-side media screens** do not exist (M11–M13). Access rules are enforced and tested in the database; no coach has viewed media in a browser.
+
+### Decisions and costs — nothing needed today
+
+Nothing was bought or upgraded. If clips longer than 2 minutes or larger than 50 MB become necessary:
+
+1. **The storage ceiling comes first.** Supabase Pro (**$25/month**) makes the per-file limit configurable. Nothing else fixes it.
+2. **Then encode time.** Recommended: move `processVideo()` — unchanged — to one small always-on worker with FFmpeg, e.g. a Fly.io shared-CPU machine (**about $2–6/month** at this volume), polling the same `uploaded` queue. Setup: a Dockerfile with the Node runtime, the service key as a secret, and the processing routes stop calling FFmpeg themselves. A managed service (Mux, Cloudflare Stream) was not chosen: per-minute pricing, and the originals would leave our storage.
 
 ---
 

@@ -502,7 +502,8 @@ describe("uploads before they are processed", { skip }, () => {
     const r2 = await reserveUpload();
     await adminClient().rpc("mark_media_uploaded", { p_id: r2.id, p_owner: owner.id, p_bytes: 10 });
     await adminClient().rpc("claim_media_processing", { p_id: r2.id });
-    await adminClient().rpc("fail_media_processing", { p_id: r2.id, p_reason: "HEIC", p_permanent: true });
+    const { data: released } = await adminClient().rpc("fail_media_processing", { p_id: r2.id, p_reason: "HEIC", p_permanent: true });
+    assert.equal(released, r2.source_path, "a refused file's original was not handed back for deletion");
     const refused = await owner.client.rpc("request_media_retry", { p_id: r2.id });
     assert.equal(refused.data, false, "a permanent refusal was offered a pointless retry");
   });

@@ -24,8 +24,10 @@ import { MAX_VIDEO_SECONDS, sniff } from "@/lib/media/sniff";
  *   6. mark it ready — the only place `metadata_stripped` becomes true
  *   7. only then delete the original
  *
- * A failure at any step leaves the original in the holding area, the asset
- * `failed` with a reason, and nothing visible to anyone but the owner.
+ * A failure retrying could fix leaves the original in the holding area so the
+ * owner can try again. A permanent refusal (HEIC, a document, an over-length
+ * clip) deletes the original at once — nothing could ever be done with it.
+ * Either way the asset is `failed` with a reason, visible only to its owner.
  *
  * PHOTOS are kept at up to 2048 px on the long edge. That is enough to compare
  * posture and shape between two progress photos months apart; beyond it, a
@@ -400,7 +402,15 @@ export async function processMedia(assetId: string): Promise<ProcessOutcome> {
     if (!(err instanceof MediaProcessingError)) {
       console.error("[media] processing error:", asset.id, err instanceof Error ? err.message : err);
     }
-    await admin.rpc("fail_media_processing", { p_id: asset.id, p_reason: reason, p_permanent: permanent });
+    // A permanent refusal (HEIC, a document, an over-length clip) releases the
+    // original in the same statement, and its bytes are removed here: nobody
+    // can retry it, so there is no reason to keep somebody's file (0034).
+    const { data: released } = await admin.rpc("fail_media_processing", {
+      p_id: asset.id,
+      p_reason: reason,
+      p_permanent: permanent,
+    });
+    if (released) await admin.storage.from(SOURCE_BUCKET).remove([released as string]);
     return { status: "failed", reason, permanent };
   }
 }

@@ -23,7 +23,13 @@
 export const MAX_PHOTO_BYTES = 30 * 1024 * 1024;
 /** The storage plan's own per-file ceiling, measured: 49 MB accepted, 51 MB refused. */
 export const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
-export const MAX_VIDEO_SECONDS = 180;
+/**
+ * Measured on the deployed function (one CPU): re-encoding runs at roughly
+ * 1.0–1.35x the clip's own length — a 30.5 s 1080p60 clip took 41.3 s, a 75 s
+ * one 73.4 s. Two minutes therefore needs at most ~160 s, inside the 230 s
+ * processing limit with margin. Three minutes would not reliably fit.
+ */
+export const MAX_VIDEO_SECONDS = 120;
 
 export type Sniffed =
   | { kind: "image"; format: "jpeg" | "png" | "webp" | "avif" }
