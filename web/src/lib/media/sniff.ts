@@ -9,15 +9,12 @@
  * A file name and a declared content type are both chosen by the uploader and
  * are never consulted here.
  *
- * WHAT IS REFUSED, AND WHY IT IS REFUSED OUT LOUD:
+ * HEIC/HEIF — the iPhone camera's default — is recognised as a photo. It shares
+ * a container family with MP4, and an earlier version of this check would have
+ * called an iPhone photo a video; the brands are read to tell them apart.
  *
- * · HEIC/HEIF (the iPhone camera default). Decoding it needs the HEVC codec,
- *   which the image library on our servers does not include. It is refused
- *   with instructions rather than accepted and then failing mysteriously —
- *   or, worse, being stored as something else. (MP4 and HEIC share the same
- *   container family, and an earlier version of this check would have called
- *   an iPhone photo a video.)
- * · Anything else unrecognised — documents, archives, RAW files, GIFs.
+ * Anything else unrecognised — documents, archives, RAW files, GIFs — is
+ * refused out loud, never stored "just in case".
  */
 
 export const MAX_PHOTO_BYTES = 30 * 1024 * 1024;
@@ -32,9 +29,9 @@ export const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
 export const MAX_VIDEO_SECONDS = 120;
 
 export type Sniffed =
-  | { kind: "image"; format: "jpeg" | "png" | "webp" | "avif" }
+  | { kind: "image"; format: "jpeg" | "png" | "webp" | "avif" | "heic" }
   | { kind: "video"; format: "mp4" | "mov" | "3gp" | "webm" }
-  | { kind: "unsupported"; format: "heic" | "unknown"; reason: string };
+  | { kind: "unsupported"; format: "unknown"; reason: string };
 
 const ascii = (bytes: Uint8Array, from: number, to: number) =>
   String.fromCharCode(...Array.from(bytes.slice(from, to)));
@@ -43,11 +40,7 @@ const HEIF_BRANDS = new Set(["heic", "heix", "hevc", "hevx", "heim", "heis", "he
 const MP4_BRANDS = new Set(["isom", "iso2", "iso3", "iso4", "iso5", "iso6", "mp41", "mp42", "avc1", "m4v ", "mp71", "dash", "f4v "]);
 const GPP_BRANDS = new Set(["3gp4", "3gp5", "3gp6", "3g2a", "3g2b", "3g2c", "3ge6", "3gg6"]);
 
-export const HEIC_REASON =
-  "iPhone HEIC photos can't be used yet. On the iPhone, open Settings → Camera → Formats and choose " +
-  "“Most Compatible”, or share the photo as a JPEG, then upload it again.";
-
-const UNKNOWN_REASON = "Upload a photo (JPEG, PNG, WebP or AVIF) or a video (MP4, MOV or WebM).";
+const UNKNOWN_REASON = "Upload a photo (JPEG, HEIC, PNG, WebP or AVIF) or a video (MP4, MOV or WebM).";
 
 /** Needs at least the first 64 bytes. */
 export function sniff(bytes: Uint8Array): Sniffed {
@@ -76,7 +69,7 @@ export function sniff(bytes: Uint8Array): Sniffed {
 
     // AVIF can carry `mif1` as its major brand, so check for it first.
     if (brands.includes("avif") || brands.includes("avis")) return { kind: "image", format: "avif" };
-    if (brands.some((b) => HEIF_BRANDS.has(b))) return { kind: "unsupported", format: "heic", reason: HEIC_REASON };
+    if (brands.some((b) => HEIF_BRANDS.has(b))) return { kind: "image", format: "heic" };
     if (major === "qt  ") return { kind: "video", format: "mov" };
     if (GPP_BRANDS.has(major)) return { kind: "video", format: "3gp" };
     if (MP4_BRANDS.has(major) || brands.some((b) => MP4_BRANDS.has(b))) return { kind: "video", format: "mp4" };

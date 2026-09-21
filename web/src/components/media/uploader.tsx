@@ -22,8 +22,9 @@ import { capFor, sniff, tooLargeMessage } from "@/lib/media/sniff";
  * RETRY IS EXPLICIT, NEVER AUTOMATIC. An upload that failed because the file
  * was refused would otherwise retry forever.
  *
- * THIS SCREEN'S CHECKS ARE A COURTESY. It refuses a HEIC photo or an oversized
- * clip instantly so nobody waits on an upload that was never going to work.
+ * THIS SCREEN'S CHECKS ARE A COURTESY. It refuses an unsupported file or an
+ * oversized clip instantly so nobody waits on an upload that was never going
+ * to work.
  * The server reads the real bytes afterwards and has the final say.
  */
 
@@ -254,9 +255,7 @@ export function MediaUploader({
         ref={inputRef}
         id={`upload-${purpose}`}
         type="file"
-        // A convenience for the file picker only. HEIC is listed so an iPhone
-        // user who picks one is told why it can't be used, rather than finding
-        // it greyed out with no explanation.
+        // A convenience for the file picker only; the server decides.
         accept="image/jpeg,image/png,image/webp,image/avif,image/heic,image/heif,video/mp4,video/quicktime,video/webm,video/3gpp"
         onChange={onChange}
         disabled={busy || status === "paused"}

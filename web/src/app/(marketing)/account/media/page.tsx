@@ -121,7 +121,7 @@ export default async function MediaPage() {
           purpose="progress_photo"
           enrollmentId={enrollment?.id ?? null}
           label="Choose a photo or clip"
-          help={`Photos: JPEG, PNG, WebP or AVIF, up to ${MAX_PHOTO_BYTES / 1048576} MB. Clips: MP4, MOV or WebM, up to ${MAX_VIDEO_BYTES / 1048576} MB and ${MAX_VIDEO_SECONDS / 60} minutes. iPhone HEIC photos aren't supported yet.`}
+          help={`Photos: JPEG, HEIC (iPhone), PNG, WebP or AVIF, up to ${MAX_PHOTO_BYTES / 1048576} MB. Clips: MP4, MOV or WebM, up to ${MAX_VIDEO_BYTES / 1048576} MB and ${MAX_VIDEO_SECONDS / 60} minutes.`}
         />
         {!enrollment ? (
           <p className="mt-3 text-sm text-ink-muted">

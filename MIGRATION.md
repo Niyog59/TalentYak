@@ -67,6 +67,7 @@ Same shape for any vendor.
 | `STRIPE_WEBHOOK_SECRET` | Signature verification | `lib/env.ts` |
 | `RESEND_API_KEY` | Email send | `lib/env.ts` |
 | `EMAIL_FROM` | Sender identity | `lib/env.ts` |
+| `RESEND_WEBHOOK_SECRET` | Verifies Resend delivery events (Svix signature). Endpoint fails closed without it | `app/api/webhooks/resend/route.ts` |
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` | Object storage | `lib/recordings.ts` |
 | `SUPPORT_EMAIL` | Reply address shown to customers; hidden until set | `lib/env.ts` |
 | `CRON_SECRET` | Job-processor auth. **Required** — the endpoint refuses to run without it, compares in constant time, and prefers POST | `app/api/jobs/process/route.ts` |
