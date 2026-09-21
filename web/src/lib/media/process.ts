@@ -50,8 +50,25 @@ const PHOTO_QUALITY = 82;
 const PREVIEW_LONG_EDGE = 480;
 const VIDEO_LONG_EDGE = 1280;
 const VIDEO_CRF = 23;
-/** Under the function's own limit, so a slow encode fails cleanly instead of being killed mid-write. */
-const VIDEO_TIMEOUT_MS = 230_000;
+/**
+ * Under the function's own 300 s limit, leaving time to download the original
+ * and store and re-check the result, so a slow encode fails cleanly instead of
+ * being killed mid-write.
+ */
+const VIDEO_TIMEOUT_MS = 265_000;
+
+/**
+ * Seconds of encoding a clip is expected to need on the deployed function (one
+ * CPU), from measurements there: 1080p60 H.264 ~1.35x its length, 1080p60 HEVC
+ * ~1.85x (a 119 s clip took 202 s), HDR tone-mapping ~1.6x at 1080p30. Scaled by
+ * pixels and frame rate. Used only to choose a faster encoder setting for heavy
+ * clips — never to refuse one.
+ */
+function estimatedEncodeSeconds(v: { width: number; height: number; fps: number | null; codec: string }, seconds: number, hdr: boolean): number {
+  const perSecondAt1080p60 = hdr ? 3.2 : v.codec === "hevc" ? 1.85 : 1.35;
+  const scale = ((v.width * v.height) / (1920 * 1080)) * (Math.min(v.fps ?? 30, 60) / 60);
+  return seconds * perSecondAt1080p60 * Math.max(scale, 0.15);
+}
 
 export class MediaProcessingError extends Error {
   /** True when retrying cannot help: an unsupported format stays unsupported. */
@@ -269,6 +286,11 @@ export async function processVideo(input: Buffer): Promise<Output> {
     // judging form from a washed-out picture. So HDR is tone-mapped to standard
     // range, after scaling down (cheaper on one CPU).
     const hdr = src.video.transfer === "arib-std-b67" || src.video.transfer === "smpte2084";
+    // A long, dense clip gets a faster encoder setting — a little larger file
+    // at the same quality target — so it finishes well inside the time limit,
+    // even when another upload is being processed on the same machine.
+    const estimate = estimatedEncodeSeconds(src.video, src.durationSeconds, hdr);
+    const preset = estimate > 110 ? "superfast" : "veryfast";
     const tonemap =
       "zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709," +
       "tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p";
@@ -281,7 +303,7 @@ export async function processVideo(input: Buffer): Promise<Output> {
           "-map", "0:v:0", "-map", "0:a:0?",
           "-vf", filters,
           "-fpsmax", "60",
-          "-c:v", "libx264", "-preset", "veryfast", "-crf", String(VIDEO_CRF),
+          "-c:v", "libx264", "-preset", preset, "-crf", String(VIDEO_CRF),
           "-profile:v", "high", "-pix_fmt", "yuv420p",
           "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709",
           "-c:a", "aac", "-b:a", "128k",
@@ -380,6 +402,8 @@ export async function processVideo(input: Buffer): Promise<Output> {
           crf: VIDEO_CRF,
           pixelFormat: out.video!.pixelFormat,
           hdrTonemapped,
+          preset,
+          estimatedSeconds: Math.round(estimate),
         },
         savedBytes: input.byteLength - outBytes,
         savedPercent: Math.round((1 - outBytes / input.byteLength) * 1000) / 10,
