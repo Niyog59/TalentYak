@@ -354,3 +354,64 @@ describe("what must still be true when the message is sent", () => {
     assert.match(sent[0].html, /GMT-5|CDT|CST/);
   });
 });
+
+describe("founder alerts", () => {
+  function adminCtx(role: string) {
+    const sent: OutgoingEmail[] = [];
+    const admin = {
+      from: () => ({
+        upsert: async () => ({ data: null, error: null }),
+        select: () => ({
+          eq: (_c: string, id: unknown) => ({
+            maybeSingle: async () => ({
+              data: { id, email: "founder@talentyak.com", preferred_name: "F", full_name: null, timezone: "UTC", role, suspended_at: null },
+              error: null,
+            }),
+          }),
+        }),
+      }),
+      rpc: async (name: string) => ({ data: name === "notification_email_allowed" ? true : "n1", error: null }),
+    } as unknown as SupabaseClient;
+    const ctx: HandlerContext = { admin, transport: async (e) => { sent.push(e); return accepted(e); }, enqueue: async () => {} };
+    return { ctx, sent };
+  }
+  const alertJob: OutboxJob = { id: "00000000-0000-4000-8000-000000000009", topic: "email.admin_alert", payload: { admin_id: "p1", title: "Coach change requested", detail: "x", path: "/admin" }, attempts: 0, max_attempts: 8 };
+
+  test("an alert is not sent to someone whose admin role was removed after it was queued", async () => {
+    const { ctx, sent } = adminCtx("customer");
+    const outcome = await HANDLERS["email.admin_alert"](alertJob, ctx);
+    assert.equal(outcome.kind, "done");
+    assert.deepEqual(sent, [], "a former admin was sent a founder alert");
+    assert.match(String((outcome as { result: Record<string, unknown> }).result.detail), /no longer an administrator/);
+  });
+
+  test("a current administrator still receives it", async () => {
+    const { ctx, sent } = adminCtx("admin");
+    await HANDLERS["email.admin_alert"](alertJob, ctx);
+    assert.equal(sent.length, 1);
+  });
+});
+
+describe("a recipient who no longer exists", () => {
+  test("is skipped, not recorded as a failure someone must act on", async () => {
+    const sent: OutgoingEmail[] = [];
+    // Every lookup finds nothing: the coach's account was deleted after queueing.
+    const admin = {
+      from: () => ({
+        upsert: async () => ({ data: null, error: null }),
+        select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }),
+      }),
+      rpc: async () => ({ data: null, error: null }),
+    } as unknown as SupabaseClient;
+    const ctx: HandlerContext = { admin, transport: async (e) => { sent.push(e); return accepted(e); }, enqueue: async () => {} };
+
+    const outcome = await HANDLERS["email.payout_paid"]({
+      id: "00000000-0000-4000-8000-00000000000a", topic: "email.payout_paid",
+      payload: { provider_id: "gone", amount_minor: 1000, currency: "USD", paid_at: "2026-09-20" }, attempts: 0, max_attempts: 8,
+    }, ctx);
+
+    assert.equal(outcome.kind, "done");
+    assert.deepEqual(sent, []);
+    assert.match(String((outcome as { result: Record<string, unknown> }).result.detail), /no longer exists/);
+  });
+});
