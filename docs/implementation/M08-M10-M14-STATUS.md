@@ -66,7 +66,7 @@ This batch is **mostly extension, not new construction**. The following exist an
 
 ## Pass A–C — built and verified 2026-09-20
 
-**Scope of this pass:** the notification inbox, preferences, the pre-delivery recheck, and the founder console's delivery visibility. **D–F (private media, retention execution, the remaining verification) are a separate pass and are NOT started.**
+**Scope of this pass:** the notification inbox, preferences, the pre-delivery recheck, and the founder console's delivery visibility. D–F (private media, retention execution, the remaining verification) were a separate pass, recorded below.
 
 ### How these checks were run
 
@@ -115,6 +115,63 @@ Private media, retention execution, export/deletion plumbing, reassignment media
 
 ---
 
+## Pass D–F — built and verified 2026-09-21
+
+**Scope:** private media (D), retention operations (E), and verification (F). **Automatic deletion remains switched off**, as the founder instructed; no deletion executor exists.
+
+### How these checks were run
+
+| | |
+|---|---|
+| Environment | `next dev` on port 3001 against the hosted Supabase test project |
+| Commands | `npm run verify` · `npx next build` · `npm run test:db` · `npm run db:migrate` |
+| Results | typecheck clean · lint clean · **unit 213/213** (was 204) · **database 136/136** (was 107) · production build succeeds with `/account/media`, `/admin/retention` and `/api/media/upload` registered |
+| Migrations | `0030_media.sql`, `0031_retention_operations.sql` applied — 33 files |
+| Browser | Built-in browser pane as a real signed-in customer |
+
+### D — Private media
+
+**Built.** `media_assets` with an owner, a coaching relationship, a purpose (`progress_photo` / `form_review_clip` / `chat_attachment`) and processing states (`reserved` → `ready` / `failed` / `deleted`). One private bucket, `private-media`, with **no storage policy of any kind**, so browsers can neither read nor write it. `src/lib/media/accept.ts` decides a file's type from its leading bytes, caps images at 12 MB and clips at 150 MB, re-encodes photos to WebP keeping their **whole frame and proportions** (unlike the square-cropped profile photo), applies camera orientation before dropping metadata, and makes a 400px thumbnail held under the same protection. `src/lib/media/index.ts` reserves the row before any bytes are written, removes the bytes if anything after that fails, and issues links **only after the viewer's own session has read the row**. `POST /api/media/upload` (a route handler rather than a server action, because only XHR reports upload progress), `components/media/uploader.tsx` (progress bar, explicit retry, never automatic), `/account/media` (upload, thumbnails, download, delete), abandoned-upload sweep in the scheduled job. CSP gained `media-src` for clip playback.
+
+**The reassignment rule was reused, not invented.** `coach_may_read_record()` from `0021` already required the customer's `full` history scope before a new coach sees media from before their takeover. `0030` applies that same function; there is no second rule to drift.
+
+**Signed-link residual validity, stated plainly.** Links last **120 seconds**. When a coach is reassigned, new fetches stop at once (the row read fails, no link is issued), but a link already in their browser keeps working until it expires — at most two minutes. Policy cannot close that window; only the lifetime shrinks it. Links are minted on request and redirected to, never written into stored records.
+
+**Honest limits.**
+- **Video is not compressed.** Re-encoding video needs ffmpeg, which the hosting does not provide. Clips are checked by magic bytes, size-capped and stored unchanged, and every such row carries `compression_skipped = true`. The upload screen says so.
+- **Video metadata is not stripped**, for the same reason. Photos are.
+- **No content scanning** of any kind is implemented, and none is claimed.
+- **No poster frame for clips**, so the grid shows a labelled placeholder.
+- **Chat, progress screens and form review are not built** (M11–M13). This is the reusable layer they will sit on.
+
+**Tested here.** Unit (9 new): a script named `progress.jpg` is refused; a PDF is refused; the kind comes from bytes not extension; an oversized clip is refused **without reading it into memory**; a real photo loses its EXIF and keeps its 2:3 shape; a sideways photo (orientation 6) is stored upright; a clip is stored unchanged and flagged; QuickTime is not mislabelled MP4. Database (16 new), as real users: a visitor and another customer see nothing; the owner sees all of theirs; the current coach sees their client's media; an unrelated coach sees nothing; **a coach cannot create, re-file or delete a client's media**; **a reassigned coach loses access immediately**; the new coach sees media from their own time but **not from before it** on the `programme_and_logs` scope, and **does** once the customer shares `full` history; the customer keeps everything throughout; media cannot be filed under someone else's enrollment; abandoned uploads are swept with a reason; delete returns paths so bytes go too; one person cannot delete another's.
+
+**Verified against real services.** A real 900×1350 JPEG was posted to `/api/media/upload` with a real session and came back 200; it was stored as **WebP, 900×1350, 17.3 KB → 6.8 KB**, and its thumbnail rendered from a signed link under the site's CSP. Through the same live endpoint: a disguised script → 422; a PDF → 422; filing under an enrollment that is not yours → 422. The stored object is refused with no credentials, with the anon key a browser holds, and as a guessed public URL. Deleting through the real button tombstoned the row **and left zero files in the bucket**.
+
+### E — Retention operations
+
+**Built** (`0031`), on the `0022` contracts, deleting nothing:
+- `retention_dry_run()` — who a proposed rule would catch, **creating nothing**; two-factor admin only; refuses rules with no implemented eligibility rather than guessing (only `progress_media` has one — programmes and form clips are contracts without data yet).
+- `place_retention_hold()` / `release_retention_hold()` — a hold needs a reason, outranks the clock, and **cancels the pending notices and their queued emails**. Release does not revive old notices.
+- `retention_ineligible_reason()` and `recheck_retention_candidates()` — the scheduled sweep lets items off when their reason has gone (held, owner already deleted it, no longer past its period, policy not approved). This step can only ever let something off.
+- `record_notice_outcome()` — an undelivered notice moves its item to `notice_failed`, which **stops the clock**.
+- `retention_execution_allowed()` — the guard a future deletion job must pass. It refuses on four independent grounds; the first is the off switch.
+- `request_own_deletion()` — a person's own request, separate from retention, one open request at a time.
+- `/admin/retention` — the off switch shown read-only, the proposed rules, the dry-run count, tracked items with hold/release, failed notices, and deletion requests. **There is no delete button, because there is nothing for one to call.**
+- `/account/media` — "Ask us to delete your data", stating that payment records are kept by law and anonymised.
+
+**Tested here.** Database (11 new): the switch is still off; a dry run finds a 400-day-old photo and **leaves the candidate count unchanged**; a customer cannot run it; it refuses a rule with no eligibility logic; a hold without a reason is refused, and a hold cancels both notices and their outbox jobs; a customer cannot hold or release; an owner-deleted file and a not-yet-due file are both let off by the recheck; a failed notice stops the clock; the execution guard refuses while the switch is off even for an eligible item; a deletion request is private and asking twice is one request.
+
+**Verified in the browser.** Submitting the deletion request without ticking the confirmation is refused in words; ticked, it is filed and the page shows "We received your request on 21 Sept 2026 … waiting to be reviewed".
+
+**Not verified in a browser:** `/admin/retention` itself. It needs a two-factor admin session, which the automated browser cannot complete; its functions are covered by the database tests as a real two-factor admin, and the page builds.
+
+### F — Scheduled work
+
+The sweep was run through the protected endpoint after these changes: `abandonedMediaCleared: 0`, `retentionCancelled: 0`, `errors: []`. The scheduling gap is unchanged and stated above: once a day on the current plan.
+
+---
+
 ## Gaps this batch must close
 
 Ordered as they will be built — one usable workflow finished at a time.
@@ -126,9 +183,9 @@ Ordered as they will be built — one usable workflow finished at a time.
 | 3 | **Pre-delivery recheck.** Handlers send what the payload says. Nothing rechecks appointment version, recipient authorisation, cancellation/reschedule state, or preferences at delivery time. Obsolete reminders are not skipped. | `src/lib/worker/handlers.ts` + a shared recheck module | **done (pass A–C)** |
 | 4 | **Unread-message debounce/aggregation.** No aggregation window, no read-status recheck. | worker + sweep | handler + recheck built and **refuses to send**; **producer and debounce window pending (Batch 2)** |
 | 5 | **Appointment job family** — confirmation, change requested, change accepted, cancellation, reminder, expired reservation/proposal. Table exists; no handlers, no templates. | handlers + templates | handlers, templates and rechecks **done**; **producers pending (Batch 4)** |
-| 6 | **Media assets.** No `media_assets` table, no ownership/purpose metadata, no processing states, no chat/video path, no abandoned-upload cleanup, no thumbnail/preview authorisation, no signed-link policy. | new migration + `src/lib/media/` + upload UI | not started |
-| 7 | **Reassignment media revocation** honouring `history_scope`, covering new fetches and subscriptions. | media authorisation layer | not started |
-| 8 | **Retention execution** — dry-run eligibility, notice retry/failure handling, holds, cancellation on changed eligibility, final eligibility recheck. Destructive execution stays **off**. | sweeps + admin screen | not started |
+| 6 | **Media assets.** No `media_assets` table, no ownership/purpose metadata, no processing states, no chat/video path, no abandoned-upload cleanup, no thumbnail/preview authorisation, no signed-link policy. | new migration + `src/lib/media/` + upload UI | **done (pass D)** — video uncompressed, stated |
+| 7 | **Reassignment media revocation** honouring `history_scope`, covering new fetches and subscriptions. | media authorisation layer | **done (pass D)** — reuses `coach_may_read_record`; 2-minute residual link window documented |
+| 8 | **Retention execution** — dry-run eligibility, notice retry/failure handling, holds, cancellation on changed eligibility, final eligibility recheck. Destructive execution stays **off**. | sweeps + admin screen | **done (pass E)** — destructive execution still off |
 | 9 | **Admin failed-job / delivery screen.** `retryJobAction` and a failed/blocked **count** exist; there is no screen listing jobs or deliveries to act on. | `/admin` surface | **done (pass A–C)** |
 | 10 | **Scheduled invocation evidence** on the real deployment, or the exact scheduler gap stated. | verification | **stated below — the gap is the plan's daily limit** |
 | 11 | **Controlled real email delivery** to a founder-designated inbox. | verification | **done — delivered to `talentyak@gmail.com`** |
@@ -199,6 +256,12 @@ The outbox holds several `failed` jobs reading `coach not found` / `recipient no
 
 ## Next unfinished action
 
-**Pass D–F.** In order: `media_assets` and the private media pipeline (upload, finalize, preview, playback, delete, processing states, abandoned cleanup, authorised thumbnails, short-lived signed links), then reassignment media revocation honouring `coach_change_requests.history_scope`, then retention dry runs, holds and notice retry — with destructive retention execution **staying off**.
+**M08 is finished as far as this batch can take it.** What remains is owned elsewhere or needs a decision:
 
-Start at the media migration: everything else in D–F depends on the asset table existing.
+- **Producers** for the handlers built here — unread messages (Batch 2), expectations (Batch 3), session reminders and expiry (Batch 4), call outcomes (Batch 5).
+- **Video compression** needs a transcoding service; none is available on the current hosting.
+- **A retention policy** must be approved by the founder before any notice reaches a real person, and a deletion job must then be written and reviewed against it.
+- **Processing deletion requests** end to end (what is erased, what is anonymised) — the request is recorded and visible; fulfilling it is a founder-supervised process not built here.
+- **Scheduling** below daily — see the scheduling section.
+
+Do not start Batch 2 from this file; it has its own prompt.

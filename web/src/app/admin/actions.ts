@@ -408,3 +408,31 @@ export async function declineCoachChangeAction(_: ActionState, form: FormData): 
   revalidatePath("/admin/coach-changes");
   return succeed("Declined. Record what you told the customer in the note.");
 }
+
+// ---------------------------------------------------------------------------
+// Retention — holds only. Nothing here deletes, and nothing here can.
+// ---------------------------------------------------------------------------
+
+export async function placeRetentionHoldAction(_: ActionState, form: FormData): Promise<ActionState> {
+  await requireAdmin("/admin/retention");
+  const id = uuidField(form, "candidate_id");
+  const reason = field(form, "reason", 500);
+  if (!id) return fail(GENERIC);
+  if (reason.length < 3) return fail("Say why — a hold without a reason can't be reviewed later.", { fieldErrors: { reason: "Required." } });
+  const { data, error } = await (await adminDb()).rpc("place_retention_hold", { p_candidate_id: id, p_reason: reason });
+  if (error) return fail(friendlyError(error, GENERIC));
+  if (!data) return fail("That item can't be held from its current state.");
+  revalidatePath("/admin/retention");
+  return succeed("Held. Any pending notice for it was cancelled.");
+}
+
+export async function releaseRetentionHoldAction(_: ActionState, form: FormData): Promise<ActionState> {
+  await requireAdmin("/admin/retention");
+  const id = uuidField(form, "candidate_id");
+  if (!id) return fail(GENERIC);
+  const { data, error } = await (await adminDb()).rpc("release_retention_hold", { p_candidate_id: id });
+  if (error) return fail(friendlyError(error, GENERIC));
+  if (!data) return fail("That item isn't on hold.");
+  revalidatePath("/admin/retention");
+  return succeed("Released. New notices must be issued before anything could happen to it.");
+}

@@ -57,6 +57,8 @@ test send reaches somebody who never asked for it. Reserved test domains are
 refused, and so is everything until the worker runs: the script only queues, and
 the worker sends through the same path a real notification takes.
 
+New screens in this batch: `/account/notifications` and `/account/notifications/preferences` (inbox and email settings), `/account/media` (private photos and clips, deletion requests), and `/admin/retention` (dry runs and holds — it deletes nothing).
+
 Which variables are needed, and what is configured today: `docs/operations/configuration.md`.
 
 ## File guide

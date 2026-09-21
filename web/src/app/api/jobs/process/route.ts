@@ -16,7 +16,9 @@ import { runSweeps } from "@/lib/worker/sweeps";
  * scheduler that can send the Authorization header can call it too.
  */
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+// Long enough for one clip at the size cap to be re-encoded by the media
+// safety net below; everything else here finishes in seconds.
+export const maxDuration = 300;
 
 function authorised(req: Request): boolean {
   const secret = process.env.CRON_SECRET;
@@ -38,11 +40,22 @@ async function handle(req: Request) {
   }
 
   const sweeps = await runSweeps();
+
+  // Uploads that finished but were never processed — the function that should
+  // have processed them died, or a processing claim expired. Bounded to two per
+  // run so a backlog cannot push this past its time limit.
+  let mediaProcessed = 0;
+  try {
+    const { processPendingMedia } = await import("@/lib/media/process");
+    mediaProcessed = await processPendingMedia(2);
+  } catch (err) {
+    sweeps.errors.push(`media processing: ${err instanceof Error ? err.message : String(err)}`);
+  }
   // Two passes: the sweep can itself queue work (e.g. notifications).
   const first = await runWorker({ limit: 25, workerName: "scheduled" });
   const second = first.claimed === 25 ? await runWorker({ limit: 25, workerName: "scheduled" }) : null;
 
-  return NextResponse.json({ sweeps, worker: [first, second].filter(Boolean) });
+  return NextResponse.json({ sweeps, mediaProcessed, worker: [first, second].filter(Boolean) });
 }
 
 export async function POST(req: Request) {
