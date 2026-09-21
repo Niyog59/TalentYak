@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { sniff } from "@/lib/media/sniff";
-import { MediaProcessingError, processPhoto, processVideo } from "@/lib/media/process";
+import { MediaProcessingError, processPhoto, processVideo, videoMaxrateKbps } from "@/lib/media/process";
 import { probe, run } from "@/lib/media/ffmpeg";
 
 /**
@@ -225,6 +225,16 @@ describe("processing a clip", () => {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
+  });
+
+  test("a processed clip can never be larger than storage accepts", () => {
+    // Worst case: two minutes of video must fit the 50 MB per-file ceiling.
+    const kbps = videoMaxrateKbps(120);
+    const bytes = ((kbps + 128) * 1000 * 120) / 8;
+    assert.ok(bytes < 50 * 1024 * 1024, `a two-minute clip could reach ${(bytes / 1048576).toFixed(1)} MB`);
+    // A short clip is not starved: the cap is generous and quality is set by CRF.
+    assert.equal(videoMaxrateKbps(10), 8000);
+    assert.ok(videoMaxrateKbps(10_000) >= 800);
   });
 
   test("junk behind a video header is refused permanently — retrying cannot help", async () => {
