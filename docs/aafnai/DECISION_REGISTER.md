@@ -1,8 +1,10 @@
 # TalentYak — Decision Register
 
-> ### Amended 2026-09-15 (third pass) — read §L first.
+> ### Amended 2026-09-21 (fourth pass) — read §L, then §M.
 >
-> The product is now **TalentYak**, and the commission is **20% on both recurring coaching and one-off consultations**. **§L supersedes AAF-COMM-01, AAF-COMM-02, AAF-BRAND-06 and AAF-CAL-08, and narrows AAF-COMM-04.** Everything they replace is kept below, unedited, so historical records stay explicable.
+> **§M (2026-09-21)** records the private-messaging decisions: messaging is in scope and built, it is open to every paid relationship, a new coach never inherits a previous coach's thread, support reads a conversation only under an audited per-case grant, and pre-purchase enquiries stay off. It resolves the messaging half of `OPEN-06` and supersedes `HB:243` for the platform's own channel.
+>
+> **§L (2026-09-15)**: the product is now **TalentYak**, and the commission is **20% on both recurring coaching and one-off consultations**. **§L supersedes AAF-COMM-01, AAF-COMM-02, AAF-BRAND-06 and AAF-CAL-08, and narrows AAF-COMM-04.** Everything they replace is kept below, unedited, so historical records stay explicable.
 >
 > The file is still named for the Aafnai era on purpose: renaming it would break every citation in the code and documents that point at it. The name is a path, not a claim about the brand.
 
@@ -30,6 +32,7 @@ Every material rule, with its authority. **A source is treated as a founder deci
 | **HB** | `docs/HANDOVER.md` | In repo | **Yes — founder-only, not edited** |
 | **APH** | `aafnai-project-handover.md` | `~/Downloads/aafnai-planning-documents/` | No (external reference) |
 | **AUD** | `ghartira-codebase-audit.md`, 2026-09-09 | Same folder | No |
+| **FM14** | Founder prompt, *M14 — Private messaging, full scope, one final verification*, revised 2026-09-21 | Supplied as PDF | — |
 | **SRC** | Repository source, verified this session | Cited by path:line | — |
 | **NOT-LOCATED** | Referenced by FM00 but **not found** in any inspected document | — | — |
 
@@ -207,8 +210,9 @@ Notice period, no-show consequences, technical-failure handling, make-up session
 **Tradeoff:** protects coach time while keeping platform-caused failures off the client — but every threshold is a guess with no operating data behind it.
 **Blocks:** M09, M10. **Owner:** Founder.
 
-### OPEN-06 · Plan inclusions and response commitments
+### OPEN-06 · Plan inclusions and response commitments — **RESOLVED 2026-09-21 (messaging half); the rest stays open**
 Which inclusions exist as first-class concepts; whether persistent in-app messaging is in scope.
+**Resolved on the messaging question by FM14**, which commissions persistent in-app messaging in full scope and was built as M14. See §M. **Still open:** which inclusions are first-class concepts, and per-plan response commitments — a coach today states their response expectation in free text, and the plan's `messaging_channel` field remains free text.
 **Recommended default (PROPOSED):** support programme, check-ins, form review, calls, and messaging as first-class inclusions, each with a coach-stated commitment.
 **Tradeoff:** in-app messaging materially raises scope (M14, retention, moderation, safety) versus WhatsApp, which is what clients already use — but WhatsApp keeps the relationship off-platform and weakens the retention argument in `APH:109`.
 **Important:** `HB:243` explicitly **defers** in-app messaging to WhatsApp. Persistent in-app messaging was an assistant recommendation; **do not record it as founder-approved.** If messaging stays out of scope, the claim "direct messaging with your coach" must be removed from `SRC web/src/verticals/fitness/catalog.ts:37`.
@@ -343,7 +347,7 @@ All **CONFIRMED** unless stated. Source: **FM00b**. Owner: **Founder**.
 | **OPEN-02a** | Auto-renewal and existing-price protection | M05, M06 |
 | **OPEN-04** | One-off session duration and purpose (price is coach-set) | M05, M09 |
 | **OPEN-05** | Cancellation, no-show, technical failure, make-up, buffers, notice, booking window | M09, M10 |
-| **OPEN-06** | Messaging in scope or WhatsApp; per-plan response commitments | M05, M13, M14 |
+| **OPEN-06** | ~~Messaging in scope or WhatsApp~~ (**resolved by FM14 — see §M**); per-plan response commitments and first-class inclusions | M05, M13 |
 | **OPEN-07** | Plan versioning consent for existing subscribers | M05, M06 |
 | **OPEN-08** | Coach change: consent, price difference, records access, effective date | M05, M17 |
 | **OPEN-10** | Market scope, vetting evidence, adult/minor, retention, recording consent, testimonial truth | M08, M16, M17 |
@@ -448,3 +452,36 @@ FM03 §5 distinguishes rules the founder has **confirmed** from working defaults
 | AAF-CAL-08 | PROPOSED | **SUPERSEDED** by TY-SCOPE-02 — no Google Calendar connection |
 | OPEN-13 | OPEN | **STILL OPEN**, sharpened by TY-SCOPE-04 |
 | AAF-TERM-05 | OPEN, blocking | **STILL OPEN, STILL BLOCKING** — prepaid terms remain disabled in code |
+
+---
+
+## M. Fourth-pass decisions — 2026-09-21 (private messaging)
+
+**Source key added:** **FM14** — Founder prompt, *M14 — Private messaging, full scope, one final verification*, revised 21 September 2026. Founder-supplied. Two further decisions (TY-MSG-02, TY-MSG-03) were taken by the founder in answer to questions asked before implementation began, and are recorded as such.
+
+`HB:243` defers messaging to WhatsApp. FM14 supersedes that for the platform's own channel: it commissions persistent in-app messaging and describes it in detail. The handover document is founder-written and is **not edited** to match; this entry is where the change of direction is recorded.
+
+| ID | Topic | Status | Rule | Source | Modules |
+|---|---|---|---|---|---|
+| **TY-MSG-01** | Messaging in scope | **CONFIRMED** | Persistent private in-app messaging between a client and their assigned coach is in scope and is built (M14). **Resolves the messaging half of OPEN-06** and supersedes `HB:243`'s deferral to WhatsApp for the platform's own channel. Nothing here stops a coach and client also using WhatsApp. | FM14 | M14 |
+| **TY-MSG-02** | Who gets messaging | **CONFIRMED** | Messaging is available in **every paid coaching relationship**, not gated per plan. The plan's `messaging_channel` field is free text, so it cannot reliably gate anything; it stays the coach's own description of what they offer, and the coach's stated response expectation stays the coach's commitment, never a platform deadline. **This is a deliberate narrowing of AAF-ENT-01** for this one capability: the entitlement question returns if inclusions become first-class (the remaining half of OPEN-06). | Founder decision, 2026-09-21 | M05, M14 |
+| **TY-MSG-03** | Previous coach's thread | **CONFIRMED** | On reassignment the new coach gets a **new, empty conversation** and can never read the previous coach's thread — **`history_scope = 'full'` does not open it**. That scope governs the client's own training record and media; a previous coach's private words are a third party's. The client keeps their old conversation to read. | Founder decision, 2026-09-21 | M14, M17 |
+| **TY-MSG-04** | Support access to conversations | **CONFIRMED** | No blanket admin access to messages exists. Reading a conversation requires a grant tied to one support case, granted to one administrator, with a written reason, expiring on a clock, ending when the case is resolved, and audited — every grant, view and revocation. Attachments are listed to support, never served. | FM14 | M14, M17 |
+| **TY-MSG-05** | Pre-purchase enquiries | **NOT APPROVED — off** | Messaging a coach before buying was discussed and is **not** approved. It is off by default and no path creates a conversation without a paid assignment. Turning it on is a founder decision with its own abuse and safety questions. | FM14 | M14 |
+| **TY-MSG-06** | Read receipts | **CONFIRMED** | Read receipts are shown, and a message is marked read **only when it has actually been viewed in the open conversation** — never on delivery, an email, a background tab, or an open socket. State is synchronised across a person's devices. Typing indicators remain optional and are not built. | FM14 | M14 |
+| **TY-MSG-07** | Honesty about protection | **CONFIRMED** | The product must not claim end-to-end encryption, because the architecture does not provide it, and must distinguish technical limits on already-downloaded data from claims about future access. Both statements appear in the conversation screen. | FM14 | M14, M16 |
+
+### M1 · Policy implemented as a sandbox default
+
+`messaging.v1` (in `src/lib/policy/registry.ts`, mirrored into `messaging_settings` and asserted equal by a database test) carries `status: sandbox_default`, under the L4 discipline. Its proposed values: after paid time runs out, **no new messages** and history stays readable; after coaching ends or the coach changes, the client keeps **read-only** access to their own history; support stays reachable throughout; pre-purchase enquiries off; 4,000-character messages; 20 sends a minute and 500 a day per person; unread-message email grouped over 15 minutes; support message-access grants last 72 hours.
+
+**Awaiting founder approval** — this is the M14 addition to the L4 list. Unlike the commercial policies, it does not block live billing, because it is operational rather than a money rule. That makes it easier to forget, not less of a decision.
+
+### M2 · Status changes
+
+| Entry | Was | Now |
+|---|---|---|
+| OPEN-06 | OPEN, blocking M05, M13, M14 | **PARTLY RESOLVED** by TY-MSG-01 — the messaging question is answered; first-class inclusions and per-plan response commitments remain open for M05 and M13 |
+| AAF-ENT-01 | CONFIRMED | **UNCHANGED in principle**, narrowed in one place by TY-MSG-02: messaging is a platform capability in every paid relationship, not a per-plan entitlement |
+| `HB:243` (messaging deferred to WhatsApp) | Founder-written background | **SUPERSEDED for the platform channel** by TY-MSG-01. `docs/HANDOVER.md` is not edited; this row is the record |
+

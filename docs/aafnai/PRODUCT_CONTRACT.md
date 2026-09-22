@@ -201,8 +201,8 @@ The plan is the commercial and entitlement contract. Requirements below satisfy 
 | `call_frequency` | e.g. weekly, fortnightly, monthly, N per term | conditional | required when `calls_included`; must be schedulable | public | yes |
 | `call_duration_minutes` | integer | conditional | required when `calls_included`; must fit slot rules | public | yes |
 | `call_modality` | `video` \| `audio` \| `either` | conditional | must be a supported modality (AAF-CAL-03) | public | yes |
-| `messaging_included` | boolean | required | — | public | yes |
-| `messaging_response_commitment` | e.g. "within 24h on weekdays" | conditional | required when `messaging_included` | public | yes |
+| `messaging_included` | boolean | required | **Built and live for every paid relationship (M14, TY-MSG-02).** Today the implementation carries a free-text `messaging_channel` instead of this boolean; it describes what the coach offers and gates nothing | public | yes |
+| `messaging_response_commitment` | e.g. "within 24h on weekdays" | conditional | required when `messaging_included`. **Implemented as the coach's own statement** on `/coach/messages/availability`, alongside their working hours and away status, and shown to clients in those words — never as a platform deadline | public | yes |
 | `programme_service` | What programming is provided and how it is delivered | required | must map to real platform capability | public | yes |
 | `programme_revision_basis` | e.g. "reviewed monthly; revised when the coach judges it useful" | required | **must not be rendered as a guaranteed replacement cadence unless the coach states one** (AAF-PLAN-05) | public | yes |
 | `check_ins_included` | boolean | required | — | public | yes |
@@ -234,6 +234,8 @@ A platform capability is not an entitlement. Concretely:
 - The platform having a check-in form does **not** establish a universal check-in cadence.
 - The platform having form-review video does **not** grant every plan form review, nor an unlimited allowance.
 - The platform having messaging does **not** imply any response time.
+
+**One deliberate narrowing (TY-MSG-02, 2026-09-21).** Messaging itself is available in **every paid coaching relationship** rather than being gated per plan, because `messaging_channel` is free text and cannot reliably gate anything. The hard rule above is unchanged for everything else, and unchanged for the *response commitment*: a coach's stated reply time is their commitment, and the platform promises nothing. If inclusions become first-class concepts (the remaining half of `OPEN-06`), the entitlement question returns for messaging too.
 
 Every gated action must be authorised against **the purchased plan version's** entitlement record, never against the existence of the feature and never against the coach's *current* plan definition.
 
@@ -513,7 +515,7 @@ Still open:
 | OPEN-02a | Auto-renewal and existing-price protection | M05, M06 |
 | OPEN-04 | One-off session duration and purpose (price is coach-set) | M05, M09 |
 | OPEN-05 | Cancellation, no-show, technical failure, make-up, buffers, notice, booking window | M09, M10 |
-| OPEN-06 | Per-plan response commitments; whether in-app messaging is in scope | M05, M13, M14 |
+| OPEN-06 | Per-plan response commitments and first-class inclusions. ~~Whether in-app messaging is in scope~~ — **resolved 2026-09-21 (TY-MSG-01): it is, and it is built** | M05, M13 |
 | OPEN-07 | Plan versioning and existing subscribers: consent, notice, migration | M05, M06 |
 | OPEN-08 | Coach change: consent, price difference, records access, effective date *(earnings split settled by AAF-TERM-04)* | M05, M17 |
 | OPEN-10 | Market scope, vetting evidence, adult/minor scope, retention/deletion, recording consent, testimonial truth | M08, M16, M17 |
