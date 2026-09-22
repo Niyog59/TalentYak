@@ -122,6 +122,7 @@ describe("email jobs", () => {
       "email.admin_alert",
       "email.retention_notice",
       "email.shraddha_reminder",
+      "email.delivery_check",
       // Handlers built ahead of their producers (Batches 2 and 4).
       "email.appointment_confirmed",
       "email.appointment_changed",

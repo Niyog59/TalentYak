@@ -114,11 +114,9 @@ if (mode === "enqueue") {
   const profile = await fixtureProfile();
   console.log(`Recipient profile: ${profile.id} (${profile.created ? "created for this check" : "already existed — will not be deleted"})`);
 
-  // The alert topic is an essential category, so no preference can suppress it
-  // and the check measures delivery rather than a setting. The handler only
-  // looks the profile up — it does not require the admin role, and this script
-  // deliberately does not grant one. A test must not leave standing privilege
-  // behind it.
+  // The delivery-check topic is an essential category, so no preference can
+  // suppress it and the check measures delivery rather than a setting. This
+  // script grants no role: a test must not leave standing privilege behind it.
 
   // Clear only THIS check's previous job, so the dedupe key does not make the
   // run a no-op. Scoped to the one dedupe key: a broader delete here would
@@ -129,15 +127,10 @@ if (mode === "enqueue") {
     method: "POST",
     headers: { Prefer: "return=representation" },
     body: JSON.stringify({
-      topic: "email.admin_alert",
-      payload: {
-        admin_id: profile.id,
-        title: "Delivery check",
-        detail:
-          "This is a controlled test of TalentYak's notification pipeline. " +
-          "It was queued deliberately and sent by the background worker. No action is needed.",
-        path: "/admin",
-      },
+      // A dedicated, clearly labelled message. (Founder alerts are sent only to
+      // current administrators, and this check must not grant that role.)
+      topic: "email.delivery_check",
+      payload: { profile_id: profile.id },
       dedupe_key: DEDUPE,
       state: "pending",
     }),

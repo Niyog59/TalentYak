@@ -562,6 +562,17 @@ export const HANDLERS: Record<string, Handler> = {
       { category: "expectations", path: "/account" });
   },
 
+  // Sent only by scripts/send-test-notification.mjs, to an address the founder
+  // named. Goes through the same send path as every real notification.
+  "email.delivery_check": async (job, ctx) => {
+    const to = await person(ctx, job.payload.profile_id);
+    if (!to) return gone("recipient");
+    return send(job, ctx, "delivery_check", to, T.deliveryCheckEmail(tctx(), { name: to.name }), {
+      category: "account_security",
+      path: "/account/notifications",
+    });
+  },
+
   "email.retention_notice": async (job, ctx) => {
     // Retention policies are PROPOSALS and destructive execution is off. Only
     // synthetic candidates can reach this handler, and nothing is emailed for
