@@ -30,7 +30,7 @@ export default async function AccountPage() {
   const tz = profile.timezone;
   const supabase = (await createClient())!;
 
-  const [{ data: purchases }, { data: enrollments }, { data: requests }, { data: bookings }, { count: unread }] =
+  const [{ data: purchases }, { data: enrollments }, { data: requests }, { data: bookings }, { count: unread }, { data: conversations }] =
     await Promise.all([
       supabase
         .from("purchases")
@@ -43,7 +43,11 @@ export default async function AccountPage() {
       supabase.from("bookings").select("id, status, created_at, services(name)").eq("customer_id", session.userId).order("created_at", { ascending: false }),
       // Row-level security scopes this to the signed-in person.
       supabase.from("notifications").select("id", { count: "exact", head: true }).is("read_at", null),
+      supabase.rpc("my_conversations"),
     ]);
+  const unreadMessages = ((conversations ?? []) as { role: string; unread_count: number }[])
+    .filter((c) => c.role === "customer")
+    .reduce((n, c) => n + Number(c.unread_count), 0);
 
   // A customer can read the profile of any coach they bought from, even one who
   // is no longer public (migration 0025).
@@ -69,9 +73,13 @@ export default async function AccountPage() {
         <ButtonLink href="/account/notifications" variant="secondary" size="sm">
           Notifications{unread ? <span className="ml-1.5 rounded-full bg-brand px-1.5 text-sm text-white">{unread}</span> : null}
         </ButtonLink>
+        <ButtonLink href="/account/messages" variant="secondary" size="sm">
+          Messages{unreadMessages ? <span className="ml-1.5 rounded-full bg-brand px-1.5 text-sm text-white">{unreadMessages}</span> : null}
+        </ButtonLink>
         <ButtonLink href="/account/media" variant="secondary" size="sm">Photos and clips</ButtonLink>
         <ButtonLink href="/account/billing" variant="secondary" size="sm">Billing</ButtonLink>
         <ButtonLink href="/account/security" variant="secondary" size="sm">Sign-in security</ButtonLink>
+        <ButtonLink href="/account/support" variant="secondary" size="sm">Report a problem</ButtonLink>
         {session.provider ? <ButtonLink href="/coach" variant="secondary" size="sm">Coach area</ButtonLink> : null}
         {profile.role === "admin" ? <ButtonLink href="/admin" variant="secondary" size="sm">Founder console</ButtonLink> : null}
       </nav>

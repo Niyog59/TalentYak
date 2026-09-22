@@ -17,6 +17,7 @@ export interface SweepSummary {
   enrollmentsEnded: number;
   eventsRecovered: number;
   rateLimitRowsPruned: number;
+  conversationSignalsPruned: number;
   abandonedMediaCleared: number;
   mediaRequeued: number;
   retentionCancelled: number;
@@ -31,6 +32,7 @@ export async function runSweeps(): Promise<SweepSummary> {
     enrollmentsEnded: 0,
     eventsRecovered: 0,
     rateLimitRowsPruned: 0,
+    conversationSignalsPruned: 0,
     abandonedMediaCleared: 0,
     mediaRequeued: 0,
     retentionCancelled: 0,
@@ -94,6 +96,12 @@ export async function runSweeps(): Promise<SweepSummary> {
   // 5. Old rate-limit windows.
   const pruned = await admin.rpc("prune_rate_limits");
   if (!pruned.error) summary.rateLimitRowsPruned = Number(pruned.data) || 0;
+
+  // 5b. Realtime prompts older than a day. They carry no content and are not a
+  //     record of anything; the messages themselves are untouched.
+  const signals = await admin.rpc("prune_conversation_signals");
+  if (signals.error) summary.errors.push(`signals: ${signals.error.message}`);
+  else summary.conversationSignalsPruned = Number(signals.data) || 0;
 
   // 6. Uploads that were started and never finished — a closed laptop, a
   //    dropped connection. The row is marked failed and the bytes are removed

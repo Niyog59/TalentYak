@@ -16,6 +16,7 @@ import type {
   CommissionPolicy,
   DiscountPolicy,
   EligibilityPolicy,
+  MessagingPolicy,
   PaymentFailurePolicy,
   PayoutPolicy,
   Policy,
@@ -230,6 +231,25 @@ const ELIGIBILITY_V1: EligibilityPolicy = {
   approvedPayoutCorridors: [],
 };
 
+const MESSAGING_V1: MessagingPolicy = {
+  kind: "messaging",
+  id: "messaging.v1",
+  version: 1,
+  status: "sandbox_default",
+  effectiveFrom: "2026-09-21",
+  source: "M14 founder prompt, 21 September 2026 — proposed default, explicitly not yet approved",
+  note: "Clients keep reading their own history after coaching ends or the coach changes; no new messages once paid time has run out; support stays reachable. Pre-purchase messaging is off.",
+  sendWhilePaused: false,
+  clientReadsAfterEnd: true,
+  prePurchaseInquiries: false,
+  maxBodyChars: 4000,
+  sendsPerMinute: 20,
+  sendsPerDay: 500,
+  unreadEmailDelayMinutes: 15,
+  supportAccessHours: 72,
+  supportCasesPerDay: 5,
+};
+
 // --- Register -----------------------------------------------------------------
 
 const ALL_POLICIES: readonly Policy[] = [
@@ -245,6 +265,7 @@ const ALL_POLICIES: readonly Policy[] = [
   RECOGNITION_V1,
   PAYOUT_V1,
   ELIGIBILITY_V1,
+  MESSAGING_V1,
 ];
 
 const BY_ID = new Map(ALL_POLICIES.map((policy) => [policy.id, policy]));
@@ -276,6 +297,14 @@ export function getCommissionPolicy(id: string): CommissionPolicy {
       `${id} (resolved to a ${policy.kind} policy, not a commission policy)`,
     );
   }
+  return policy;
+}
+
+export const CURRENT_MESSAGING_POLICY_ID = MESSAGING_V1.id;
+
+export function currentMessagingPolicy(): MessagingPolicy {
+  const policy = getPolicy(CURRENT_MESSAGING_POLICY_ID);
+  if (policy.kind !== "messaging") throw new UnknownPolicyError(CURRENT_MESSAGING_POLICY_ID);
   return policy;
 }
 

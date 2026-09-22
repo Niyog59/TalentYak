@@ -58,11 +58,14 @@ export function MediaUploader({
   enrollmentId,
   label = "Add a photo or clip",
   help,
+  onUploaded,
 }: {
   purpose: "progress_photo" | "form_review_clip" | "chat_attachment";
   enrollmentId?: string | null;
   label?: string;
   help?: string;
+  /** Called once the upload is stored and handed to processing. */
+  onUploaded?: (assetId: string, kind: "image" | "video") => void;
 }) {
   const [status, setStatus] = useState<Status>("idle");
   const [sent, setSent] = useState(0);
@@ -174,7 +177,8 @@ export function MediaUploader({
           : "Uploaded. Your photo is being processed.",
       );
       if (inputRef.current) inputRef.current.value = "";
-      startTransition(() => router.refresh());
+      if (onUploaded) onUploaded(s.ticket.id, s.kind);
+      else startTransition(() => router.refresh());
     } catch (err) {
       const reason = err instanceof Error ? err.message : "";
       if (reason === "paused") {

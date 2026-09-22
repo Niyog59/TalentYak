@@ -8,7 +8,7 @@ import type { NotificationCategory } from "@/lib/notifications";
 import {
   appointmentStillCurrent,
   emailStillWanted,
-  messagesStillUnread,
+  unreadMessageCount,
   recipientStillValid,
   type Decision,
 } from "@/lib/worker/recheck";
@@ -535,22 +535,42 @@ export const HANDLERS: Record<string, Handler> = {
   "email.unread_messages": async (job, ctx) => {
     const to = await person(ctx, job.payload.profile_id);
     if (!to) return gone("recipient");
-    const count = num(job.payload.count);
-    if (count < 1) return { kind: "done", result: { sent: false, reason: "nothing unread" } };
+    const conversationId = str(job.payload.conversation_id);
 
+    // The final recheck: counted now, against the live read markers and the
+    // live access rules. Read on any device since, or no longer theirs to
+    // read, and nothing is sent.
+    const count = await unreadMessageCount(ctx.admin, to.id, conversationId, num(job.payload.since_seq));
+    if (count === null) return { kind: "retry", error: "unread count unavailable" };
+    if (count < 1) {
+      return { kind: "done", result: { sent: false, reason: "skipped", detail: "no unread messages, or no longer a participant" } };
+    }
+
+    const path = job.payload.recipient_role === "coach"
+      ? `/coach/messages/${conversationId}`
+      : `/account/messages/${conversationId}`;
     return send(job, ctx, "unread_messages", to,
-      T.unreadMessagesEmail(tctx(), { name: to.name, fromName: str(job.payload.from_name) || "Your coach", count }),
+      T.unreadMessagesEmail(tctx(), { name: to.name, fromName: str(job.payload.from_name) || "Your coach", count, path }),
       {
         category: "messages",
-        path: "/account",
-        // The summary line is safe to store; the messages themselves are not.
+        path,
+        // A count and a name are safe to store; what was said is not.
         inboxTitle: `You have ${count} unread ${count === 1 ? "message" : "messages"}`,
-        // PENDING (Batch 2): returns a skip until conversations exist, so this
-        // can never email somebody about messages they have already read.
-        recheck: () => messagesStillUnread(
-          ctx.admin, to.id, str(job.payload.conversation_id), str(job.payload.since),
-        ),
       });
+  },
+
+  "email.support_case_opened": async (job, ctx) => {
+    const admins = await adminPeople(ctx);
+    for (const a of admins) {
+      await ctx.enqueue("email.admin_alert", {
+        admin_id: a.id,
+        title: "Support case opened",
+        // Category and role only. What the person wrote stays in the console.
+        detail: `A ${str(job.payload.reporter_role) || "person"} opened a ${str(job.payload.category) || "support"} case.`,
+        path: `/admin/support/${str(job.payload.case_id)}`,
+      }, `admin_alert:${job.id}:${a.id}`);
+    }
+    return { kind: "done", result: { fanned_out: admins.length } };
   },
 
   "email.expectations_updated": async (job, ctx) => {

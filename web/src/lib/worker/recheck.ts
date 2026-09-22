@@ -122,19 +122,23 @@ export async function appointmentStillCurrent(
 }
 
 /**
- * Unread-message email is only worth sending if the messages are still unread.
- *
- * INTEGRATION PENDING — Batch 2 owns conversations and their read state. The
- * shape is fixed here so the handler and its debounce can be finished and
- * tested now: when the conversations tables exist, this reads them instead of
- * reporting that it cannot check. Until then it refuses to claim messages are
- * unread, so nothing can be emailed on an assumption.
+ * How many messages are still unread by this person in this conversation, past
+ * the point the email was queued at — and zero if they can no longer read the
+ * conversation at all (reassigned, suspended, relationship closed to them).
+ * Asked immediately before sending, so a message read in the meantime, or on
+ * another device, is never emailed about.
  */
-export async function messagesStillUnread(
-  _admin: SupabaseClient,
-  _profileId: string,
-  _conversationId: string,
-  _since: string,
-): Promise<Decision> {
-  return skip("unread-message recheck is not wired: conversations are not built yet (Batch 2)");
+export async function unreadMessageCount(
+  admin: SupabaseClient,
+  profileId: string,
+  conversationId: string,
+  sinceSeq: number,
+): Promise<number | null> {
+  const { data, error } = await admin.rpc("unread_message_count", {
+    p_profile: profileId,
+    p_conversation: conversationId,
+    p_since_seq: sinceSeq,
+  });
+  if (error) return null;
+  return Number(data ?? 0);
 }
