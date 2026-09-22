@@ -146,5 +146,5 @@ Status of record: `docs/implementation/M03-M07-STATUS.md`.
 - [x] ~~**Security advisories in dependencies.**~~ Resolved 2026-09-21: `next` 16.3.5, `sharp` 0.35.4, `js-yaml` 4.3.2 — all patch or minor updates; `npm audit` reports none.
 - [ ] **Deletion requests are recorded, not fulfilled.** `deletion_requests` rows appear on `/admin/retention`; the actual erase-and-anonymise process is not built.
 - [x] ~~**`/admin/retention` has not been opened in a browser.**~~ Verified 2026-09-21 on the deployed site as a two-factor test admin.
-- [ ] **Founder: set `RESEND_WEBHOOK_SECRET`** so delivered / bounced / complained reach the founder console. Steps in `docs/implementation/M08-M10-M14-STATUS.md` → Blockers.
+- [x] ~~**Founder: set `RESEND_WEBHOOK_SECRET`.**~~ Done 2026-09-21; a test email moved from accepted to delivered on the live site.
 - [ ] **Worker scheduling is capped at daily by the Vercel Hobby plan.** Request-triggered work runs immediately; only the safety-net sweep is daily. This becomes a real limitation when Batch 4 builds appointment reminders, which need to fire at a particular hour. Options and costs in `docs/implementation/M08-M10-M14-STATUS.md`.
