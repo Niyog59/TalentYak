@@ -333,6 +333,12 @@ The account shows no billing plan, which is the **Hobby (free)** tier.
 
 **Recommendation: do nothing yet.** This is not blocking anything in this pass, and it does not become real until Batch 4 builds appointment reminders. When it does, the external scheduler is the cheaper answer and needs no plan change; Pro is worth it only if Vercel is being paid for anyway. Nothing here was upgraded or purchased.
 
+### RESOLVED 2026-09-22 (M14): Supabase Cron, every five minutes, at no extra cost
+
+`0038_scheduled_worker.sql` schedules `pg_cron` + `pg_net` to call the same protected endpoint every five minutes, with the bearer secret held in Supabase Vault (`worker_cron_secret`, mirroring `CRON_SECRET` in Vercel; written by `scripts/configure-worker-cron.mjs`, never in a file or a commit). The daily Vercel cron stays as an independent second trigger — every sweep and job is idempotent, so two schedulers cannot double-send.
+
+**Verified on the live project, nobody invoking anything:** `cron.job` shows `talentyak-job-worker */5 * * * * active`; runs at **17:25:00 and 17:30:00 UTC succeeded** and `net._http_response` recorded **200** for each. End to end on the deployed site: a queued unread-message job was picked up by the 17:30 run, the handler counted the message against live read markers, wrote the in-app notification ("You have 1 unread message", linking to the conversation), and refused the email because the fixture address is on a reserved test domain — no real email was sent. Cost: one small function call every five minutes (~8,640/month), inside the free allowance. **Still open for Batch 4:** nothing here proves a reminder fires at a specific hour; that now depends only on a producer, not on the schedule.
+
 ---
 
 ## Blockers — founder action required
@@ -482,14 +488,16 @@ Nothing bought. Supabase Realtime, `pg_cron`, `pg_net` and Vault are included in
 
 ## Next unfinished action
 
-**M08 is complete.** Nothing in its scope remains; delivery states are live. The only optional item is confirmation with genuine phone captures. Work assigned elsewhere, and its owner:
+**M08 and M14 are complete.** Nothing in their scope remains; delivery states are live, and private messaging is built, verified in two browser sessions and deployed (`063a469`), with the worker now running every five minutes. The only optional item is confirmation with genuine phone captures. Work assigned elsewhere, and its owner:
 
 | Deferred item | Owning batch |
 |---|---|
-| Expectations-updated notifications | **Batch 3** — expectations |
+| Expectations-updated notifications, and links to agreed expectations inside a conversation | **Batch 3** — expectations |
 | Session confirmations, changes, cancellations, reminders, expired holds (producers); reminders at a specific hour, which need scheduling finer than daily | **Batch 4** — scheduling |
 | Call-outcome notifications | **Batch 5** — calls |
 | Coach-side screens that view a client's photos and clips; progress and form-review workflows | **M11–M13** — progress and form review |
+| Appointment proposals and links to confirmed appointments inside a conversation (the message-kind boundary exists; the database refuses structured kinds until then) | **Batch 4** — scheduling |
+| Recording the messaging decisions in `docs/aafnai/DECISION_REGISTER.md` (`OPEN-06`, and `messaging.v1` as an approved policy rather than a sandbox default) | **Founder decision** |
 | An approved retention policy, then a deletion job written and reviewed against it | **Founder decision**; destructive execution stays off until then |
 | Fulfilling deletion requests end to end | **Founder-supervised process**; requests are recorded and visible now |
 
