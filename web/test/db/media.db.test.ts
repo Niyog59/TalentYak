@@ -227,6 +227,109 @@ describe("who may see a customer's media", { skip }, () => {
       const ids = (data ?? []).map((r) => r.id);
       assert.ok(ids.includes(oldPhotoId) && ids.includes(newPhotoId), "a customer lost their own history");
     });
+
+    // The viewing route signs whatever path a readable row names, so a row a
+    // person could write themselves would be a way back in (0036).
+    test("the former coach cannot forge a record of their own pointing at the client's file", async () => {
+      const { data: target } = await adminClient()
+        .from("media_assets")
+        .select("storage_path, preview_path")
+        .eq("id", newPhotoId)
+        .single();
+
+      const forged = await coachA.user.client
+        .from("media_assets")
+        .insert({
+          owner_profile_id: coachA.user.id,
+          purpose: "progress_photo",
+          media_kind: "image",
+          state: "ready",
+          storage_path: target!.storage_path,
+          preview_path: target!.preview_path,
+        })
+        .select("id");
+      assert.ok(forged.error, "a former coach created a record pointing at their old client's photo");
+
+      const { data: pointing } = await adminClient()
+        .from("media_assets")
+        .select("id")
+        .eq("storage_path", target!.storage_path as string);
+      assert.deepEqual((pointing ?? []).map((r) => r.id), [newPhotoId], "a second record now names the client's file");
+    });
+  });
+});
+
+describe("media records are written by the server only", { skip }, () => {
+  let owner: TestUser;
+  let victim: TestUser;
+  let ownId: string;
+  let victimId: string;
+
+  async function readyPhoto(who: TestUser): Promise<string> {
+    const sb = adminClient();
+    const { data: id, error } = await sb.rpc("reserve_media", {
+      p_owner: who.id, p_enrollment: null, p_purpose: "progress_photo", p_media_kind: "image",
+    });
+    if (error) throw new Error(error.message);
+    await sb.rpc("finalize_media", {
+      p_id: id, p_storage_path: `${who.id}/${id}/original.webp`, p_preview_path: `${who.id}/${id}/preview.webp`,
+      p_content_type: "image/webp", p_byte_size: 10, p_width: 1, p_height: 1, p_duration: null, p_compression_skipped: false,
+    });
+    return id as string;
+  }
+
+  before(async () => {
+    owner = await createTestUser("media-writer");
+    victim = await createTestUser("media-victim");
+    ownId = await readyPhoto(owner);
+    victimId = await readyPhoto(victim);
+  });
+
+  after(async () => {
+    await adminClient().from("media_assets").delete().in("owner_profile_id", [owner.id, victim.id]);
+    await deleteTestUsers([owner.id, victim.id]);
+  });
+
+  test("a signed-in person cannot create a record, even in their own name", async () => {
+    const result = await owner.client.from("media_assets").insert({
+      owner_profile_id: owner.id,
+      purpose: "progress_photo",
+      media_kind: "image",
+      state: "ready",
+      storage_path: `${victim.id}/${victimId}/original.webp`,
+    });
+    assert.ok(result.error, "a person created a media record directly");
+  });
+
+  test("an owner cannot repoint, re-state or re-file their own record", async () => {
+    await owner.client
+      .from("media_assets")
+      .update({ storage_path: `${victim.id}/${victimId}/original.webp`, state: "ready", purpose: "chat_attachment" })
+      .eq("id", ownId);
+
+    const { data } = await adminClient().from("media_assets").select("storage_path, purpose").eq("id", ownId).single();
+    assert.equal(data!.storage_path, `${owner.id}/${ownId}/original.webp`, "an owner repointed their record at another file");
+    assert.equal(data!.purpose, "progress_photo", "an owner re-filed their record");
+  });
+
+  test("an owner still reads their own, and deletes only through the server function", async () => {
+    const { data: own } = await owner.client.from("media_assets").select("id").eq("id", ownId);
+    assert.equal((own ?? []).length, 1, "an owner can no longer read their own media");
+
+    await owner.client.from("media_assets").delete().eq("id", ownId);
+    const { data: still } = await adminClient().from("media_assets").select("state").eq("id", ownId).single();
+    assert.equal(still!.state, "ready", "a direct delete bypassed delete_own_media");
+
+    const { error } = await owner.client.rpc("delete_own_media", { p_id: ownId });
+    assert.equal(error, null);
+    const { data: gone } = await adminClient().from("media_assets").select("state").eq("id", ownId).single();
+    assert.equal(gone!.state, "deleted", "the owner's own deletion stopped working");
+  });
+
+  test("nobody can edit another person's record either", async () => {
+    await owner.client.from("media_assets").update({ state: "failed" }).eq("id", victimId);
+    const { data } = await adminClient().from("media_assets").select("state").eq("id", victimId).single();
+    assert.equal(data!.state, "ready");
   });
 });
 
