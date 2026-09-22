@@ -337,7 +337,7 @@ The account shows no billing plan, which is the **Hobby (free)** tier.
 
 1. ~~**Designated test inbox for the email-delivery proof.**~~ **Resolved 2026-09-20:** `talentyak@gmail.com`; one message delivered and accepted by Resend.
 2. ~~**`SUPPORT_EMAIL` is empty.**~~ **Resolved 2026-09-20:** set to `talentyak@gmail.com` in Vercel (production and preview) and redeployed.
-3. **`RESEND_WEBHOOK_SECRET` — the one open item.** The delivered/bounced/complained endpoint is built, signature-verified and tested, and deployed at `/api/webhooks/resend`, where it correctly **refuses everything (503) until the secret is set**. Until then every email stays at "accepted" on the founder console. Founder steps: Resend → Webhooks → add `https://www.talentyak.com/api/webhooks/resend` with events `email.delivered`, `email.bounced`, `email.complained`, `email.failed` → copy its signing secret (`whsec_…`) → Vercel → Project → Settings → Environment Variables → `RESEND_WEBHOOK_SECRET` (production) → redeploy. This cannot be done here: creating a webhook on the Resend account is an account-configuration change that needs you, and the Vercel token this work used earlier has since been revoked (as intended).
+3. ~~**`RESEND_WEBHOOK_SECRET`.**~~ **Resolved 2026-09-21.** The founder added the Resend webhook (`email.delivered`, `email.bounced`, `email.complained`, `email.failed` → `https://www.talentyak.com/api/webhooks/resend`) and set the secret in Vercel production. Verified: an unsigned request and a forged signature are both refused (401, previously 503). A delivery-check email to `talentyak@gmail.com` (Resend id `01a0c675-fb94-746a-9e4f-4be7c237ae94`) was sent through the worker and its record moved from **accepted to delivered** on the signed event Resend sent to the live site. The test-send script now uses a dedicated, clearly labelled `email.delivery_check` message rather than a founder alert, which since this pass only goes to current administrators.
 4. **An account exists for `talentyak@gmail.com` in the test project** (profile `3c0b7f0d-…`), created by the delivery check, with no admin role. **One consequence, now fixed:** a founder alert queued during the single minute in which the check had briefly given that account the admin role was sent to it at 04:18 UTC on 2026-09-21 ("Needs attention: Coach change requested", about a test fixture). The handler now re-checks that the recipient is still an administrator at send time. Delete the account if it is not wanted.
 
 ### Housekeeping — resolved
@@ -398,7 +398,7 @@ Put them in a folder and give me the path; nothing will be uploaded anywhere but
 
 ## Next unfinished action
 
-**M08 is complete.** Nothing in its scope remains except the founder action above (`RESEND_WEBHOOK_SECRET`) and the optional confirmation with genuine phone captures. Work assigned elsewhere, and its owner:
+**M08 is complete.** Nothing in its scope remains; delivery states are live. The only optional item is confirmation with genuine phone captures. Work assigned elsewhere, and its owner:
 
 | Deferred item | Owning batch |
 |---|---|
