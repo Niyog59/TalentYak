@@ -421,3 +421,19 @@ ${button(`${ctx.siteUrl}/account`, "See what changed")}
     ctx.supportEmail,
   );
 }
+
+/**
+ * A controlled test of the email pipeline, sent only by
+ * scripts/send-test-notification.mjs to an address the founder named. It says
+ * plainly what it is, so nobody mistakes it for account activity.
+ */
+export function deliveryCheckEmail(ctx: TemplateContext, d: { name?: string | null }): RenderedEmail {
+  return build(
+    "TalentYak delivery check",
+    `${greet(d.name)}
+<p>This is a deliberate test of TalentYak's email pipeline. It was queued on purpose and sent by the background worker.</p>
+<p>No action is needed, and nothing has changed on your account.</p>`,
+    ctx.supportEmail,
+  );
+}
+
