@@ -394,7 +394,7 @@ ${button(`${ctx.siteUrl}/account`, "Book a session")}`,
  */
 export function unreadMessagesEmail(
   ctx: TemplateContext,
-  d: { name?: string | null; fromName: string; count: number },
+  d: { name?: string | null; fromName: string; count: number; path?: string },
 ): RenderedEmail {
   const plural = d.count === 1 ? "message" : "messages";
   return build(
@@ -402,7 +402,7 @@ export function unreadMessagesEmail(
     `${greet(d.name)}
 <p>${escapeHtml(d.fromName)} sent you ${d.count} ${plural} you haven't read yet.</p>
 <p>They're in your TalentYak messages — we don't include what was said in email.</p>
-${button(`${ctx.siteUrl}/account`, "Read your messages")}
+${button(`${ctx.siteUrl}${d.path?.startsWith("/") ? d.path : "/account"}`, "Read your messages")}
 <p style="font-size:13px;color:${MUTED}">You can turn these emails off in your email settings.</p>`,
     ctx.supportEmail,
   );

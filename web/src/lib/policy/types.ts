@@ -209,7 +209,34 @@ export interface EligibilityPolicy extends PolicyMeta {
   readonly approvedPayoutCorridors: readonly string[];
 }
 
+// --- Messaging ----------------------------------------------------------------
+
+/**
+ * How the relationship lifecycle affects private messaging. Mirrored into the
+ * `messaging_settings` table (0037), which is what the database enforces; a
+ * database test asserts the two agree. Operational, not commercial: it is not
+ * part of the purchase snapshot.
+ */
+export interface MessagingPolicy extends PolicyMeta {
+  readonly kind: "messaging";
+  /** Paid time has run out after a failed renewal (enrollment paused). */
+  readonly sendWhilePaused: boolean;
+  /** After the relationship ends or the coach changes, the client may read their history. */
+  readonly clientReadsAfterEnd: boolean;
+  /** Messaging a coach before buying. */
+  readonly prePurchaseInquiries: boolean;
+  readonly maxBodyChars: number;
+  readonly sendsPerMinute: number;
+  readonly sendsPerDay: number;
+  /** How long after an unread message the grouped email is sent. */
+  readonly unreadEmailDelayMinutes: number;
+  /** How long a case-scoped support grant to read a conversation lasts. */
+  readonly supportAccessHours: number;
+  readonly supportCasesPerDay: number;
+}
+
 export type Policy =
+  | MessagingPolicy
   | CommissionPolicy
   | DiscountPolicy
   | BillingTermsPolicy

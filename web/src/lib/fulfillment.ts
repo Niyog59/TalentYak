@@ -22,7 +22,7 @@ export const FULFILLMENT = {
   programme: { ready: false, module: "M11", label: "Coach-written training programmes" },
   calls: { ready: false, module: "M09/M10", label: "Scheduled video and audio calls" },
   checkIns: { ready: false, module: "M13", label: "Structured check-ins" },
-  messaging: { ready: false, module: "M14", label: "In-app messaging" },
+  messaging: { ready: true, module: "M14", label: "In-app messaging" },
   formReview: { ready: false, module: "M12", label: "Exercise form review" },
   progressTracking: { ready: false, module: "M12", label: "Workout, weight and measurement tracking" },
 } as const satisfies Record<string, FulfillmentCapability>;

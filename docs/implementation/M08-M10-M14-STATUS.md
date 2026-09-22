@@ -272,7 +272,7 @@ Ordered as they will be built — one usable workflow finished at a time.
 | 1 | **In-app notification inbox.** No `notifications` table, no screen. Email is the only channel today. | new migration + `/account` surface | **done (pass A–C)** |
 | 2 | **Notification preferences**, separating essential service/account mail from optional. No `notification_preferences` table. | same migration + preferences screen | **done (pass A–C)** |
 | 3 | **Pre-delivery recheck.** Handlers send what the payload says. Nothing rechecks appointment version, recipient authorisation, cancellation/reschedule state, or preferences at delivery time. Obsolete reminders are not skipped. | `src/lib/worker/handlers.ts` + a shared recheck module | **done (pass A–C)** |
-| 4 | **Unread-message debounce/aggregation.** No aggregation window, no read-status recheck. | worker + sweep | handler + recheck built and **refuses to send**; **producer and debounce window pending (Batch 2)** |
+| 4 | **Unread-message debounce/aggregation.** No aggregation window, no read-status recheck. | worker + sweep | **done (M14)** — producer in `send_message`, one job per unread run, 15-minute delay, live count + access recheck at send |
 | 5 | **Appointment job family** — confirmation, change requested, change accepted, cancellation, reminder, expired reservation/proposal. Table exists; no handlers, no templates. | handlers + templates | handlers, templates and rechecks **done**; **producers pending (Batch 4)** |
 | 6 | **Media assets.** No `media_assets` table, no ownership/purpose metadata, no processing states, no chat/video path, no abandoned-upload cleanup, no thumbnail/preview authorisation, no signed-link policy. | new migration + `src/lib/media/` + upload UI | **done** — photos and clips processed, including HEIC and HDR (completion pass) |
 | 7 | **Reassignment media revocation** honouring `history_scope`, covering new fetches and subscriptions. | media authorisation layer | **done (pass D)** — reuses `coach_may_read_record`; 2-minute residual link window documented |
@@ -289,7 +289,9 @@ These are wired as reusable hooks now and connected when their owning batch is b
 
 | Producer | Owner | Hook prepared here |
 |---|---|---|
-| Unread-message notifications | Batch 2 (conversations) | aggregation window + read-status recheck |
+| Unread-message notifications | Batch 2 (conversations) | **connected in M14** |
+| Appointment proposals / links to confirmed appointments inside a conversation | Batch 4 | message `kind` boundary in `0037`; database refuses structured kinds until built |
+| Links to agreed expectations inside a conversation | Batch 3 | same boundary |
 | Expectations updates | Batch 3 | scheduling + dedupe |
 | Appointment reminders / expiry | Batch 4 | scheduling + authorisation recheck |
 | Call outcomes | Batch 5 | delivery recheck |
@@ -396,13 +398,94 @@ Put them in a folder and give me the path; nothing will be uploaded anywhere but
 
 ---
 
+## M14 — private messaging, built and verified 2026-09-21/22
+
+Founder prompt: *02-M14 Private Messaging, full scope, one final verification* (21 Sept 2026). Decisions taken with the founder at plan time: messaging is available to **every paid relationship** (the plan's free-text `messaging_channel` is the coach's promise, not a gate); a new coach **never** sees a previous coach's thread, whatever `history_scope` says; a plain-text **export** for participants; the worker is scheduled by **Supabase Cron**. The prompt is treated as the founder's answer to `OPEN-06` (messaging in scope) — recording that in the decision register is a proposal, not done here.
+
+### Security fix shipped first (separate commit `f21e08c`)
+
+Found while planning chat attachments: the `media_assets` owner policy was `FOR ALL`, so any signed-in person could insert or edit a row in their own name — including `storage_path` and `state`. The viewing route signs the path a readable row names, so a **reassigned coach who had seen a client's file path could forge a `ready` row and keep viewing it**. `0036` makes owners read-only (every write already went through server functions) and revokes the table write privileges. Verified: media database suite 31/31 (5 new: forged insert refused, repoint/re-state refused, owner still reads and deletes through `delete_own_media`, nobody edits another's row); live through the real routes on a local server against the hosted project, 12/12 — real upload processed, owner and coach get links, **the former coach gets 404 on the same session**, forged insert "permission denied", owner self-edit changes nothing.
+
+### Built
+
+**`0037_messaging.sql`**
+- `conversations` — one per coach **assignment**, created by trigger on `enrollment_assignments` (backfilled). A reassignment opens an empty thread with the new coach.
+- `conversation_access(conversation, person)` — the single decision every policy and function uses. It reuses `enrollments.state` (kept by `end_lapsed_enrollments` from the purchase), so there is no second billing authority. States: active, paused, pending, ended, reassigned, suspended, each with a reason for the screen.
+- `messages` — gapless per-conversation sequence under a row lock; `client_message_id` unique per sender (a retried send returns the original); plain text ≤ 4,000 characters; `kind` limited to text/attachment/system (structured kinds refused until Batches 3/4). **No write policy**: `send_message()` checks access, length, per-minute and per-day limits, and that an attachment is the sender's own, in this relationship, **processed and ready**, and unused.
+- `conversation_reads` — forward-only read markers, visible to both participants (read receipts).
+- `conversation_signals` — **content-free** rows in the `supabase_realtime` publication; row-level security is evaluated per delivered change.
+- `coach_messaging_profiles` — working hours, the coach's own response statement, away-until and note.
+- `support_cases`, `support_message_access`, `support_access_log` — cases are visible to the reporter and admins only; reading a conversation needs a **per-admin, per-case, expiring grant with a reason**, every grant/view/revocation is logged, attachments are listed but never served to support, and resolving a case ends its grants. No admin policy exists on `messages`.
+- Media: chat attachments are judged by the conversation (`chat_attachment_readable`), and excluded from `coach_may_read_record`, so an incoming coach with `full` history does not see what a client sent the previous coach. `reserve_media_upload` lets the current coach upload a chat attachment into a relationship they coach — nothing else.
+- `messaging_settings` mirrors `messaging.v1` (new, `sandbox_default`) in the policy register; a database test asserts they agree.
+
+**`0038_scheduled_worker.sql`** — `pg_cron` + `pg_net` call `/api/jobs/process` every five minutes with the same bearer secret, read from Supabase Vault (`worker_url`, `worker_cron_secret`, written by `scripts/configure-worker-cron.mjs`; the secret is never in a file or commit). The daily Vercel cron stays as an independent second trigger; both are idempotent.
+
+**Application** — `/account/messages` and `/account/messages/[id]` (client), `/coach/messages`, `/coach/messages/[id]`, `/coach/messages/availability` (coach), `/account/support` and `/coach/support` (report a problem), `/admin/support` and `/admin/support/[id]` (case resolution), `/api/messages/[id]/export`. Linked from the account page, the coach navigation and the founder console. The worker's unread email is now real: counted at send time against live read markers and access, message text never included, link to the right screen per role; `email.support_case_opened` fans out to current admins with category and role only. `FULFILLMENT.messaging.ready` is now `true`.
+
+**Conversation screen** — history paged 40 at a time with scroll position kept; day headings and times in the reader's own timezone; sending/sent/failed states with explicit retry and delete; unsent messages kept on the device until confirmed; realtime prompt → catch-up fetch, plus catch-up on reconnect, focus, visibility and every 60 s (20 s when not live); a message counts as read only when ≥ 60 % on screen **in a visible tab**, and the marker advances only across a contiguous run the reader actually saw; opens at the first unread message; attachments through the M08 uploader with processing states, sendable only once ready; composer that works with screen readers (Enter = new line, Ctrl/⌘+Enter = send); sized to the visible viewport so the composer stays above a phone keyboard; coach availability shown as the coach's own words; privacy notes (not end-to-end encrypted; downloaded content cannot be recalled; ending access stops future access only). Typing indicators: **not built** (optional in the prompt).
+
+### Tested here
+
+| Suite | Result |
+|---|---|
+| `npm run verify` (typecheck, lint, migration check, unit) | clean; **unit 240/240** (was 228) |
+| `next build` | succeeds; the 10 new routes registered |
+| Database, all 7 files, as real users | **190/190** across three runs: 70 (access matrix, media) · 120 (messaging, notifications, retention, worker, workflows). The first full run was killed by the idle watchdog after a realtime test failed — see below |
+
+Messaging database suite (31): policy mirror; outsiders (visitor, other customer, unrelated coach) see nothing in any of the four tables and cannot send, mark read or read state; `conversation_access` not callable with another person's id; ordered gapless history; retried and **raced** duplicate sends make one message; direct insert/update/delete refused; empty/oversized/structured refused; markers forward-only and capped; unread counts clear across **two sessions of one person**; one email job per unread run, delayed, no message text, recheck returns 0 after reading; two relationships kept apart, each coach's inbox holds only their own client; attachment rules (current coach may upload, unrelated coach may not, coach cannot file a progress photo, unprocessed file cannot be sent, sent once, visible to both participants only, someone else's file cannot be attached); support (other participant never sees the case, no admin reads without a grant, grant is personal, logged and expires, resolution needs a note and ends grants); lifecycle (paid time out: both read, nobody sends; **suspension stops an open session's reads, writes and signals**; reassignment: neither coach reaches the old thread even with `full` history, client keeps it read-only, new thread starts empty; ended: client reads, coach loses access); realtime (a participant receives a content-free signal; a **suspended participant's open subscription receives nothing** while a control signal is emitted); per-person send rate limit.
+
+**Corrected during verification, stated plainly.** The first version of the suspended-subscription test ignored whether its control message was sent — and it was not, because a client cannot send to a suspended coach — so its earlier pass proved nothing. The test now uses a read by the client as the control event and asserts the signal was emitted.
+
+### Verified in two independent browser sessions (production build, `next start`, against the hosted project)
+
+Client on `localhost`, coach on `127.0.0.1` (separate cookie jars), synthetic accounts, sessions set by a local cookie helper — no password typed.
+
+| Check | Result |
+|---|---|
+| Send / receive | Client message appears in the coach inbox with unread count 1 and a preview; times correct in Chicago and Kathmandu |
+| Realtime | A message sent from outside the browser appeared in the coach's screen **and the client's other session within 3 s, no reload** |
+| Hidden tab | Conversation open in a hidden tab: message shown, **no read marker written**, sender still sees "Sent" |
+| Read receipts across sessions | Coach tab made visible → marker moved → client's receipts turned "Read" live |
+| Opening with unread history | 60 seeded messages: opened at the "New messages" line, loaded back to include it; the marker advanced only over the reader's own messages while the tab was hidden |
+| Paging | 40 loaded, "Show earlier messages" loaded the rest, the anchored message moved **0 px** |
+| Response lost after the server stored it | Screen showed the failure, then reconciled by client id on the realtime prompt: one message |
+| Explicit retry with catch-up held off | "Try again" → one stored copy (database count 1) |
+| Refresh / reconnect catch-up | A message missed while a tab's network was down appeared on reload |
+| Photo | Uploaded through the real uploader, processed (WebP 900×1200, metadata stripped), sent with a caption, rendered for both; original 200 for the coach; signed-out 404 |
+| Clip | Coach's WebM clip processed, reached the client live, loaded through the authorised route (3 s, 640×360, no error) |
+| Failed attachment | A PDF disguised as `.jpg` refused before upload; nothing sent; Send disabled |
+| Coach availability | Saved; client sees the coach's words, hours in Kathmandu time, away notice in their own time |
+| Mobile, 375 px | No horizontal overflow; header and composer both on screen |
+| Suspension with an open session | Page load → "Account paused"; an already-open tab's send refused, nothing stored |
+| Report a problem → resolution | Client filed a case from the conversation; two-factor admin saw it, granted access with a reason, read the thread (attachments listed, not shown), resolved with a note; access record shows granted, viewed ×2, revoked (case resolved) |
+| Non-participant admin | Conversation page, export and attachment: **404** |
+| Export | Participant gets a text file with their own times; signed-out 404 |
+
+**Bugs found by this browser pass and fixed before commit:** (1) the realtime channel subscribed before the session was attached, so row-level security filtered every signal while the screen claimed "Up to date" — the token is now set before subscribing and on refresh; (2) a dropped network left the label "Up to date" and stopped polling — offline now shows as paused and a 60 s catch-up always runs; (3) opening at the first unread used `scrollIntoView`, which scrolled the page off the header on phones, and the composer sat below the fold — both fixed; (4) a suspended session was told "You've been signed out" — it now says the account is paused.
+
+**Not verified in a browser:** typing on a real phone keyboard (layout measured at 375 px only); the reassignment and paid-period-end paths (database tests as real users only); the video *playing* (it loaded and decoded, but browsers pause media in a background tab and the test pane was hidden).
+
+### Honest limits
+
+- **Not end-to-end encrypted**, and the screen says so. Support can read a conversation only under a logged, expiring, per-case grant.
+- **Already downloaded content cannot be recalled.** Revocation stops new reads, links (two-minute media links; see M08) and signals.
+- The realtime server checks access **per delivered change**, which is what makes suspension immediate; at much larger scale this per-change check costs database time.
+- Unsent drafts and failed messages are kept in the browser's local storage on that device until confirmed or deleted.
+- Pre-purchase messaging is **off** (`messaging.v1`), and no path creates a conversation without a paid assignment.
+
+### Costs
+
+Nothing bought. Supabase Realtime, `pg_cron`, `pg_net` and Vault are included in the current plan. Every five minutes the scheduler calls one Vercel function (≈ 8,640 invocations/month, each seconds long), within the free allowance.
+
+---
+
 ## Next unfinished action
 
 **M08 is complete.** Nothing in its scope remains; delivery states are live. The only optional item is confirmation with genuine phone captures. Work assigned elsewhere, and its owner:
 
 | Deferred item | Owning batch |
 |---|---|
-| Unread-message notifications (producer, debounce window, read-status recheck) and chat attachments UI | **Batch 2** — conversations |
 | Expectations-updated notifications | **Batch 3** — expectations |
 | Session confirmations, changes, cancellations, reminders, expired holds (producers); reminders at a specific hour, which need scheduling finer than daily | **Batch 4** — scheduling |
 | Call-outcome notifications | **Batch 5** — calls |

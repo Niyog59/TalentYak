@@ -131,6 +131,7 @@ describe("email jobs", () => {
       "email.reservation_expired",
       "email.unread_messages",
       "email.expectations_updated",
+      "email.support_case_opened",
     ]) {
       assert.equal(typeof HANDLERS[topic], "function", `no handler for ${topic}`);
     }
@@ -156,6 +157,7 @@ interface World {
   appointment?: Record<string, unknown> | null;
   suspended?: boolean;
   emailAllowed?: boolean;
+  unread?: number | null;
 }
 
 function worldContext(transport: EmailTransport, world: World = {}) {
@@ -204,6 +206,9 @@ function worldContext(transport: EmailTransport, world: World = {}) {
     rpc: async (name: string, args: Record<string, unknown>) => {
       if (name === "notification_email_allowed") {
         return { data: world.emailAllowed ?? true, error: null };
+      }
+      if (name === "unread_message_count") {
+        return world.unread === null ? { data: null, error: { message: "down" } } : { data: world.unread ?? 0, error: null };
       }
       if (name === "create_notification") {
         notifications.push(args);
@@ -323,19 +328,39 @@ describe("what must still be true when the message is sent", () => {
     assert.match(String((outcome as { result: Record<string, unknown> }).result.detail), /suspended/);
   });
 
-  test("an unread-message email cannot be sent while conversations are unbuilt", async () => {
-    // The producer belongs to Batch 2. Until the read state can actually be
-    // checked, this must refuse rather than assume the messages are unread.
-    const { ctx, sent } = worldContext(accepted);
+  const unreadJob = (payload: Record<string, unknown> = {}): OutboxJob => ({
+    ...reminderJob(), topic: "email.unread_messages",
+    payload: { profile_id: CUSTOMER, conversation_id: "c1", from_name: "Anjali R.", since_seq: 4, recipient_role: "customer", ...payload },
+  });
 
-    const outcome = await HANDLERS["email.unread_messages"]({
-      ...reminderJob(), topic: "email.unread_messages",
-      payload: { profile_id: CUSTOMER, conversation_id: "c1", from_name: "Anjali R.", count: 3, since: QUEUED_START },
-    }, ctx);
-
+  test("an unread-message email is skipped when the messages were read in the meantime", async () => {
+    const { ctx, sent, notifications } = worldContext(accepted, { unread: 0 });
+    const outcome = await HANDLERS["email.unread_messages"](unreadJob(), ctx);
     assert.equal(outcome.kind, "done");
-    assert.deepEqual(sent, [], "no message content and no email left the system");
-    assert.match(String((outcome as { result: Record<string, unknown> }).result.detail), /Batch 2/);
+    assert.deepEqual(sent, [], "an email was sent about messages already read");
+    assert.deepEqual(notifications, [], "an inbox row was written about messages already read");
+  });
+
+  test("an unread-message email states the live count and never the messages themselves", async () => {
+    const { ctx, sent } = worldContext(accepted, { unread: 3 });
+    const outcome = await HANDLERS["email.unread_messages"](unreadJob({ count: 99 }), ctx);
+    assert.equal(outcome.kind, "done");
+    assert.equal(sent.length, 1);
+    assert.match(sent[0].subject, /3 unread messages/, "the count came from the payload, not the live read state");
+    assert.match(sent[0].html, /\/account\/messages\/c1/, "the link does not open the conversation");
+  });
+
+  test("a coach's unread-message email opens the coach's conversation screen", async () => {
+    const { ctx, sent } = worldContext(accepted, { unread: 1 });
+    await HANDLERS["email.unread_messages"](unreadJob({ recipient_role: "coach" }), ctx);
+    assert.match(sent[0].html, /\/coach\/messages\/c1/);
+  });
+
+  test("an unread count that cannot be read is retried, not assumed", async () => {
+    const { ctx, sent } = worldContext(accepted, { unread: null });
+    const outcome = await HANDLERS["email.unread_messages"](unreadJob(), ctx);
+    assert.equal(outcome.kind, "retry");
+    assert.deepEqual(sent, []);
   });
 
   test("a session email never carries health or message content in its subject", async () => {
