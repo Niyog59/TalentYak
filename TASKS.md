@@ -39,7 +39,7 @@ Confirmed this module: coach-created plans with coach-set prices (no platform pa
 
 ### Deferred
 
-- **In-app messaging** — gated on `OPEN-06`. `docs/HANDOVER.md:243` defers it to WhatsApp; the founder has not confirmed either way. Unblocked by a decision on OPEN-06. **Either way, the "direct messaging with your coach" claim in `web/src/verticals/fitness/catalog.ts:37` must be corrected.**
+- [x] ~~**In-app messaging** — gated on `OPEN-06`.~~ Built in M14 (2026-09-22) on the founder's full-scope prompt, which is treated as the decision on `OPEN-06`; the unbuilt "direct messaging" catalog claim was already removed. **Recording that decision in `docs/aafnai/DECISION_REGISTER.md` is a founder action, listed under Open below.**
 - Native apps, wearables, macro tracking, automated payouts, Stripe Connect, coach ratings and reviews, public multi-vertical marketplace, coach-owned-client software subscription — all unchanged from prior scope discipline.
 
 ---
@@ -147,4 +147,14 @@ Status of record: `docs/implementation/M03-M07-STATUS.md`.
 - [ ] **Deletion requests are recorded, not fulfilled.** `deletion_requests` rows appear on `/admin/retention`; the actual erase-and-anonymise process is not built.
 - [x] ~~**`/admin/retention` has not been opened in a browser.**~~ Verified 2026-09-21 on the deployed site as a two-factor test admin.
 - [x] ~~**Founder: set `RESEND_WEBHOOK_SECRET`.**~~ Done 2026-09-21; a test email moved from accepted to delivered on the live site.
-- [ ] **Worker scheduling is capped at daily by the Vercel Hobby plan.** Request-triggered work runs immediately; only the safety-net sweep is daily. This becomes a real limitation when Batch 4 builds appointment reminders, which need to fire at a particular hour. Options and costs in `docs/implementation/M08-M10-M14-STATUS.md`.
+- [x] ~~**Worker scheduling is capped at daily by the Vercel Hobby plan.**~~ Resolved 2026-09-22 at no cost: Supabase Cron (`pg_cron` + `pg_net`, migration `0038`) calls the same protected endpoint every five minutes, with the bearer secret in Supabase Vault. Two scheduled runs verified on the live project. Batch 4 reminders now depend only on a producer, not on the schedule.
+
+### M14 — private messaging (2026-09-22)
+
+- [ ] **`messaging.v1` is a sandbox default, not an approved policy.** It sets what happens when paid time runs out (no new messages, history stays readable), after coaching ends or a coach changes (client reads their own history), that support stays reachable, and that pre-purchase enquiries are **off**. Live billing already refuses while any policy in the purchase snapshot is a sandbox default; this one is operational rather than commercial, so it does not block billing — it blocks nobody, which is exactly why it needs a deliberate decision. Unblocked by the founder confirming or changing the values.
+- [ ] **Typing indicators not built.** The M14 prompt left them optional and they were skipped: they need a second realtime channel carrying per-keystroke state, and they imply a presence signal the product deliberately does not show. Unblocked by a founder request.
+- [ ] **Conversation privacy wording is not legal copy.** The screen states plainly that messages are not end-to-end encrypted, that support can read a conversation only under a logged, expiring, per-case grant, and that anything already downloaded cannot be recalled. `legal/privacy` has not been updated to match. Unblocked by a privacy-policy review.
+- [ ] **The database workflows test suite leaves its accounts behind.** Nine `talentyak-test-wf-…` profiles remained after a full run on 2026-09-22 (35 older ones predate this batch). Unlike the outbox issue resolved on 2026-09-21, this is fixture teardown, not production behaviour. Unblocked by adding teardown to `test/db/workflows.db.test.ts`.
+- [ ] **Read receipts depend on the browser reporting honestly.** The rule "read means it was on screen in a visible tab" is enforced by the screen, not the database — the database only refuses to move a marker backwards. A modified client could mark messages read without showing them. Accepted: the failure mode harms only the person doing it.
+- [ ] **`f21e08c` carries a `Co-Authored-By` trailer**, contrary to CLAUDE.md's rule against tool references in commits. Not amended because the commit is pushed; unblocked by a founder decision to rewrite that history.
+

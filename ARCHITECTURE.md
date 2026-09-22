@@ -33,7 +33,7 @@ Only two client components exist in the entire application; everything else is a
 | 6 · RLS on every table, same commit | All 22 tables carry `enable row level security` in their creating migration | **BUILT** |
 | 7 · Service-role key never reaches the browser | `web/src/lib/supabase/admin.ts` now carries all three guards: `import "server-only"`, a runtime `window` check that throws, and a non-`NEXT_PUBLIC_` env var name | **BUILT** (repaired 2026-09-15) |
 | 8 · Payout economics disclosed, never discovered | `previewEarnings()` in `web/src/lib/policy/` computes Customer pays / TalentYak share / coach share from the same code that computes real money, and `/become-a-coach` renders it rather than a typed-in percentage | **PARTIAL** — the offer builder itself does not exist yet |
-| 9 · No fake data in production | Homepage testimonial of unverified truth — `(marketing)/page.tsx:141`; "direct messaging" sold at `verticals/fitness/catalog.ts:37` with no messaging built | **AT RISK** |
+| 9 · No fake data in production | The testimonial and the unbuilt "direct messaging" claim are both gone; messaging is built (§3.7c) and `FULFILLMENT.messaging.ready` is true, so live billing no longer refuses an offer that includes it. What remains is the standing rule, not a known breach | **BUILT** (repaired 2026-09-22) |
 
 **Structural principle:** isolation is enforced in the **database**, never in the UI alone. Every access rule above that works, works because Postgres refuses — not because a component hides a button.
 
@@ -233,6 +233,80 @@ The inbox row is written *before* the provider is called and regardless of the
 preference, so a person is told even when the provider is unreachable and the
 job retries for hours.
 
+### 3.7c Private messaging — `0037`, `0038`
+
+```
+conversations(id, assignment_id UNIQUE, enrollment_id, customer_id, provider_id,
+              last_seq, last_message_at)
+messages(id, conversation_id, seq, sender_profile_id, sender_role, kind,
+         body, media_asset_id UNIQUE, client_message_id, created_at)
+conversation_reads(conversation_id, profile_id, last_read_seq, read_at)
+conversation_signals(id, conversation_id, kind, created_at)     -- no content
+coach_messaging_profiles(provider_id, working_hours, response_expectation,
+                         away_until, away_note)
+support_cases / support_message_access / support_access_log
+messaging_settings   -- mirrors messaging.v1 in src/lib/policy/registry.ts
+```
+
+**One conversation per coach ASSIGNMENT, not per client.** A reassignment opens
+an empty thread with the new coach. The client keeps the old one to read; the
+previous coach loses it when their assignment closes, and the incoming coach
+never gets it — **`history_scope = 'full'` does not open it**, because that
+scope governs the client's training record and media, not a third party's
+private words. This is a founder decision (2026-09-21), and the database
+enforces it by keying access to the assignment rather than the enrollment.
+
+**One access decision, reused everywhere.** `conversation_access(conversation,
+person)` returns role, `can_read`, `can_send`, a lifecycle state and a reason
+for the screen. Every policy, every action and the worker's recheck call it, so
+there is exactly one place where "may this person see this" is decided. It
+derives the state from `enrollments.state`, which `end_lapsed_enrollments()`
+already maintains from the purchase — **messaging invents no second billing
+authority** (invariant: money state stays server-side, and paid-access rules
+stay in one place).
+
+**`messages` has no write policy at all.** Sending goes through
+`send_message()`, which takes the conversation's row lock (so `seq` is gapless
+and ordered), refuses a duplicate `client_message_id` by returning the original
+message, enforces length and per-minute/per-day limits in the database, and
+accepts an attachment only if it is the sender's own, filed under this
+relationship, processed and `ready`, and not already sent. **A failed or
+unfinished upload can therefore never appear as a sent message.**
+
+**Realtime carries no content.** Browsers subscribe to `conversation_signals`,
+whose rows say only "something changed here". Row-level security is evaluated
+for *every change delivered*, so a suspended or reassigned person stops
+receiving them immediately — the reason this table exists instead of
+subscribing to `messages`, which would push message bodies down the socket. A
+signal is only ever a prompt to fetch; the fetch goes through the same rules.
+**The database is the record; the socket is a hint.** The browser must attach
+the signed-in session to the realtime connection *before* subscribing: without
+it the channel still reports "subscribed" while row-level security silently
+filters out everything.
+
+**Read means seen.** `conversation_reads` is a forward-only high-water mark,
+moved only by `mark_conversation_read()`. The screen advances it only across a
+contiguous run of messages that were actually on screen in a visible tab —
+never for a delivered email, a background tab, or an open socket.
+
+**Support cannot browse conversations.** There is no admin policy on
+`messages`. Reading one requires `admin_grant_case_message_access()`: tied to a
+single case and its conversation, granted to one admin, with a reason, expiring
+on a clock, revoked when the case is resolved, and with every grant, view and
+revocation written to `support_access_log`. Attachments are listed, never
+served, to support.
+
+**Chat attachments are judged by the conversation**
+(`chat_attachment_readable()`), and excluded from `coach_may_read_record()`, so
+the media rules for progress photos and the rules for chat attachments cannot
+be confused with each other.
+
+**`0038` schedules the worker from the database.** `pg_cron` + `pg_net` call
+`/api/jobs/process` every five minutes with the bearer secret held in Supabase
+Vault — never in a file or a commit. The daily Vercel cron remains an
+independent second trigger; every sweep and job is idempotent, so two
+schedulers cannot double-send.
+
 ### 3.8 How the database defends itself
 
 Three mechanisms, all exercised by the test suite:
@@ -281,7 +355,17 @@ This extends to the **pandit vertical as a whole**. It is not deleted for a fitn
 
 **Ceremony recordings — unchanged.** Cloudflare R2 via `web/src/lib/recordings.ts`, retained pandit vertical only, not configured in any environment. Its 7-day links are far too long-lived for body data and it is not used for fitness media.
 
-**Private media — BUILT (`0030`, `0032`–`0035`).** Progress photos, form-review clips and chat attachments live in Supabase Storage in two private buckets, neither with any storage policy, so no browser session can read, list or write them directly.
+**Private media — BUILT (`0030`, `0032`–`0036`).** Progress photos, form-review clips and chat attachments live in Supabase Storage in two private buckets, neither with any storage policy, so no browser session can read, list or write them directly.
+
+**Media rows are written by the server only (`0036`).** The owner's policy is
+`SELECT`; reservation, completion, processing and deletion all run through
+security-definer functions. It was `FOR ALL` until 2026-09-22, which let any
+signed-in person insert a row in their own name naming **someone else's**
+`storage_path` with `state = 'ready'` — and since `/api/media/<id>` signs
+whatever path a readable row names, a coach who had been reassigned away (and
+had therefore already seen their former client's paths in the links their
+browser followed) could have kept viewing those files indefinitely. A
+revocation is only as good as the rows the viewing route will sign.
 
 ```
 browser ──(1) POST /api/media/uploads ──> reserve row + single-use token for ONE path
