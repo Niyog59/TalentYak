@@ -146,6 +146,18 @@ export interface CancellationPolicy extends PolicyMeta {
 export interface PaymentFailurePolicy extends PolicyMeta {
   readonly kind: "payment_failure";
   /**
+   * Once the paid-for time has run out, new service stops: no new messages,
+   * no new bookings, no new coaching activity. Reading what already exists is
+   * unaffected. Absent on versions written before this was stated.
+   */
+  readonly pausesNewServiceWhenUnpaid?: boolean;
+  /** Records stay readable under the permissions that already apply. */
+  readonly retainsReadableRecords?: boolean;
+  /** A successful payment restores what was paused, and nothing else. */
+  readonly paymentRestoresPausedAccess?: boolean;
+  /** The words a customer is shown while their coaching is paused. */
+  readonly customerNotice?: string;
+  /**
    * Days of access granted beyond the paid-through date while a renewal is
    * being retried. Zero means no new service period is granted on unpaid
    * billing — the default, because the alternative is giving away a coach's
@@ -219,6 +231,8 @@ export interface EligibilityPolicy extends PolicyMeta {
  */
 export interface MessagingPolicy extends PolicyMeta {
   readonly kind: "messaging";
+  /** The words shown in a conversation that is paused for non-payment. */
+  readonly pausedNotice?: string;
   /** Paid time has run out after a failed renewal (enrollment paused). */
   readonly sendWhilePaused: boolean;
   /** After the relationship ends or the coach changes, the client may read their history. */

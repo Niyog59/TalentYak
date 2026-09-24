@@ -9,6 +9,7 @@ import { InstallHelp } from "@/components/pwa/install-help";
 import { ActionForm } from "@/components/form/action-form";
 import { SubmitButton, TextArea } from "@/components/form/fields";
 import { PURCHASE_STATE_LABEL, formatDate, formatMinor } from "@/lib/format";
+import { PAUSED_FOR_PAYMENT_NOTICE } from "@/lib/policy";
 import { requestCoachChangeAction } from "./customer-actions";
 
 export const metadata: Metadata = { title: "Your account" };
@@ -109,7 +110,12 @@ export default async function AccountPage() {
                   {p.paid_through_at ? <p className="mt-1 text-sm">Paid until {formatDate(p.paid_through_at, tz)}</p> : null}
                   {p.state === "past_due" ? (
                     <p role="alert" className="mt-2 font-medium">
-                      Your last payment didn&rsquo;t go through. <Link href="/account/billing" className="underline">Update your card</Link> to keep your coaching.
+                      {/* Founder-approved wording (payment_failure.v2). Before the paid
+                          period runs out coaching continues; after it, new coaching is
+                          paused until this is fixed — the words are the same either way. */}
+                      {PAUSED_FOR_PAYMENT_NOTICE}{" "}
+                      <Link href="/account/billing" className="underline">Update your card</Link>
+                      {enrollment?.state === "paused" ? "." : ` to keep your coaching${p.paid_through_at ? ` past ${formatDate(p.paid_through_at, tz)}` : ""}.`}
                     </p>
                   ) : null}
                   {enrollment && ["active", "paused"].includes(enrollment.state) ? (

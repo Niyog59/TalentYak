@@ -1,6 +1,8 @@
 # TalentYak — Decision Register
 
-> ### Amended 2026-09-21 (fourth pass) — read §L, then §M.
+> ### Amended 2026-09-22 (fifth pass) — read §L, then §M, then §N.
+>
+> **§N (2026-09-22)** approves the paid-access rules: cancelling keeps access until the paid period ends; once it has run out and a renewal has failed, new service pauses and nothing is deleted; paying restores what was paused, never a suspension or a coach change. It **confirms** `cancellation.v2`, `payment_failure.v2` and `messaging.v2`, replacing the sandbox defaults they conflict with.
 >
 > **§M (2026-09-21)** records the private-messaging decisions: messaging is in scope and built, it is open to every paid relationship, a new coach never inherits a previous coach's thread, support reads a conversation only under an audited per-case grant, and pre-purchase enquiries stay off. It resolves the messaging half of `OPEN-06` and supersedes `HB:243` for the platform's own channel.
 >
@@ -484,4 +486,33 @@ FM03 §5 distinguishes rules the founder has **confirmed** from working defaults
 | OPEN-06 | OPEN, blocking M05, M13, M14 | **PARTLY RESOLVED** by TY-MSG-01 — the messaging question is answered; first-class inclusions and per-plan response commitments remain open for M05 and M13 |
 | AAF-ENT-01 | CONFIRMED | **UNCHANGED in principle**, narrowed in one place by TY-MSG-02: messaging is a platform capability in every paid relationship, not a per-plan entitlement |
 | `HB:243` (messaging deferred to WhatsApp) | Founder-written background | **SUPERSEDED for the platform channel** by TY-MSG-01. `docs/HANDOVER.md` is not edited; this row is the record |
+
+---
+
+## N. Fifth-pass decisions — 2026-09-22 (paid access: pause, preserve, restore)
+
+**Source key added:** **FM-ACCESS** — Founder instruction, 2026-09-22: *"Update TalentYak's messaging and coaching access rules… Record this as my approved policy, replacing conflicting temporary defaults."* Founder-written, and the first policy in this project to move from `sandbox_default` to **confirmed**.
+
+| ID | Topic | Status | Rule | Source | Modules |
+|---|---|---|---|---|---|
+| **TY-ACCESS-01** | Cancelling a renewal | **CONFIRMED** | Cancelling keeps access **active until the already-paid period ends**. Nothing is withdrawn early. Recorded as `cancellation.v2`, **superseding the `cancellation.v1` sandbox default** (same substance, now approved). | FM-ACCESS | M06, M14 |
+| **TY-ACCESS-02** | Failed renewal after the paid period | **CONFIRMED** | When a renewal fails and the paid time has run out, **new service pauses**: no new messages, no new bookings, no new coaching activity. There is no grace period beyond the time already paid for — the paid period *is* the grace. Recorded as `payment_failure.v2`, **superseding `payment_failure.v1`**. | FM-ACCESS | M06, M09, M11–M14 |
+| **TY-ACCESS-03** | The words the customer sees | **CONFIRMED** | Exactly: *"Your payment didn't go through. Renew to continue coaching. Your progress is saved."* Stored once (`PAUSED_FOR_PAYMENT_NOTICE` in the policy register, mirrored into `messaging_settings.paused_notice`) and shown, not paraphrased, wherever a customer meets the pause. | FM-ACCESS | M06, M14 |
+| **TY-ACCESS-04** | Nothing is lost | **CONFIRMED** | Progress, plans, logs and message history are preserved and stay readable under the permissions that already apply. **A payment failure never triggers deletion** — it is not connected to retention, whose destructive execution remains off and unapproved (`OPEN-10`). | FM-ACCESS | M08, M11–M14 |
+| **TY-ACCESS-05** | Restoring access | **CONFIRMED** | A successful payment restores the paused access with no loss of history, and **only** that: it never lifts a suspension, and never undoes or reverses a coach reassignment. A payment arriving for a relationship with no open coach assignment leaves it paused and raises an exception for a human to resolve. | FM-ACCESS | M06, M17 |
+| **TY-ACCESS-06** | Who is paused | **CONFIRMED** (engineering reading of FM-ACCESS) | "Coaching activity" is what the **coach** delivers: while paused, the coach cannot add new programming, and neither side can send messages. The **customer keeps writing their own records** (their weight log, their own data) — a pause is a stop on service, not a lockout from one's own account. Flagged here because FM-ACCESS did not say so explicitly; correct it if this reading is wrong. | FM-ACCESS + engineering | M11–M14 |
+
+### N1 · Enforcement
+
+One database test decides the whole rule: `coaching_is_live(enrollment)` — relationship active, assignment open, neither party suspended. `coaches_enrollment_now()` (the coach write gate behind every programme policy in `0021`) now requires it, so a pause stops coach-side work everywhere at once; **reading is deliberately not gated by it**, which is what keeps TY-ACCESS-04 true. Bookings and any future coaching action must check the same function. `resume_paid_enrollment()` is the only restore path, and refuses without an open assignment.
+
+### N2 · Status changes
+
+| Entry | Was | Now |
+|---|---|---|
+| `cancellation.v1` | `sandbox_default` | **SUPERSEDED** by `cancellation.v2` (**confirmed**). The v1 record is kept, unedited |
+| `payment_failure.v1` | `sandbox_default` | **SUPERSEDED** by `payment_failure.v2` (**confirmed**) |
+| `messaging.v1` (§M1) | `sandbox_default`, awaiting approval | **SUPERSEDED** by `messaging.v2` (**confirmed**) — the pause and history rules it proposed are now approved, values unchanged |
+| L4 "awaiting founder approval" list | included cancellation terms and payment-failure grace | **Both removed** — approved here. Still awaiting: fee presentation and FX/dispute allocation · commission base treatment of tax · platform-funded promotions · prepaid-term enablement · earnings recognition and hold · payout cutoff, minimum and negative balances · customer countries and payout corridors · adult-only onboarding |
+| Live billing | refused | **STILL REFUSED.** Approving two policies does not open the gate: five remain sandbox defaults, and `LIVE_BILLING` is not set. A test asserts this |
 

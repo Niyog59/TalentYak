@@ -164,6 +164,7 @@ const CANCELLATION_V1: CancellationPolicy = {
   id: "cancellation.v1",
   version: 1,
   status: "sandbox_default",
+  supersededBy: "cancellation.v2",
   effectiveFrom: "2026-09-15",
   source: "Founder brief §5, 'Cancellation' — sandbox default pending approval",
   note: "Cancel at period end, keep access already paid for, keep permitted read-only history. Refund adjudication stays a reviewed admin action; no no-refunds policy has been invented here.",
@@ -179,6 +180,7 @@ const PAYMENT_FAILURE_V1: PaymentFailurePolicy = {
   id: "payment_failure.v1",
   version: 1,
   status: "sandbox_default",
+  supersededBy: "payment_failure.v2",
   effectiveFrom: "2026-09-15",
   source: "Founder brief §5, 'Payment failure' — sandbox default pending approval",
   note: "No grace period by default: a new service period is not granted on unpaid billing, because the alternative is giving away a coach's time on a promise.",
@@ -236,6 +238,7 @@ const MESSAGING_V1: MessagingPolicy = {
   id: "messaging.v1",
   version: 1,
   status: "sandbox_default",
+  supersededBy: "messaging.v2",
   effectiveFrom: "2026-09-21",
   source: "M14 founder prompt, 21 September 2026 — proposed default, explicitly not yet approved",
   note: "Clients keep reading their own history after coaching ends or the coach changes; no new messages once paid time has run out; support stays reachable. Pre-purchase messaging is off.",
@@ -248,6 +251,65 @@ const MESSAGING_V1: MessagingPolicy = {
   unreadEmailDelayMinutes: 15,
   supportAccessHours: 72,
   supportCasesPerDay: 5,
+};
+
+/**
+ * The customer-facing words for a coaching relationship paused by a failed
+ * renewal. Founder-approved wording: it is shown, not paraphrased, wherever a
+ * customer meets the pause.
+ */
+export const PAUSED_FOR_PAYMENT_NOTICE = "Your payment didn’t go through. Renew to continue coaching. Your progress is saved.";
+
+const CANCELLATION_V2: CancellationPolicy = {
+  kind: "cancellation",
+  id: "cancellation.v2",
+  version: 2,
+  status: "confirmed",
+  effectiveFrom: "2026-09-22",
+  source: "Founder instruction, 2026-09-22 — approved, replacing the sandbox defaults it conflicts with",
+  note: "Cancelling a renewal keeps access active until the already-paid period ends. Unchanged in substance from cancellation.v1; this version is the approved one.",
+  recurringCancelsAtPeriodEnd: true,
+  retainsAccessUntilPaidThrough: true,
+  retainsReadOnlyHistoryAfterEnd: true,
+  cancellationImpliesRefund: false,
+  refundRequiresAdminAdjudication: true,
+};
+
+const PAYMENT_FAILURE_V2: PaymentFailurePolicy = {
+  kind: "payment_failure",
+  id: "payment_failure.v2",
+  version: 2,
+  status: "confirmed",
+  effectiveFrom: "2026-09-22",
+  source: "Founder instruction, 2026-09-22 — approved, replacing the sandbox defaults it conflicts with",
+  note: "No grace period beyond the time already paid for. When it runs out, new service pauses — new messages, new bookings, new coaching activity — and everything already recorded stays readable under the permissions that already apply. A failed payment never deletes anything. Paying restores exactly what was paused, and never lifts a suspension or undoes a coach change.",
+  graceDays: 0,
+  failedRenewalErasesHistory: false,
+  distinguishesPaidThroughFromNewService: true,
+  pausesNewServiceWhenUnpaid: true,
+  retainsReadableRecords: true,
+  paymentRestoresPausedAccess: true,
+  customerNotice: PAUSED_FOR_PAYMENT_NOTICE,
+};
+
+const MESSAGING_V2: MessagingPolicy = {
+  kind: "messaging",
+  id: "messaging.v2",
+  version: 2,
+  status: "confirmed",
+  effectiveFrom: "2026-09-22",
+  source: "Founder instruction, 2026-09-22 — approved, replacing the sandbox defaults it conflicts with",
+  note: "Approved: no new messages once the paid period has run out, the whole history stays readable, support stays reachable, and paying restores sending. Values are unchanged from messaging.v1 apart from the approved customer wording.",
+  sendWhilePaused: false,
+  clientReadsAfterEnd: true,
+  prePurchaseInquiries: false,
+  maxBodyChars: 4000,
+  sendsPerMinute: 20,
+  sendsPerDay: 500,
+  unreadEmailDelayMinutes: 15,
+  supportAccessHours: 72,
+  supportCasesPerDay: 5,
+  pausedNotice: PAUSED_FOR_PAYMENT_NOTICE,
 };
 
 // --- Register -----------------------------------------------------------------
@@ -266,6 +328,9 @@ const ALL_POLICIES: readonly Policy[] = [
   PAYOUT_V1,
   ELIGIBILITY_V1,
   MESSAGING_V1,
+  CANCELLATION_V2,
+  PAYMENT_FAILURE_V2,
+  MESSAGING_V2,
 ];
 
 const BY_ID = new Map(ALL_POLICIES.map((policy) => [policy.id, policy]));
@@ -300,7 +365,7 @@ export function getCommissionPolicy(id: string): CommissionPolicy {
   return policy;
 }
 
-export const CURRENT_MESSAGING_POLICY_ID = MESSAGING_V1.id;
+export const CURRENT_MESSAGING_POLICY_ID = MESSAGING_V2.id;
 
 export function currentMessagingPolicy(): MessagingPolicy {
   const policy = getPolicy(CURRENT_MESSAGING_POLICY_ID);
@@ -342,8 +407,8 @@ export function currentPolicySnapshot(): PolicySnapshot {
     discountPolicyId: DISCOUNT_V1.id,
     billingTermsPolicyId: BILLING_TERMS_V1.id,
     priceChangePolicyId: PRICE_CHANGE_V1.id,
-    cancellationPolicyId: CANCELLATION_V1.id,
-    paymentFailurePolicyId: PAYMENT_FAILURE_V1.id,
+    cancellationPolicyId: CANCELLATION_V2.id,
+    paymentFailurePolicyId: PAYMENT_FAILURE_V2.id,
     recognitionPolicyId: RECOGNITION_V1.id,
     payoutPolicyId: PAYOUT_V1.id,
     eligibilityPolicyId: ELIGIBILITY_V1.id,
@@ -351,6 +416,9 @@ export function currentPolicySnapshot(): PolicySnapshot {
 }
 
 export {
+  CANCELLATION_V2,
+  PAYMENT_FAILURE_V2,
+  MESSAGING_V2,
   COMMISSION_FITNESS_V1,
   COMMISSION_COACHING_V2,
   COMMISSION_COACHING_V3,
