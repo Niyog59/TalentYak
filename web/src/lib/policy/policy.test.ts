@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import { money } from "@/lib/money/money";
 import {
   CURRENT_COMMISSION_POLICY_ID,
+  PAUSED_FOR_PAYMENT_NOTICE,
+  currentMessagingPolicy,
   LiveBillingNotPermittedError,
   UnknownPolicyError,
   assertLiveBillingPermitted,
@@ -165,6 +167,65 @@ describe("the coach's earnings preview", () => {
   });
 });
 
+describe("the approved paid-access rules (2026-09-22)", () => {
+  const cancellation = getPolicy(currentPolicySnapshot().cancellationPolicyId);
+  const paymentFailure = getPolicy(currentPolicySnapshot().paymentFailurePolicyId);
+
+  test("cancelling keeps access until the paid period ends, and that rule is approved", () => {
+    assert.equal(cancellation.id, "cancellation.v2");
+    assert.equal(cancellation.status, "confirmed");
+    assert.equal(cancellation.kind === "cancellation" && cancellation.retainsAccessUntilPaidThrough, true);
+    assert.equal(cancellation.kind === "cancellation" && cancellation.retainsReadOnlyHistoryAfterEnd, true);
+  });
+
+  test("a failed renewal pauses new service without a grace period and without erasing anything", () => {
+    assert.equal(paymentFailure.id, "payment_failure.v2");
+    assert.equal(paymentFailure.status, "confirmed");
+    if (paymentFailure.kind !== "payment_failure") throw new Error("wrong kind");
+    assert.equal(paymentFailure.graceDays, 0, "the grace period IS the time already paid for");
+    assert.equal(paymentFailure.pausesNewServiceWhenUnpaid, true);
+    assert.equal(paymentFailure.failedRenewalErasesHistory, false, "payment failure must never delete anything");
+    assert.equal(paymentFailure.retainsReadableRecords, true);
+    assert.equal(paymentFailure.paymentRestoresPausedAccess, true);
+  });
+
+  test("messaging follows the same approved rules: no new messages while paused, history stays readable", () => {
+    const messaging = currentMessagingPolicy();
+    assert.equal(messaging.id, "messaging.v2");
+    assert.equal(messaging.status, "confirmed");
+    assert.equal(messaging.sendWhilePaused, false);
+    assert.equal(messaging.clientReadsAfterEnd, true);
+  });
+
+  test("the customer wording exists once and is shared by both policies", () => {
+    assert.equal(PAUSED_FOR_PAYMENT_NOTICE, "Your payment didn\u2019t go through. Renew to continue coaching. Your progress is saved.");
+    if (paymentFailure.kind !== "payment_failure") throw new Error("wrong kind");
+    assert.equal(paymentFailure.customerNotice, PAUSED_FOR_PAYMENT_NOTICE);
+    assert.equal(currentMessagingPolicy().pausedNotice, PAUSED_FOR_PAYMENT_NOTICE);
+  });
+
+  test("the versions they replace are kept, superseded rather than edited", () => {
+    for (const [oldId, newId] of [["cancellation.v1", "cancellation.v2"], ["payment_failure.v1", "payment_failure.v2"], ["messaging.v1", "messaging.v2"]]) {
+      const previous = getPolicy(oldId);
+      assert.equal(previous.supersededBy, newId);
+      assert.equal(previous.status, "sandbox_default", "a superseded version keeps the status it had");
+    }
+  });
+
+  test("approving these two does not open live billing on its own", () => {
+    const readiness = evaluateLiveReadiness();
+    assert.equal(readiness.ready, false);
+    assert.ok(
+      !readiness.blockers.some((b) => b.includes("cancellationPolicyId") || b.includes("paymentFailurePolicyId")),
+      "the approved policies must no longer be listed as blockers",
+    );
+    assert.ok(
+      readiness.blockers.some((b) => b.includes("eligibilityPolicyId")),
+      "the policies still awaiting approval must still block",
+    );
+  });
+});
+
 describe("the live-billing gate", () => {
   let savedFlag: string | undefined;
 
@@ -201,9 +262,12 @@ describe("the live-billing gate", () => {
   test("names every unapproved policy rather than failing with one message", () => {
     process.env.LIVE_BILLING = "true";
     const { blockers } = evaluateLiveReadiness();
+    // Cancellation and payment failure were approved on 2026-09-22 and are
+    // deliberately absent: the gate must name what is STILL unapproved.
     for (const kind of [
-      "cancellationPolicyId",
-      "paymentFailurePolicyId",
+      "discountPolicyId",
+      "billingTermsPolicyId",
+      "recognitionPolicyId",
       "payoutPolicyId",
       "eligibilityPolicyId",
     ]) {
