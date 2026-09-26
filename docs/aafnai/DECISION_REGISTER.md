@@ -1,6 +1,8 @@
 # TalentYak — Decision Register
 
-> ### Amended 2026-09-22 (fifth pass) — read §L, then §M, then §N.
+> ### Amended 2026-09-25 (sixth pass) — read §L, then §M, then §N, then §O.
+>
+> **§O (2026-09-25)** sets how agents report to the founder: short, plain language; what happened, how it affects users, a recommendation, and whether the founder must act. It simplifies the explanation, never the scope or the engineering.
 >
 > **§N (2026-09-22)** approves the paid-access rules: cancelling keeps access until the paid period ends; once it has run out and a renewal has failed, new service pauses and nothing is deleted; paying restores what was paused, never a suspension or a coach change. It **confirms** `cancellation.v2`, `payment_failure.v2` and `messaging.v2`, replacing the sandbox defaults they conflict with.
 >
@@ -515,4 +517,30 @@ One database test decides the whole rule: `coaching_is_live(enrollment)` — rel
 | `messaging.v1` (§M1) | `sandbox_default`, awaiting approval | **SUPERSEDED** by `messaging.v2` (**confirmed**) — the pause and history rules it proposed are now approved, values unchanged |
 | L4 "awaiting founder approval" list | included cancellation terms and payment-failure grace | **Both removed** — approved here. Still awaiting: fee presentation and FX/dispute allocation · commission base treatment of tax · platform-funded promotions · prepaid-term enablement · earnings recognition and hold · payout cutoff, minimum and negative balances · customer countries and payout corridors · adult-only onboarding |
 | Live billing | refused | **STILL REFUSED.** Approving two policies does not open the gate: five remain sandbox defaults, and `LIVE_BILLING` is not set. A test asserts this |
+
+---
+
+## O. Sixth-pass decisions — 2026-09-25 (how agents report to the founder)
+
+**Source key added:** **FM-REPORT** — Founder instruction, 2026-09-25: *"Explain updates and decisions in short, plain language for a nontechnical founder… Simplify the explanation, never the feature scope or engineering quality."* Founder-written. It governs every agent in the roster, in every session.
+
+| ID | Topic | Status | Rule | Source |
+|---|---|---|---|---|
+| **TY-REPORT-01** | Audience and language | **CONFIRMED** | Every update and decision addressed to the founder is written in **short, plain language for a nontechnical reader**. | FM-REPORT |
+| **TY-REPORT-02** | What every report says | **CONFIRMED** | Four things, in this order: **what happened**; **how it affects users**; **what the agent recommends**; **whether the founder needs to do anything** (and if so, exactly what). "Nothing needed" is said plainly when true. | FM-REPORT |
+| **TY-REPORT-03** | What to leave out | **CONFIRMED** | No jargon, acronyms, internal file names or test counts **unless they are necessary**. A technical term that cannot be avoided is explained in the same sentence it first appears. | FM-REPORT |
+| **TY-REPORT-04** | Options | **CONFIRMED** | When presenting options, **recommend one** and say briefly why. A bare list of choices is not a finished report. | FM-REPORT |
+| **TY-REPORT-05** | Where detail goes | **CONFIRMED** | Technical detail — file paths, migrations, test names and counts, error text, commands — belongs in the **development notes** (the engineering journal and the batch status checklist), not in the founder's report, unless the founder asks for it. | FM-REPORT |
+| **TY-REPORT-06** | What must not be simplified | **CONFIRMED** | **Simplify the explanation, never the feature scope or the engineering quality.** Security, testing, verification and the invariants are exactly as strict as before. Honesty is unchanged too: a plain report still says what was *not* done or *not* verified, and never rounds "mostly works" up to "done". | FM-REPORT |
+
+### O1 · How this sits with the existing session rules
+
+The existing working rules for agents are **kept**, and are now written to this standard:
+
+- **Founder Checkpoints** keep their three-line shape, in plain words.
+- **Stop-and-report** keeps its content (where it stopped, what went wrong, options), and now **leads with the recommendation** (TY-REPORT-04).
+- **The end-of-work explanation** keeps its purpose. Where it asked for "where each piece lives — file by file", that list moves to the development notes unless the founder asks (TY-REPORT-03, -05). An analogy or a plain description of what each part does replaces the file list.
+- **The CTO briefing** already follows this standard and is unchanged.
+
+The project instructions file that every agent reads first is founder-owned and was **not edited** by this pass. Until it carries a pointer here, this entry governs wherever the two differ on how a report is written.
 

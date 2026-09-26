@@ -166,3 +166,8 @@ Status of record: `docs/implementation/M03-M07-STATUS.md`.
 - [ ] **Five policies still await approval**, and live billing stays refused until they are settled: fee presentation and FX/dispute allocation, prepaid-term enablement, earnings recognition and hold, payout cutoff and negative balances, customer countries and payout corridors.
 - [ ] **Supabase personal access token is rejected (401) as of 2026-09-24.** It is the credential for the management API, used by `npm run db:migrate` and by the `sql()` helper in the database test harness (fixture ageing and direct inspection). The service-role key is unaffected, so the application and most tests are fine, but **new migrations cannot be applied and several database suites cannot run** until a fresh token is put in `web/.env.local` as `SUPABASE_ACCESS_TOKEN`. Founder action.
 
+### Working agreements (2026-09-25)
+
+- [x] **Plain-language reporting approved** as the founder's policy (decision register §O, `TY-REPORT-01` … `06`). Applies to every agent from now: what happened, how it affects users, a recommendation, whether the founder must act — with technical detail kept in the development notes.
+- [ ] **Add a one-line pointer to §O in the project instructions file.** That file is the first thing every agent reads and is founder-owned, so it was not edited. Unblocked by the founder's go-ahead (or the founder adding it).
+
