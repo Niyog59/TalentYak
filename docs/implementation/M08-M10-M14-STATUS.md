@@ -730,3 +730,9 @@ None yet. No calls have run. When they do: Daily's free 10,000 participant-minut
 
 1. **Add a payment method to the Daily account** (dashboard.daily.co → Billing). Then the live call checks above are run once and recorded here.
 2. Approve or change the call timings (`calls.v1`) before launch.
+
+### Deployed — `799727a`, www.talentyak.com
+
+Vercel production deployment: **success**. On the live domain: a join request signed out → 401, cross-site → 403; the Daily webhook refuses an unsigned request with 503 (no secret set, as designed); session pages carry `camera=(self)`, `microphone=(self)`, `autoplay=(self)` and allow Daily's hosts and `blob:` workers in the CSP, while the home page keeps `camera=()` and `microphone=()`. Migrations `0044` and `0045` were applied before the deploy; the deployed worker now has the `call.*` and outcome handlers.
+
+**Not checked:** whether `DAILY_API_KEY` is set in Vercel's production environment — there is no Vercel login on this machine. If it is missing, the live session page says "Calls aren't switched on for this site yet." Founder: add it (production and preview) alongside the Daily payment method.
