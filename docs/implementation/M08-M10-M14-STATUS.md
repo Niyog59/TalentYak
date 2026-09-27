@@ -484,6 +484,13 @@ Client on `localhost`, coach on `127.0.0.1` (separate cookie jars), synthetic ac
 
 Nothing bought. Supabase Realtime, `pg_cron`, `pg_net` and Vault are included in the current plan. Every five minutes the scheduler calls one Vercel function (≈ 8,640 invocations/month, each seconds long), within the free allowance.
 
+
+### Live-alert outage, 2026-09-25 — found, investigated, hardened
+
+The full database suite (rerun after the founder replaced the Supabase access token) showed live alerts not reaching signed-in participants, twice. The server-key listener still received them, so delivery itself worked and the per-person check was not letting them through. The next day the same test, instrumented, measured arrival at **0.2–0.4 s** twice and passed; a clean reproduction and a manual replay of the permission check as the coach both passed. **Cause not confirmed** — the platform's live-update logs were not reachable through the management API — and the evidence points to a temporary fault on the provider's side. No database change was needed.
+
+What it exposed, now fixed: (1) the conversation screen trusted the connection's "subscribed" state, so it would say "Up to date" while alerts silently stopped — it now expects the echo of its own sent message, and the prompt for anything the periodic check finds, within 8 seconds; if none comes it shows "Live updates paused — checking every 20 seconds", and returns to live on the next alert. **Verified in a browser** by silently dropping alerts in one tab (label changed within the window) and restoring them (label recovered on the coach's next message), with no false alarm in the normal case. (2) The realtime tests now assert their control message was sent, wait with a 10-second deadline, and prove an active participant receives the change before judging a suspended participant's silence — which previously would have passed during an outage for the wrong reason. Full database suite afterwards: all passing.
+
 ---
 
 ## Next unfinished action

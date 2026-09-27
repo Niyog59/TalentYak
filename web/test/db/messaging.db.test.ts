@@ -539,54 +539,86 @@ describe("realtime delivery", { skip }, () => {
     await deleteTestUsers([c.id, coach.user.id]);
   });
 
-  /** Subscribes as `who` and resolves with the signals received within `ms`. */
-  async function listen(who: TestUser, during: () => Promise<void>, ms = 5000): Promise<string[]> {
+  interface Listener {
+    got: string[];
+    /** Resolves once a signal of `kind` has arrived, or rejects at the deadline. */
+    arrival: (kind: string, deadlineMs: number) => Promise<number>;
+    stop: () => Promise<void>;
+  }
+
+  /** Subscribes as `who` to this conversation's signals, as the screen does. */
+  async function subscribe(who: TestUser): Promise<Listener> {
     const got: string[] = [];
+    const waiters: { kind: string; resolve: (at: number) => void }[] = [];
     const { data } = await who.client.auth.getSession();
     who.client.realtime.setAuth(data.session!.access_token);
     const channel = who.client
       .channel(`t-${randomUUID()}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "conversation_signals", filter: `conversation_id=eq.${conv}` },
-        (p) => got.push(String((p.new as { kind: string }).kind)));
+        (p) => {
+          const kind = String((p.new as { kind: string }).kind);
+          got.push(kind);
+          for (const w of waiters.filter((x) => x.kind === kind)) w.resolve(Date.now());
+        });
     await new Promise<void>((resolve, reject) => {
       const t = setTimeout(() => reject(new Error("realtime did not subscribe")), 10_000);
-      channel.subscribe((s) => { if (s === "SUBSCRIBED") { clearTimeout(t); resolve(); } });
+      channel.subscribe((st) => { if (st === "SUBSCRIBED") { clearTimeout(t); resolve(); } });
     });
-    try {
-      await new Promise((r) => setTimeout(r, 1000));
-      await during();
-      await new Promise((r) => setTimeout(r, ms));
-    } finally {
+    // A moment for the server to start delivering to the new subscription.
+    await new Promise((r) => setTimeout(r, 1000));
+    return {
+      got,
+      arrival: (kind, deadlineMs) =>
+        got.includes(kind)
+          ? Promise.resolve(Date.now())
+          : new Promise((resolve, reject) => {
+              const t = setTimeout(() => reject(new Error(`no "${kind}" signal within ${deadlineMs} ms (got ${JSON.stringify(got)})`)), deadlineMs);
+              waiters.push({ kind, resolve: (at) => { clearTimeout(t); resolve(at); } });
+            }),
       // An open channel keeps the test process alive after the suite.
-      await who.client.removeChannel(channel);
-    }
-    return got;
+      stop: async () => { await who.client.removeChannel(channel); },
+    };
   }
 
+  /** Live means seconds, not minutes: past this, the screen's fallback polling is doing the work. */
+  const LIVE_DEADLINE_MS = 10_000;
+
   test("a participant receives a content-free signal when a message arrives", async () => {
-    const got = await listen(coach.user, async () => {
-      await send(c, conv, "realtime check");
-    });
-    assert.ok(got.includes("message"), `no signal arrived (got ${JSON.stringify(got)})`);
+    const coachListens = await subscribe(coach.user);
+    try {
+      const sent = await send(c, conv, "realtime check");
+      // The control action must succeed, or a missing signal proves nothing.
+      assert.equal(sent.error, null, `the message was not sent: ${sent.error?.message}`);
+      const sentAt = Date.now();
+      const at = await coachListens.arrival("message", LIVE_DEADLINE_MS);
+      assert.ok(at - sentAt < LIVE_DEADLINE_MS);
+    } finally {
+      await coachListens.stop();
+    }
   });
 
-  test("a suspended participant's open subscription stops receiving", async () => {
+  test("a suspended participant's open subscription stops receiving, while delivery itself still works", async () => {
     // The coach writes while active; the client then reads it while the coach
     // is suspended, which emits a signal on this conversation. (A client
     // cannot SEND to a suspended coach — that is refused — so reading is the
-    // control event here.)
+    // control event here.) The client listens too: if THEY receive it and the
+    // suspended coach does not, the silence is the suspension — not a
+    // realtime outage, which would otherwise make this test pass for nothing.
     assert.equal((await send(coach.user, conv, "before suspension")).error, null);
     await suspendUser(coach.user.id);
+    const coachListens = await subscribe(coach.user);
+    const clientListens = await subscribe(c);
     try {
-      const got = await listen(coach.user, async () => {
-        const { count: before } = await adminClient().from("conversation_signals").select("id", { count: "exact", head: true }).eq("conversation_id", conv);
-        const r = await c.client.rpc("mark_conversation_read", { p_conversation: conv, p_seq: 10_000 });
-        assert.equal(r.error, null, "the control event failed, so the silence would prove nothing");
-        const { count: afterRead } = await adminClient().from("conversation_signals").select("id", { count: "exact", head: true }).eq("conversation_id", conv);
-        assert.equal((afterRead ?? 0) - (before ?? 0), 1, "no signal was emitted, so the silence would prove nothing");
-      });
-      assert.deepEqual(got, [], "a suspended coach still received realtime signals");
+      const r = await c.client.rpc("mark_conversation_read", { p_conversation: conv, p_seq: 10_000 });
+      assert.equal(r.error, null, "the control event failed, so the silence would prove nothing");
+      await clientListens.arrival("read", LIVE_DEADLINE_MS);
+      // The same change has now been delivered to an active participant; give
+      // the suspended one the same chance before judging.
+      await new Promise((res) => setTimeout(res, 2000));
+      assert.deepEqual(coachListens.got, [], "a suspended coach still received realtime signals");
     } finally {
+      await coachListens.stop();
+      await clientListens.stop();
       await adminClient().from("profiles").update({ suspended_at: null }).eq("id", coach.user.id);
     }
   });
