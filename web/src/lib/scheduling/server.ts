@@ -96,9 +96,22 @@ export async function loadSchedule(role: "customer" | "coach", who: { userId: st
   };
 }
 
+export interface CallInfo {
+  opens_at: string;
+  closes_at: string;
+  closing_warning_minutes: number[];
+  open_reports: number;
+  my_open_reports: string[];
+}
+
 export interface AppointmentDetail extends ScheduleAppointment {
   events: { from_state: string | null; to_state: string; actor_role: string; reason: string | null; created_at: string }[];
-  outcomes: { outcome: string; note: string | null; recorded_role: string; recorded_at: string }[];
+  outcomes: { id: string; outcome: string; note: string | null; recorded_role: string; recorded_at: string; corrects: string | null }[];
+  /** Who connected to the call and for how long, as the call provider recorded it. */
+  attendance: { role: "customer" | "coach"; joined_at: string; duration_seconds: number }[];
+  call: CallInfo | null;
+  /** The conversation between the two people, when there is one to link to. */
+  conversationId: string | null;
   series: { reference_timezone: string; weekday: number; local_start: string; interval_weeks: number; state: string } | null;
   pending: ScheduleProposal[];
 }
@@ -109,13 +122,19 @@ export async function loadAppointment(id: string, role: "customer" | "coach"): P
   if (!supabase) return null;
   const { data: a } = await supabase.from("appointments").select(`${APPOINTMENT_COLUMNS}, enrollment_id, purchase_id, customer_id, provider_id`).eq("id", id).maybeSingle();
   if (!a) return null;
-  const [{ data: events }, { data: outcomes }, { data: series }, { data: pending }] = await Promise.all([
+  const [{ data: events }, { data: outcomes }, { data: series }, { data: pending }, { data: attendance }, { data: call }, { data: conversation }] = await Promise.all([
     supabase.from("appointment_events").select("from_state, to_state, actor_role, reason, created_at").eq("appointment_id", id).order("created_at"),
-    supabase.from("appointment_outcomes").select("outcome, note, recorded_role, recorded_at").eq("appointment_id", id).order("recorded_at", { ascending: false }),
+    supabase.from("appointment_outcomes").select("id, outcome, note, recorded_role, recorded_at, corrects").eq("appointment_id", id)
+      .order("recorded_at", { ascending: false }).order("id", { ascending: false }),
     a.series_id
       ? supabase.from("appointment_series").select("reference_timezone, weekday, local_start, interval_weeks, state").eq("id", a.series_id).maybeSingle()
       : Promise.resolve({ data: null }),
     supabase.from("appointment_proposals").select(`${PROPOSAL_COLUMNS}, kind, enrollment_id, purchase_id, customer_id, provider_id`).eq("replaces_appointment_id", id).eq("state", "pending"),
+    supabase.from("call_attendance").select("role, joined_at, duration_seconds").eq("appointment_id", id).order("joined_at"),
+    supabase.rpc("appointment_call_info", { p_appointment: id }),
+    a.enrollment_id
+      ? supabase.from("conversations").select("id").eq("enrollment_id", a.enrollment_id).eq("provider_id", a.provider_id).limit(1).maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
   const n = await names(role, [a as { customer_id: string; provider_id: string }]);
   const o = n.get(role === "customer" ? a.provider_id : a.customer_id);
@@ -126,6 +145,9 @@ export async function loadAppointment(id: string, role: "customer" | "coach"): P
     otherTz: role === "customer" ? base.provider_timezone : base.customer_timezone,
     events: events ?? [],
     outcomes: outcomes ?? [],
+    attendance: (attendance ?? []) as AppointmentDetail["attendance"],
+    call: (call as CallInfo | null) ?? null,
+    conversationId: (conversation?.id as string | undefined) ?? null,
     series: (series as AppointmentDetail["series"]) ?? null,
     pending: ((pending ?? []) as unknown as ScheduleProposal[]).map((p) => ({ ...p, otherName: o?.name ?? "", otherTz: o?.tz ?? null })),
   };

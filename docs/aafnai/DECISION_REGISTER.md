@@ -573,3 +573,30 @@ The project instructions file that every agent reads first is founder-owned. Wit
 | **TY-SCHED-05** | Timings | **SANDBOX DEFAULT — awaiting approval** | `scheduling.v1`: 48-hour proposal expiry, reminders 24 h and 1 h before, 12 hours' notice, 28-day horizon, 10-minute buffers, 35-minute checkout hold. Illustrative; coaches set their own lengths, gaps, notice and horizon. | FB4 | M09 |
 | **TY-SCHED-06** | No automatic consequences | **CONFIRMED** | No-show, cancellation and technical-failure records create no penalty, transfer, refund or assumption of delivery. A one-off paid after its held time lapsed goes to an admin to rebook or refund through the existing process. | FB4 | M09, M06 |
 
+
+---
+
+## R. Ninth-pass decisions — 2026-09-27 (M10 private calls)
+
+**Source key added:** **FB5** — Founder prompt, *Batch 5 of 5 — M10 Private calls & integration, full scope, one final verification*, revised 21 September 2026. Founder-supplied. Three decisions (TY-CALL-02, -08 and recording this section) were taken by the founder in answer to questions asked before implementation began.
+
+| ID | Topic | Status | Rule | Source | Modules |
+|---|---|---|---|---|---|
+| **TY-CALL-01** | Call provider | **CONFIRMED for the test project** — supersedes AAF-CAL-07's "not integrated" | Daily is integrated behind one provider boundary (`web/src/lib/calls/daily.ts`). The account (`talentyak`) exists on Daily's free plan. **It cannot host a call until a payment method is added in the Daily dashboard** — Daily refuses every meeting on the account until then. No paid plan was bought and nothing was signed up for by an agent. | FB5; Daily account checked 2026-09-27 | M10 |
+| **TY-CALL-02** | Browser library | **CONFIRMED** | Daily's official browser library (`@daily-co/daily-js`) runs the call screen, loaded only on the session page. | Founder decision, 2026-09-27 | M10 |
+| **TY-CALL-03** | Who may join | **CONFIRMED** | Only the two people on a confirmed, eligible session, inside its room's window. Each join asks the server for a pass that is personal, short-lived and never an owner or admin pass; the browser can choose only "audio only". A copied room address is useless without a pass. | FB5 | M10 |
+| **TY-CALL-04** | Room window | **SANDBOX DEFAULT — awaiting approval** | `calls.v1`: the room opens 10 minutes before the start and stays open 30 minutes past the booked end, with warnings 10 and 2 minutes before it closes; then it is deleted. Passes last 2 minutes; 20 passes per person per session per 10 minutes. Mirrored in `call_settings`. | FB5 | M10 |
+| **TY-CALL-05** | Losing access | **CONFIRMED** | Cancelling, moving or pausing a session, suspending either account, a coach change, the relationship ending or a one-off refund closes the room: new passes are refused at once, and a job removes anyone still in it and deletes the room at Daily. **Limitation, stated honestly:** that job runs straight after the request that caused it, with the five-minute worker as a backstop — prompt, not instantaneous. | FB5; Daily docs (deleting the room is the only way to invalidate a pass Daily signed) | M10 |
+| **TY-CALL-06** | Attendance | **CONFIRMED** | Who connected and for how long is fetched from Daily after the room closes (and from Daily's webhook when one exists), once per Daily presence. It is shown to the two people and to TalentYak. **Joining is never evidence that coaching was delivered**; attendance moves no money; a dropped connection is never a no-show. | FB5 | M10 |
+| **TY-CALL-07** | Outcomes and corrections | **CONFIRMED** | The coach (or TalentYak) records Completed, Client absent, Coach unavailable, Technically interrupted, or Something else. A second record is a correction: it keeps the first, points to it and needs a reason. The client can ask TalentYak to review an outcome, and either person can report a call problem, through the existing support cases. None of it charges, refunds, pays out or penalises anyone. | FB5 | M10, M14 |
+| **TY-CALL-08** | Daily webhooks | **CONFIRMED** | Webhooks need a paid Daily plan. Attendance comes from the after-call fetch; the signed webhook receiver is built and tested with a stand-in, and stays inactive (refuses everything) until a paid plan and `DAILY_WEBHOOK_SECRET` exist. | Founder decision, 2026-09-27 | M10 |
+| **TY-CALL-09** | Not in this batch | **CONFIRMED** | No recordings, transcripts, AI summaries, group calls or screen sharing. Rooms are created with recording off and screen sharing off. | FB5 | M10 |
+| **TY-CALL-10** | Spending | **OPEN — founder** | Daily has **no hard spending cap**. 10,000 free participant-minutes a month; after that about $0.004 per participant-minute for video and $0.001 for audio-only (Daily's published pricing, 2026-09-27). The only brakes are ours: two people per room, rooms that exist only for their window, and the pass limits. | Daily pricing page | M10 |
+
+### R1 · Status changes
+
+| Entry | Was | Now |
+|---|---|---|
+| AAF-CAL-07 | PROPOSED — "Daily is a candidate… not integrated, not contracted, not verified" | **Integrated for the test project** (TY-CALL-01). Still not contracted; calls cannot run until the Daily account has a payment method |
+| AAF-CAL-03 | CONFIRMED — video and audio calls | **Delivered** as private video calls with an audio-only choice |
+| OPEN-05 | OPEN | **Narrowed:** technical failure is recorded, never counted against anyone, and never counts as delivered (TY-CALL-06, -07). Notice periods, make-ups and entitlement effects are still open |

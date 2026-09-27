@@ -1,6 +1,8 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { env } from "@/lib/env";
+import { env, isDailyConfigured } from "@/lib/env";
+import { attendanceRows, dailyClient, type DailyClient } from "@/lib/calls/daily";
+import { OUTCOME_LABEL } from "@/lib/scheduling/types";
 import { isReservedTestAddress, type EmailTransport } from "@/lib/email";
 import * as T from "@/lib/email/templates";
 import type { RenderedEmail } from "@/lib/email/templates";
@@ -40,6 +42,8 @@ export interface HandlerContext {
   admin: SupabaseClient;
   transport: EmailTransport;
   enqueue: (topic: string, payload: Record<string, unknown>, dedupeKey: string) => Promise<void>;
+  /** The call provider. Tests pass a stand-in; otherwise built from DAILY_API_KEY. */
+  daily?: DailyClient;
 }
 
 type Handler = (job: OutboxJob, ctx: HandlerContext) => Promise<Outcome>;
@@ -332,6 +336,38 @@ async function purchaseContext(ctx: HandlerContext, purchaseId: unknown) {
     .maybeSingle();
   return data;
 }
+
+// --- Calls ------------------------------------------------------------------
+
+function dailyFor(ctx: HandlerContext): DailyClient | null {
+  if (ctx.daily) return ctx.daily;
+  return isDailyConfigured() ? dailyClient({ apiKey: env.dailyApiKey }) : null;
+}
+
+interface CallRoomRow {
+  id: string;
+  room_name: string;
+  state: string;
+  opens_at: string;
+  provider_created_at: string | null;
+  close_reason: string | null;
+  appointment_id: string;
+}
+
+async function callRoom(ctx: HandlerContext, roomId: unknown): Promise<CallRoomRow | null> {
+  if (typeof roomId !== "string") return null;
+  const { data } = await ctx.admin
+    .from("call_rooms")
+    .select("id, room_name, state, opens_at, provider_created_at, close_reason, appointment_id")
+    .eq("id", roomId)
+    .maybeSingle();
+  return (data as CallRoomRow | null) ?? null;
+}
+
+const providerFailure = (r: { error: string; retryable: boolean }, what: string): Outcome =>
+  r.retryable ? { kind: "retry", error: `${what}: ${r.error}` } : { kind: "fail", error: `${what}: ${r.error}` };
+
+const sinceOpening = (room: CallRoomRow) => Math.floor(Date.parse(room.opens_at) / 1000) - 300;
 
 // ---------------------------------------------------------------------------
 
@@ -661,6 +697,110 @@ export const HANDLERS: Record<string, Handler> = {
         name: customer.name, startsAt: str(job.payload.starts_at), timezone: customer.timezone,
       }),
       { category: "appointments", path: "/account" });
+  },
+
+  // --- Calls ----------------------------------------------------------------
+  //
+  // Producers: 0044. A room is closed when its window ends and whenever
+  // access is lost (cancelled, moved, on hold, suspension, coach change,
+  // relationship ended, refund). Closing ejects both people and deletes the
+  // room at the provider — the only way to invalidate a pass it has signed.
+
+  "call.close_room": async (job, ctx) => {
+    const room = await callRoom(ctx, job.payload.room_id);
+    if (!room) return { kind: "fail", error: "room not found" };
+    if (room.state === "closed") return { kind: "done", result: { skipped: "already closed" } };
+    const daily = dailyFor(ctx);
+    if (!daily) return { kind: "blocked", error: "DAILY_API_KEY is not set" };
+
+    const { data: ap } = await ctx.admin
+      .from("appointments").select("customer_id, providers(profile_id)").eq("id", room.appointment_id).maybeSingle();
+    const prov = ap?.providers as unknown as { profile_id: string } | { profile_id: string }[] | null;
+    const coachProfile = Array.isArray(prov) ? prov[0]?.profile_id : prov?.profile_id;
+    const userIds = [ap?.customer_id as string | undefined, coachProfile].filter((v): v is string => Boolean(v));
+
+    const ejected = await daily.eject(room.room_name, userIds);
+    if (!ejected.ok) return providerFailure(ejected, "eject");
+
+    // Whatever has already finished is recorded before the room goes, in case
+    // the provider keeps less about a deleted room. Meetings still settling are
+    // picked up by the fetch queued below.
+    const before = await daily.listMeetings(room.room_name, sinceOpening(room));
+    if (before.ok) {
+      const { rows } = attendanceRows(before.value);
+      if (rows.length) {
+        await ctx.admin.rpc("record_call_attendance", { p_room: room.id, p_rows: rows, p_source: "provider_api", p_complete: false });
+      }
+    }
+
+    const deleted = await daily.deleteRoom(room.room_name);
+    if (!deleted.ok) return providerFailure(deleted, "delete");
+
+    const { error } = await ctx.admin.rpc("mark_call_room_closed", { p_room: room.id, p_reason: str(job.payload.reason) || "closed" });
+    if (error) return { kind: "retry", error: `mark closed: ${error.message}` };
+
+    if (room.provider_created_at) {
+      const { data: g } = await ctx.admin.from("call_settings").select("attendance_check_delay_minutes").eq("id", true).maybeSingle();
+      const delay = Number(g?.attendance_check_delay_minutes) || 3;
+      await ctx.admin.rpc("enqueue_outbox", {
+        p_topic: "call.fetch_attendance",
+        p_payload: { room_id: room.id },
+        p_dedupe_key: `call_attendance:${room.id}:closed`,
+        p_scheduled_for: new Date(Date.now() + delay * 60_000).toISOString(),
+        p_expires_at: null,
+      });
+    }
+    return { kind: "done", result: { ejected: ejected.value.ejected, deleted: deleted.value.deleted, reason: str(job.payload.reason) } };
+  },
+
+  "call.fetch_attendance": async (job, ctx) => {
+    const room = await callRoom(ctx, job.payload.room_id);
+    if (!room) return { kind: "fail", error: "room not found" };
+    if (!room.provider_created_at) return { kind: "done", result: { skipped: "room was never created at the provider" } };
+    const daily = dailyFor(ctx);
+    if (!daily) return { kind: "blocked", error: "DAILY_API_KEY is not set" };
+
+    const list = await daily.listMeetings(room.room_name, sinceOpening(room));
+    if (!list.ok) return providerFailure(list, "meetings");
+    const { rows, ongoing } = attendanceRows(list.value);
+    const { data: recorded, error } = await ctx.admin.rpc("record_call_attendance", {
+      p_room: room.id, p_rows: rows, p_source: "provider_api", p_complete: room.state === "closed" && !ongoing,
+    });
+    if (error) return { kind: "retry", error: `record: ${error.message}` };
+    // A closed room whose last meeting the provider still shows as running:
+    // ask again shortly rather than record a half-finished attendance.
+    if (ongoing && room.state === "closed") return { kind: "retry", error: "meeting still settling at the provider" };
+    return { kind: "done", result: { meetings: list.value.length, recorded: Number(recorded) || 0 } };
+  },
+
+  "email.session_outcome_recorded": async (job, ctx) => {
+    const ap = await appointmentContext(ctx, job.payload.appointment_id);
+    if (!ap) return { kind: "fail", error: "appointment not found" };
+    const to = recipientOf(ap, job.payload.recipient);
+    if (!to) return gone("recipient");
+    const outcomeId = str(job.payload.outcome_id);
+    const { data: o } = await ctx.admin
+      .from("appointment_outcomes").select("id, outcome, recorded_role, corrects").eq("id", outcomeId).maybeSingle();
+    if (!o) return { kind: "fail", error: "outcome not found" };
+    const label = OUTCOME_LABEL[o.outcome as string] ?? "Recorded";
+    const path = appointmentPath(ap.id, to.isCustomer);
+    return send(job, ctx, "session_outcome_recorded", to.person,
+      T.sessionOutcomeEmail(tctx(), {
+        name: to.person.name, otherPartyName: to.otherName, startsAt: ap.starts_at, timezone: to.person.timezone,
+        outcomeLabel: label, technical: o.outcome === "technical_failure", correction: Boolean(o.corrects),
+        byTalentYak: o.recorded_role === "admin", forCoach: !to.isCustomer, path,
+      }),
+      {
+        category: "appointments",
+        path,
+        inboxTitle: `Session recorded: ${label}`,
+        // Corrected again before this went out: only the latest is worth telling.
+        recheck: async () => {
+          const { data: latest } = await ctx.admin.from("appointment_outcomes").select("id")
+            .eq("appointment_id", ap.id).order("recorded_at", { ascending: false }).order("id", { ascending: false }).limit(1).maybeSingle();
+          return latest?.id === outcomeId ? { proceed: true } : { proceed: false, reason: "a later correction replaced this record" };
+        },
+      });
   },
 
   // --- Messages and expectations --------------------------------------------

@@ -294,7 +294,7 @@ These are wired as reusable hooks now and connected when their owning batch is b
 | Links to agreed expectations inside a conversation | Batch 3 | **connected in Batch 3** (`expectations_link` kind, `0040`); tested through the actual conversation link |
 | Expectations updates | Batch 3 | **connected in Batch 3** — producer in `0040`, handler rechecks before sending |
 | Appointment reminders / expiry | Batch 4 | **connected in Batch 4** — producers in `0042`, obsolete reminders cancelled on change, recheck at send |
-| Call outcomes | Batch 5 | delivery recheck |
+| Call outcomes | Batch 5 | **connected in Batch 5** (`email.session_outcome_recorded`, `0044`); rechecks that the record is still the latest before sending |
 
 ---
 
@@ -501,7 +501,7 @@ What it exposed, now fixed: (1) the conversation screen trusted the connection's
 |---|---|
 | ~~Expectations-updated notifications, and links to agreed expectations inside a conversation~~ | **Batch 3** — done, see below |
 | Session confirmations, changes, cancellations, reminders, expired holds (producers); reminders at a specific hour, which need scheduling finer than daily | **Batch 4** — scheduling |
-| Call-outcome notifications | **Batch 5** — calls |
+| ~~Call-outcome notifications~~ | **Batch 5** — done, see below |
 | Coach-side screens that view a client's photos and clips; progress and form-review workflows | **M11–M13** — progress and form review |
 | Appointment proposals and links to confirmed appointments inside a conversation (the message-kind boundary exists; the database refuses structured kinds until then) | **Batch 4** — scheduling |
 | Recording the messaging decisions in `docs/aafnai/DECISION_REGISTER.md` (`OPEN-06`, and `messaging.v1` as an approved policy rather than a sandbox default) | **Founder decision** |
@@ -643,3 +643,90 @@ None. No new services or plan changes; the existing five-minute worker runs the 
 
 None. Founder input needed before launch only: approve or change the scheduling timings (`scheduling.v1`).
 
+
+---
+
+## Batch 5 — M10 private calls, built 2026-09-27; verification below
+
+Scope: the full brief ("Revised 21 September 2026"). No deferrals. Migration `0044_calls.sql`, applied to the hosted TEST project. New dependency: `@daily-co/daily-js` 0.92.2 (founder-approved).
+
+### What exists
+
+- **Session page = the call page** (`/account/appointments/[id]`, `/coach/calendar/appointments/[id]`): both people, both local times, length, optional purpose (either person, 140 characters, not in emails), when the room opens and closes, a camera and microphone check (preview, level meter, device choice, audio-only), join, waiting state, reschedule and cancel, and "Having trouble with the call?" (retry, message, arrange another time, report to TalentYak).
+- **Private rooms**: one per session at a time, random `ty-…` name, created at Daily on the first join. Private, two people, `nbf`/`exp` = the room window, `eject_at_room_exp`, `enforce_unique_user_ids` (a pass can't be shared; a refresh replaces the earlier presence instead of filling the second place), screen sharing, chat and recording off.
+- **Join passes** (`call_join_request`, the only issuer): signed in, one of the two people, session confirmed and eligible (paid, not paused, coach still assigned), inside the window, 20 per person per session per 10 minutes. The browser may send `audioOnly` and nothing else. Pass = Daily token, not owner, no admin, camera and microphone only, 2 minutes, identity = TalentYak profile id. Every pass is recorded (who, when, until when — no IP or device).
+- **Call screen**: camera/microphone toggles, device selection (speaker where the browser supports it), audio-only, waiting for the other person, "Connection lost — reconnecting…", weak-network advice, leave and rejoin, time left / overtime / closing warnings, and a notice after the phone put the browser in the background. Failures say what happened: blocked or missing devices, a permission prompt nobody answered (12 s), a join that doesn't connect (30 s), removed from the room, room closed, call service unavailable. Nothing shows "connected" until Daily says so.
+- **Window** (`calls.v1`, sandbox default): opens 10 min early, stays open 30 min past the booked end, warnings at 10 and 2 min, then closed and deleted. The booked end is never a cut-off.
+- **Losing access closes the room**: cancelled / moved / on hold, either account suspended, coach suspended, coach change, relationship ended, one-off refunded — database triggers mark the room closing (new passes refused at once) and queue `call.close_room`, which ejects both people and deletes the room at Daily. Actions that cause it run the worker straight away; the five-minute worker is the backstop. **Limitation:** a pass issued seconds before revocation stays usable until the room is deleted — that job's latency, not the pass's 2 minutes, is the real bound.
+- **Attendance**: `call.fetch_attendance` reads Daily's meeting record after the room closes (also before deletion, for finished meetings); one row per Daily presence; readable by the two people and admins; append-only. The Daily webhook receiver (`/api/webhooks/daily`, HMAC, per-event dedupe) is built and unit-tested with a stand-in, and refuses everything until a paid Daily plan and `DAILY_WEBHOOK_SECRET` exist.
+- **Outcomes**: Completed / Client absent / Coach unavailable / Technically interrupted / Something else, by the coach or TalentYak, once the session has started. A later record is a correction: it needs a reason and points to what it corrects; nothing is overwritten. The client is told (in-app, email where allowed); if TalentYak records it, the coach is told too. No automatic outcome of any kind.
+- **Reports** through the existing support cases (category `session`): the client says an outcome is wrong, either person reports a call problem. Repeated clicks return the open case; the session's history shows it. Admin case page shows the session, rooms, who connected and the outcome history, and can record a correction.
+- **Security headers**: camera, microphone and autoplay allowed only on the two session pages; Daily's hosts and `blob:` workers allowed in CSP only there. Production CSP keeps `strict-dynamic` with no `unsafe-eval` (Daily loaded with `avoidEval`). Daily's own telemetry to sentry.io is blocked by the CSP on purpose.
+
+### Verified
+
+"Real" = against the real service or in the real browser. "Stand-in" = an isolated test double, labelled. "Blocked" = could not run; reason given.
+
+| Check | How | Result |
+|---|---|---|
+| Typecheck, lint, migration structure, unit tests | `npm run verify` | pass — **293** tests (25 new: call clock, room and pass settings, provider client, webhook signatures, room-closing jobs) |
+| Production build | `npm run build` | pass; `/api/calls/[id]/join` and `/api/webhooks/daily` built |
+| Database suites | `npm run test:db` on TEST, real signed-in users | **283/283** (includes the M03–M07 purchase, access and finance suites, unchanged). After the 0045 privacy fix, calls suite rerun: **24/24** |
+| Real room creation | join request → Daily REST | room created; read back from Daily: `private`, `max_participants 2`, `nbf`/`exp` = window, `eject_at_room_exp`, `enforce_unique_user_ids`, screen sharing/chat off, no recording |
+| Blocked privilege escalation | real join with `is_owner`, admin permissions, another user id and another room added to the body | ignored; Daily's own reading of the pass: `is_owner false`, `canAdmin false`, send `video,audio` only, this room, this person, 2-minute expiry |
+| Cross-site / signed-out join | curl | 403 / 401 |
+| Duplicate room creation | 6 simultaneous requests (DB suite); repeated joins (real) | one room row; one Daily room |
+| Outsider, other coach, anonymous | DB suite | "not found" |
+| Early / late entry | DB suite + browser clock | refused before the window with the opening time; allowed 5 min past the booked end; refused after the window |
+| Cancellation → room deleted | real: session cancelled → `call.close_room` → Daily | room deleted at Daily (`not-found` afterwards) |
+| Suspension → room closed | real: client suspended during the window | room `closing` at once (`account_suspended`); join 403; upload 401; chat and session pages → "This account is paused"; room deleted at Daily by the worker |
+| Coach suspended / coach change / window end | DB suite | room closing with the right reason; passes refused |
+| Attendance fetch | real, on a deleted room | Daily answers; nothing to record (no meeting could run) |
+| Attendance recording | DB suite (rows as Daily returns them) | once per presence; only the two people; malformed rows skipped; readable by the two and admins; immutable |
+| Webhook | stand-in signatures (unit), per-event dedupe (DB suite) | verified; the live endpoint refuses everything until a paid plan exists |
+| Denied camera and microphone | built-in browser (it refuses media) | immediate advice; audio-only and listen-only join offered. A permission prompt left unanswered used to hang the check forever — fixed (12 s, then advice) |
+| Provider outage | **real**: Daily refused the meeting (`account-missing-payment-method`) | "The call service isn't available right now. This is on TalentYak's side…", help opened with retry / message / rebook / report; no false "connected" |
+| Outcome, correction, client review, admin correction | browser, coach → client → admin (2FA) | recorded; correction needs a reason and keeps the first; client's "This isn't right" opens a `session` case and shows in history; admin sees session, rooms, attendance and outcome history and corrects; both people told |
+| Outcome notice | worker | in-app "Session recorded: Technically interrupted"; email withheld for reserved test addresses |
+| Phone width | 375 px | no horizontal scroll; every control ≥ 44 px |
+| Production security headers | `next start` | camera/microphone/autoplay `(self)` only on the two session pages, `()` elsewhere; Daily hosts and `blob:` workers in CSP only there; no `unsafe-eval`; Daily's library loaded and reached Daily under it |
+
+### Final connected journey — fresh accounts, local site against TEST
+
+| Step | Result |
+|---|---|
+| Coach publishes expectations, weekly hours, a plan | browser — version 1 live; hours saved; plan on sale ($100, coach $80, TalentYak 20%) |
+| Client reads expectations, buys with Stripe TEST | browser to Stripe's hosted test page; completed with `pm_card_visa` (test token, no card typed); purchase activated by the payment webhook; 2 ledger rows |
+| Client acknowledges, messages, sends a photo | browser — acknowledgement recorded; message and photo delivered; coach sees both |
+| Client proposes in chat, coach accepts in chat | browser — one confirmed session; confirmations sent (in-app) |
+| Correct reminders | 1-hour reminders queued; none for the 24-hour mark, already past |
+| Reschedule cancels old reminders | browser — client suggested a new time, coach accepted; original `replaced`; its reminders `cancelled`; new ones queued |
+| Both join a private call | **Blocked** — Daily refuses every meeting until the account has a payment method |
+| Reminders arrive | worker, 07:20 UTC | one reminder each, in-app, for the **new** time only (emails withheld for reserved test addresses) |
+| Coach records an outcome; client reports a problem | browser (session start moved into the past in the fixture, labelled) | "Technically interrupted" recorded; client told; client's call-problem report opened a `session` support case and appears in the history |
+| Suspension stops access | real, first fixture pair | see "Suspension → room closed" above; reassignment and coach suspension proven in the database suite |
+
+Both people see in a session's history that an outcome was questioned or a call problem reported (never what was written). `0045` stops the count of open reports being returned to anyone but administrators.
+
+### Not verified — and why
+
+- **Any two-person call**: joining, audio-only in a call, video both ways, refresh and rejoin, a dropped connection and reconnecting, a copied link refused by Daily, removal at room expiry, removal of someone already in the call on cancellation or suspension, and attendance from a real meeting. **Blocked:** Daily refuses every meeting on the account (`account-missing-payment-method`) until a payment method is added. The app side of each is built; the room-level settings and passes were read back from Daily.
+- **Physical phones**: camera switching, backgrounding, Bluetooth audio on iOS Safari and Android Chrome. No devices here; the built-in browser refuses camera and microphone.
+- **Daily webhooks**: need a paid Daily plan; verified with a stand-in only.
+
+### Found and fixed during this batch
+
+- An unanswered camera permission prompt left the check spinning forever → now reads the browser's remembered answer first, gives up waiting after 12 s with advice, and allows joining to listen; joining gives up after 30 s.
+- Daily's refusal showed as "The call ended unexpectedly" → now says the call service is unavailable on TalentYak's side, with the help options.
+- `speaker-selection` in Permissions-Policy is not recognised by Chrome → removed.
+- Coaches could see a live count of open reports about their sessions → `0045`.
+- Existing test hygiene: the scheduling suite deletes every recent session email in the shared test project on cleanup (it removed this journey's reminders once; they were re-queued) — logged in `TASKS.md`.
+
+### Cost
+
+None yet. No calls have run. When they do: Daily's free 10,000 participant-minutes a month, then about $0.004 per participant-minute for video ($0.36 for a 45-minute two-person session). **No hard cap exists at Daily.**
+
+### Blockers — founder action
+
+1. **Add a payment method to the Daily account** (dashboard.daily.co → Billing). Then the live call checks above are run once and recorded here.
+2. Approve or change the call timings (`calls.v1`) before launch.

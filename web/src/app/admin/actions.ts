@@ -99,6 +99,9 @@ export async function providerStatusAction(_: ActionState, form: FormData): Prom
   const supabase = await adminDb();
   const { error } = await supabase.rpc("admin_set_provider_status", { p_provider_id: providerId, p_action: action, p_reason: reason || null });
   if (error) return fail(friendlyError(error, GENERIC));
+  // A suspension closes any call room the coach is in (the database queues
+  // it); run that now rather than at the next scheduled pass.
+  if (action === "suspend" || action === "retire") kickWorker();
 
   if (action === "approve") {
     const { data: provider } = await supabase.from("providers").select("profile_id").eq("id", providerId).single();

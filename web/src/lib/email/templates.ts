@@ -354,6 +354,41 @@ ${button(`${ctx.siteUrl}${d.path?.startsWith("/") ? d.path : "/account"}`, "See 
   );
 }
 
+/**
+ * What was recorded about a session. The outcome in plain words, a link, and
+ * how to say it's wrong. The note the coach may have written stays in the app.
+ */
+export function sessionOutcomeEmail(
+  ctx: TemplateContext,
+  d: {
+    name?: string | null;
+    otherPartyName: string;
+    startsAt: string;
+    timezone?: string | null;
+    outcomeLabel: string;
+    technical: boolean;
+    correction: boolean;
+    byTalentYak: boolean;
+    forCoach: boolean;
+    path?: string;
+  },
+): RenderedEmail {
+  const who = d.byTalentYak ? "TalentYak" : escapeHtml(d.otherPartyName);
+  const help = d.technical
+    ? `<p>A technical problem is never counted against you. From the session page you can try the call again while its room is open, message ${d.forCoach ? "your client" : "your coach"}, suggest a new time, or tell TalentYak what happened.</p>`
+    : d.forCoach
+      ? ""
+      : `<p>If this isn't right, open the session and choose &ldquo;This isn&rsquo;t right&rdquo;. TalentYak will look into it; nothing is changed without a record.</p>`;
+  return build(
+    d.correction ? "A session record was corrected" : "Your session has been recorded",
+    `${greet(d.name)}
+<p>${who} ${d.correction ? "corrected the record of" : "recorded"} your session${d.forCoach ? "" : ` with ${escapeHtml(d.otherPartyName)}`} on ${escapeHtml(dateTime(d.startsAt, d.timezone))} as: <strong>${escapeHtml(d.outcomeLabel)}</strong>.</p>
+${help}
+${button(`${ctx.siteUrl}${d.path?.startsWith("/") ? d.path : "/account"}`, "Open the session")}`,
+    ctx.supportEmail,
+  );
+}
+
 export function appointmentReminderEmail(
   ctx: TemplateContext,
   d: { name?: string | null; otherPartyName: string; startsAt: string; timezone?: string | null; path?: string },

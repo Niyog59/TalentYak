@@ -37,11 +37,17 @@ export const HOLD_REASON_LABEL: Record<string, string> = {
   conflict: "Something else is booked at this time. Suggest a new time or cancel it.",
 };
 
+/**
+ * What happened, as the coach (or TalentYak) records it. A record, not a
+ * verdict: none of these moves money, counts a session as delivered or
+ * penalises anyone, and "Technically interrupted" is never counted against
+ * either person.
+ */
 export const OUTCOME_LABEL: Record<string, string> = {
-  attended: "Took place",
-  client_did_not_attend: "Client didn't attend",
-  coach_did_not_attend: "Coach didn't attend",
-  technical_failure: "Technical problem",
+  attended: "Completed",
+  client_did_not_attend: "Client absent",
+  coach_did_not_attend: "Coach unavailable",
+  technical_failure: "Technically interrupted",
   other: "Something else",
 };
 
@@ -80,10 +86,11 @@ export interface AppointmentCard {
   customer_timezone: string;
   series_id: string | null;
   time_note: string | null;
+  purpose: string | null;
 }
 
 export const APPOINTMENT_COLUMNS =
-  "id, kind, state, state_reason, starts_at, ends_at, provider_timezone, customer_timezone, series_id, time_note";
+  "id, kind, state, state_reason, starts_at, ends_at, provider_timezone, customer_timezone, series_id, time_note, purpose";
 
 /** "Tue 14 Oct, 18:00 EDT" in a zone. */
 export function whenIn(iso: string, timeZone: string | null | undefined): string {
@@ -142,6 +149,12 @@ export const SCHEDULE_ERRORS: Record<string, string> = {
   request_key_required: "Something went wrong. Refresh the page and try again.",
   admin_only: "Only an administrator with a verified second factor can do that.",
   reason_required: "Give a reason.",
+  correction_reason_required: "Say why the earlier record is being corrected.",
+  purpose_too_long: "Keep the purpose to 140 characters.",
+  no_outcome: "Nothing has been recorded for this session yet.",
+  description_length: "Tell us what happened in at least a sentence (up to 2,000 characters).",
+  invalid_topic: "Choose what the report is about.",
+  rate_limited: "You've sent several reports today. TalentYak will reply to those first.",
 };
 
 export function scheduleError(message: string | undefined | null, fallback = "That didn't work. Please try again."): string {

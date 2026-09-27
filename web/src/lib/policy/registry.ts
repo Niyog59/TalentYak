@@ -18,6 +18,7 @@ import type {
   EligibilityPolicy,
   MessagingPolicy,
   SchedulingPolicy,
+  CallsPolicy,
   PaymentFailurePolicy,
   PayoutPolicy,
   Policy,
@@ -332,6 +333,25 @@ const SCHEDULING_V1: SchedulingPolicy = {
   outcomesHaveConsequences: false,
 };
 
+const CALLS_V1: CallsPolicy = {
+  kind: "calls",
+  id: "calls.v1",
+  version: 1,
+  status: "sandbox_default",
+  effectiveFrom: "2026-09-27",
+  source: "M10 founder prompt (Batch 5), 21 September 2026 — configurable development defaults, explicitly not approved rules",
+  note: "Each session's private room opens 10 minutes before and stays open 30 minutes past the booked end, with warnings at 10 and 2 minutes before it closes; then it is deleted. Join passes last 2 minutes. Joining, attendance and outcomes carry no financial consequence, and a dropped connection is never a no-show.",
+  joinOpensMinutesBefore: 10,
+  graceAfterEndMinutes: 30,
+  closingWarningMinutes: [10, 2],
+  joinPassSeconds: 120,
+  joinRequestsPer10Minutes: 20,
+  attendanceCheckDelayMinutes: 3,
+  maxParticipants: 2,
+  attendanceHasConsequences: false,
+  automaticNoShow: false,
+};
+
 // --- Register -----------------------------------------------------------------
 
 const ALL_POLICIES: readonly Policy[] = [
@@ -352,6 +372,7 @@ const ALL_POLICIES: readonly Policy[] = [
   PAYMENT_FAILURE_V2,
   MESSAGING_V2,
   SCHEDULING_V1,
+  CALLS_V1,
 ];
 
 const BY_ID = new Map(ALL_POLICIES.map((policy) => [policy.id, policy]));
@@ -399,6 +420,14 @@ export const CURRENT_SCHEDULING_POLICY_ID = SCHEDULING_V1.id;
 export function currentSchedulingPolicy(): SchedulingPolicy {
   const policy = getPolicy(CURRENT_SCHEDULING_POLICY_ID);
   if (policy.kind !== "scheduling") throw new UnknownPolicyError(CURRENT_SCHEDULING_POLICY_ID);
+  return policy;
+}
+
+export const CURRENT_CALLS_POLICY_ID = CALLS_V1.id;
+
+export function currentCallsPolicy(): CallsPolicy {
+  const policy = getPolicy(CURRENT_CALLS_POLICY_ID);
+  if (policy.kind !== "calls") throw new UnknownPolicyError(CURRENT_CALLS_POLICY_ID);
   return policy;
 }
 

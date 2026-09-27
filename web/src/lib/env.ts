@@ -48,6 +48,13 @@ export const env = {
   // Public contact address shown to customers. Hidden until configured.
   supportEmail: process.env.SUPPORT_EMAIL ?? "",
   siteUrl: resolveSiteUrl(),
+  // Private calls (M10). Server only. The API key creates rooms and join
+  // passes; the webhook secret (base64, as Daily issues it) verifies Daily's
+  // event deliveries. Daily webhooks need a paid Daily plan: without the
+  // secret the endpoint refuses everything and attendance comes from the
+  // after-call fetch alone.
+  dailyApiKey: process.env.DAILY_API_KEY ?? "",
+  dailyWebhookSecret: process.env.DAILY_WEBHOOK_SECRET ?? "",
 };
 
 export const isSupabaseConfigured = () =>
@@ -57,3 +64,5 @@ export const isStripeConfigured = () => Boolean(env.stripeSecretKey);
 
 export const isResendConfigured = () =>
   Boolean(env.resendApiKey && env.emailFrom);
+
+export const isDailyConfigured = () => Boolean(env.dailyApiKey);
