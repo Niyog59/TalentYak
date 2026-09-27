@@ -3,24 +3,23 @@
  * Client-safe: no server imports.
  */
 
+import type { AppointmentCard, ProposalCard } from "@/lib/scheduling/types";
+
 export type ConversationRole = "customer" | "coach";
 export type ConversationState = "active" | "paused" | "pending" | "ended" | "reassigned" | "suspended";
 
 /**
- * Message kinds the database accepts today. `expectations_link` (Batch 3) is a
- * system message pointing at one presented version of the welcome document.
- * The remaining structured kinds — an appointment proposal, a link to a
- * confirmed appointment — are added by Batch 4 with their renderer. Until then
- * the database refuses them, and this screen shows an unknown kind as a neutral
- * placeholder rather than a button that does nothing.
+ * Message kinds the database accepts. The structured ones are system messages
+ * written by the database: `expectations_link` (Batch 3) points at one
+ * presented welcome document; `appointment_proposal` and `appointment_link`
+ * (Batch 4) are cards for a suggested time and a booked session. Only their
+ * explicit buttons change the calendar — never a text message. An unknown kind
+ * is shown as a neutral placeholder rather than a button that does nothing.
  */
-export type MessageKind = "text" | "attachment" | "system" | "expectations_link";
+export type MessageKind = "text" | "attachment" | "system" | "expectations_link" | "appointment_proposal" | "appointment_link";
 
-/** Integrations recorded as pending, not built. */
-export const PENDING_STRUCTURED_KINDS = [
-  { kind: "appointment_proposal", owner: "Batch 4 — scheduling" },
-  { kind: "appointment_link", owner: "Batch 4 — scheduling" },
-] as const;
+/** Integrations recorded as pending, not built. None remain after Batch 4. */
+export const PENDING_STRUCTURED_KINDS = [] as const;
 
 export interface MessageAttachment {
   id: string;
@@ -41,6 +40,10 @@ export interface Message {
   created_at: string;
   /** Set only on an `expectations_link` message. */
   expectations_presentation_id: string | null;
+  /** The suggestion an `appointment_proposal` card is about, as it is NOW. */
+  proposal: ProposalCard | null;
+  /** The session an `appointment_link` card is about, as it is NOW. */
+  appointment: AppointmentCard | null;
   /** Null when there is none, or when the viewer may no longer see it. */
   attachment: MessageAttachment | null;
   has_attachment: boolean;

@@ -1,6 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { ProposalActions } from "@/components/scheduling/proposal-actions";
+import { ProposeForm } from "@/components/scheduling/propose-form";
+import {
+  APPOINTMENT_STATE_LABEL,
+  PROPOSAL_STATE_LABEL,
+  bothZones,
+  durationLabel,
+  type AppointmentState,
+} from "@/lib/scheduling/types";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { Button } from "@/components/button";
 import { MediaUploader } from "@/components/media/uploader";
@@ -91,6 +100,7 @@ export function ConversationView({
   initialHasOlder,
   backHref,
   supportHref,
+  schedule,
 }: {
   conversationId: string;
   viewerId: string;
@@ -101,6 +111,8 @@ export function ConversationView({
   initialHasOlder: boolean;
   backHref: string;
   supportHref: string;
+  /** Session lengths the coach offers, and the other person's zone, for cards and suggestions. */
+  schedule?: { durations: number[]; otherTz: string | null };
 }) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [hasOlder, setHasOlder] = useState(initialHasOlder);
@@ -528,6 +540,12 @@ export function ConversationView({
   const groups = groupByDay(messages, timeZone);
   const firstUnreadSeq = messages.find((m) => m.seq > unreadFrom && m.sender_profile_id !== viewerId)?.seq;
   const closed = Boolean(revoked) || !status.can_send;
+  const sessionsHref = status.role === "customer" ? "/account/appointments" : "/coach/calendar/appointments";
+  // Several cards can describe one suggestion (sent, answered, countered).
+  // Every card shows the newest state known, so an old card never offers
+  // buttons for a suggestion that has already been answered.
+  const latestProposal = new Map<string, NonNullable<Message["proposal"]>>();
+  for (const m of messages) if (m.proposal) latestProposal.set(m.proposal.id, m.proposal);
   const expectationsHref = status.role === "customer"
     ? `/account/expectations/${enrollmentId}`
     : `/coach/expectations/clients/${enrollmentId}`;
@@ -539,7 +557,10 @@ export function ConversationView({
           <div className="min-w-0">
             <Link href={backHref} className="text-sm text-brand underline underline-offset-4">All conversations</Link>
             <h1 className="mt-1 truncate text-2xl font-semibold">{other}</h1>
-            <Link href={expectationsHref} className="text-sm text-brand underline underline-offset-4">Welcome &amp; expectations</Link>
+            <span className="flex flex-wrap gap-x-4">
+              <Link href={expectationsHref} className="text-sm text-brand underline underline-offset-4">Welcome &amp; expectations</Link>
+              <Link href={status.role === "customer" ? "/account/appointments" : "/coach/calendar"} className="text-sm text-brand underline underline-offset-4">Sessions</Link>
+            </span>
           </div>
           <p className="text-sm text-ink-muted" aria-live="polite">
             {live === "live" ? "Up to date" : live === "connecting" ? "Connecting…" : "Live updates paused — checking every 20 seconds"}
@@ -557,6 +578,21 @@ export function ConversationView({
             {status.response_expectation ? <p>In {other}&rsquo;s words: &ldquo;{status.response_expectation}&rdquo;</p> : null}
             {hours ? <p className="text-ink-muted">Working hours: {hours}{status.coach_timezone ? ` (${status.coach_timezone.replace("_", " ")} time)` : ""}</p> : null}
           </div>
+        ) : null}
+
+        {schedule && !closed ? (
+          <details className="mt-2">
+            <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm font-semibold text-brand underline underline-offset-4">Suggest a meeting time</summary>
+            <div className="mt-2 max-h-[60dvh] overflow-y-auto rounded-xl border border-line bg-surface p-4">
+              <ProposeForm
+                enrollmentId={enrollmentId}
+                durations={schedule.durations}
+                viewerTz={timeZone}
+                otherTz={schedule.otherTz}
+                otherLabel={other}
+              />
+            </div>
+          </details>
         ) : null}
 
         <details className="mt-2 text-sm text-ink-muted">
@@ -637,7 +673,16 @@ export function ConversationView({
                     >
                       <div className={`max-w-[85%] rounded-2xl px-3.5 py-2 ${own ? "bg-brand-tint" : "border border-line bg-surface"}`}>
                         <span className="sr-only">{own ? "You" : m.sender_role === "system" ? "TalentYak" : other}: </span>
-                        <MessageBody message={m} expectationsHref={expectationsHref} />
+                        <MessageBody
+                          message={m.proposal ? { ...m, proposal: latestProposal.get(m.proposal.id) ?? m.proposal } : m}
+                          expectationsHref={expectationsHref}
+                          sessionsHref={sessionsHref}
+                          viewerId={viewerId}
+                          timeZone={timeZone}
+                          other={other}
+                          schedule={schedule}
+                          canAct={!closed}
+                        />
                         <p className="mt-1 text-right text-xs text-ink-muted">
                           <time dateTime={m.created_at}>{timeLabel(m.created_at, timeZone)}</time>
                           {own ? <span> · {m.seq <= status.their_last_read_seq ? "Read" : "Sent"}</span> : null}
@@ -757,8 +802,73 @@ export function ConversationView({
   );
 }
 
-function MessageBody({ message, expectationsHref }: { message: Message; expectationsHref: string }) {
+function MessageBody({
+  message,
+  expectationsHref,
+  sessionsHref,
+  viewerId,
+  timeZone,
+  other,
+  schedule,
+  canAct,
+}: {
+  message: Message;
+  expectationsHref: string;
+  sessionsHref: string;
+  viewerId: string;
+  timeZone: string;
+  other: string;
+  schedule?: { durations: number[]; otherTz: string | null };
+  canAct: boolean;
+}) {
   const a = message.attachment;
+  if (message.kind === "appointment_proposal") {
+    // A card for a suggestion, showing where it stands NOW. Its buttons are the
+    // only way a time becomes a booking.
+    const p = message.proposal;
+    if (!p) return <p className="text-sm italic text-ink-muted">{message.body ?? "A session suggestion"} (no longer available)</p>;
+    const mine = p.proposed_by === viewerId;
+    return (
+      <div className="min-w-[14rem]">
+        <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+          {p.replaces_appointment_id ? "New time suggested" : "Session suggested"} · {mine ? "by you" : `by ${other}`}
+        </p>
+        <p className="mt-1 font-semibold">{bothZones(p.starts_at, timeZone, schedule?.otherTz, other)}</p>
+        <p className="text-sm">
+          {durationLabel(p.duration_minutes)}
+          {p.recurrence === "weekly" ? ` · every week (${p.reference_timezone} time)` : ""}
+          {p.series_scope === "future" ? " · this and later sessions" : ""}
+        </p>
+        <p className="mt-1 text-sm font-semibold">{PROPOSAL_STATE_LABEL[p.state]}{p.state === "pending" ? " — not booked yet" : ""}</p>
+        {p.state_reason && !["pending", "countered"].includes(p.state) ? <p className="text-sm">{p.state_reason}</p> : null}
+        {p.state === "accepted" && p.resulting_appointment_id ? (
+          <Link href={`${sessionsHref}/${p.resulting_appointment_id}`} className="mt-1 inline-flex min-h-11 items-center font-semibold text-brand underline underline-offset-4">Open the session</Link>
+        ) : null}
+        {p.state === "pending" && canAct && schedule ? (
+          <ProposalActions
+            proposalId={p.id}
+            mine={mine}
+            durations={schedule.durations}
+            viewerTz={timeZone}
+            otherTz={schedule.otherTz}
+            otherLabel={other}
+          />
+        ) : null}
+      </div>
+    );
+  }
+  if (message.kind === "appointment_link") {
+    const ap = message.appointment;
+    if (!ap) return <p className="text-sm italic text-ink-muted">{message.body ?? "A session"} (no longer available)</p>;
+    return (
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">{message.body ?? "Session"}</p>
+        <p className="mt-1 font-semibold">{bothZones(ap.starts_at, timeZone, schedule?.otherTz, other)}</p>
+        <p className="text-sm">{APPOINTMENT_STATE_LABEL[ap.state as AppointmentState] ?? ap.state}</p>
+        <Link href={`${sessionsHref}/${ap.id}`} className="mt-1 inline-flex min-h-11 items-center font-semibold text-brand underline underline-offset-4">Open the session</Link>
+      </div>
+    );
+  }
   if (message.kind === "expectations_link" && message.expectations_presentation_id) {
     // A link to one presented version of the welcome document. The words are
     // ours (written by the database); the destination checks access again.

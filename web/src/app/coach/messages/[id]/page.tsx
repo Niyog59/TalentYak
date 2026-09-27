@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { requireCoach } from "@/lib/auth";
 import { loadConversation } from "@/lib/messaging/server";
 import { ConversationView } from "@/components/messaging/conversation-view";
+import { conversationSchedule } from "@/lib/scheduling/server";
 
 export const metadata = { title: "Conversation" };
 
@@ -10,6 +11,7 @@ export default async function CoachConversationPage({ params }: { params: Promis
   const session = await requireCoach(`/coach/messages/${id}`);
   const loaded = await loadConversation(id, "coach");
   if (!loaded) notFound();
+  const schedule = await conversationSchedule(id, "coach");
 
   return (
     <ConversationView
@@ -22,6 +24,7 @@ export default async function CoachConversationPage({ params }: { params: Promis
       initialHasOlder={loaded.hasOlder}
       backHref="/coach/messages"
       supportHref="/coach/support"
+      schedule={schedule}
     />
   );
 }

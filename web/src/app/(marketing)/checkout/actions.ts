@@ -27,6 +27,7 @@ export async function startCheckoutAction(_: ActionState, form: FormData): Promi
       idempotencyKey: field(form, "idempotency_key", 64),
       shownCoachExpectations: field(form, "expectations_coach_version_id", 40),
       shownPlatformExpectations: field(form, "expectations_platform_version_id", 40),
+      slotStartsAt: field(form, "slot_starts_at", 40) || null,
     }));
   } catch (err) {
     // The document changed between reading and paying: show the new one rather

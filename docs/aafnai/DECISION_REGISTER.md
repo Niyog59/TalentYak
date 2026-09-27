@@ -558,3 +558,18 @@ The project instructions file that every agent reads first is founder-owned. Wit
 | **TY-EXP-04** | Existing customers | **CONFIRMED** | No acknowledgement is fabricated and no document is attached to a purchase that never showed one. Relationships that predate Batch 3 are shown the current version when their coach publishes, labelled as published after they joined. | FB3 | Batch 3 |
 | **TY-EXP-05** | TalentYak's section wording | **OPEN — needed before launch** | The test project carries **test wording marked "Not approved policy"**. Approved wording for conduct, privacy and the support route must be published from the admin page before live launch. The suggested starter text is a draft, not approved policy. | FB3 + engineering | Batch 3 |
 
+---
+
+## Q. Eighth-pass decisions — 2026-09-27 (M09 flexible scheduling)
+
+**Source key added:** **FB4** — Founder prompt, *Batch 4 of 5 — M09 Flexible scheduling, full scope, one final verification*, revised 21 September 2026. Founder-supplied. Two decisions (TY-SCHED-02, -03) were taken by the founder in answer to questions asked before implementation began.
+
+| ID | Topic | Status | Rule | Source | Modules |
+|---|---|---|---|---|---|
+| **TY-SCHED-01** | Proposals and bookings | **CONFIRMED** | Either person proposes; the other accepts, declines or counters. A proposal is pending, holds no time and expires; only mutual acceptance creates one confirmed session. Plain chat never changes the calendar. | FB4 | M09, M14 |
+| **TY-SCHED-02** | Sessions after the paid period | **CONFIRMED** | They are **tentative** until the renewal is paid, then confirm automatically if the time is still free. Adjustable (`confirm_beyond_paid_through`). | Founder decision, 2026-09-27 | M09, M06 |
+| **TY-SCHED-03** | Which plans have a quota | **CONFIRMED** | Only plans whose coach entered a number of calls per month; each booking uses one call of its paid period and cannot be used twice. All other coaching is flexible with no quota. | Founder decision, 2026-09-27 | M09, M05 |
+| **TY-SCHED-04** | Client requests | **CONFIRMED as a starting workflow** | Client requests wait for the coach's confirmation; each coach may switch on auto-confirm for requests inside their hours. Not a platform business rule. | FB4 | M09 |
+| **TY-SCHED-05** | Timings | **SANDBOX DEFAULT — awaiting approval** | `scheduling.v1`: 48-hour proposal expiry, reminders 24 h and 1 h before, 12 hours' notice, 28-day horizon, 10-minute buffers, 35-minute checkout hold. Illustrative; coaches set their own lengths, gaps, notice and horizon. | FB4 | M09 |
+| **TY-SCHED-06** | No automatic consequences | **CONFIRMED** | No-show, cancellation and technical-failure records create no penalty, transfer, refund or assumption of delivery. A one-off paid after its held time lapsed goes to an admin to rebook or refund through the existing process. | FB4 | M09, M06 |
+

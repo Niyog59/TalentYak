@@ -21,6 +21,8 @@ export interface SweepSummary {
   abandonedMediaCleared: number;
   mediaRequeued: number;
   retentionCancelled: number;
+  /** Counts from reconcile_appointments(): proposals expired, holds released, meetings held, confirmed, occurrences created. */
+  appointments: Record<string, number>;
   errors: string[];
 }
 
@@ -36,6 +38,7 @@ export async function runSweeps(): Promise<SweepSummary> {
     abandonedMediaCleared: 0,
     mediaRequeued: 0,
     retentionCancelled: 0,
+    appointments: {},
     errors: [],
   };
   const admin = createAdminClient();
@@ -131,6 +134,14 @@ export async function runSweeps(): Promise<SweepSummary> {
     summary.retentionCancelled = ((rechecked.data ?? []) as { outcome: string }[])
       .filter((r) => r.outcome.startsWith("cancelled")).length;
   }
+
+  // Scheduling: lapse unanswered proposals, release lapsed holds, put meetings
+  // on hold or cancel them when a relationship pauses, ends or is suspended,
+  // confirm tentative ones once paid, and extend weekly series. Runs AFTER
+  // end_lapsed_enrollments above, so it sees today's relationship states.
+  const scheduling = await admin.rpc("reconcile_appointments");
+  if (scheduling.error) summary.errors.push(`appointments: ${scheduling.error.message}`);
+  else summary.appointments = (scheduling.data ?? {}) as Record<string, number>;
 
   return summary;
 }

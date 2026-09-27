@@ -17,6 +17,7 @@ import type {
   DiscountPolicy,
   EligibilityPolicy,
   MessagingPolicy,
+  SchedulingPolicy,
   PaymentFailurePolicy,
   PayoutPolicy,
   Policy,
@@ -312,6 +313,25 @@ const MESSAGING_V2: MessagingPolicy = {
   pausedNotice: PAUSED_FOR_PAYMENT_NOTICE,
 };
 
+const SCHEDULING_V1: SchedulingPolicy = {
+  kind: "scheduling",
+  id: "scheduling.v1",
+  version: 1,
+  status: "sandbox_default",
+  effectiveFrom: "2026-09-27",
+  source: "M09 founder prompt (Batch 4), 21 September 2026 — illustrative timings, explicitly not approved rules",
+  note: "Proposals lapse after 48 hours and hold no time; reminders 24 hours and 1 hour before; 12 hours' notice, a 28-day horizon and 10-minute buffers are only the starting values each coach can change. Meetings after the paid period stay tentative until the renewal is paid (founder decision, 2026-09-27). No cancellation, lateness or no-show rule has any financial consequence.",
+  proposalTtlHours: 48,
+  reminderOffsetsMinutes: [1440, 60],
+  defaultMinNoticeMinutes: 720,
+  defaultHorizonDays: 28,
+  defaultBufferMinutes: 10,
+  slotHoldMinutes: 35,
+  confirmBeyondPaidThrough: false,
+  clientRequestsNeedCoachConfirmation: true,
+  outcomesHaveConsequences: false,
+};
+
 // --- Register -----------------------------------------------------------------
 
 const ALL_POLICIES: readonly Policy[] = [
@@ -331,6 +351,7 @@ const ALL_POLICIES: readonly Policy[] = [
   CANCELLATION_V2,
   PAYMENT_FAILURE_V2,
   MESSAGING_V2,
+  SCHEDULING_V1,
 ];
 
 const BY_ID = new Map(ALL_POLICIES.map((policy) => [policy.id, policy]));
@@ -370,6 +391,14 @@ export const CURRENT_MESSAGING_POLICY_ID = MESSAGING_V2.id;
 export function currentMessagingPolicy(): MessagingPolicy {
   const policy = getPolicy(CURRENT_MESSAGING_POLICY_ID);
   if (policy.kind !== "messaging") throw new UnknownPolicyError(CURRENT_MESSAGING_POLICY_ID);
+  return policy;
+}
+
+export const CURRENT_SCHEDULING_POLICY_ID = SCHEDULING_V1.id;
+
+export function currentSchedulingPolicy(): SchedulingPolicy {
+  const policy = getPolicy(CURRENT_SCHEDULING_POLICY_ID);
+  if (policy.kind !== "scheduling") throw new UnknownPolicyError(CURRENT_SCHEDULING_POLICY_ID);
   return policy;
 }
 

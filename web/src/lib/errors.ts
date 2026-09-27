@@ -30,6 +30,7 @@ const KNOWN_CODES = new Set([
   "already_a_coach", "invalid_email", "invalid_timezone", "invitation_expired", "invitation_invalid",
   "invitation_used", "invitation_wrong_account", "policy_not_approved", "purchase_not_found",
   "expectations_changed", "expectations_missing",
+  "slot_taken", "slot_required", "consultation_needs_duration",
 ]);
 
 const GENERIC = "Something went wrong and nothing was saved. Please try again.";

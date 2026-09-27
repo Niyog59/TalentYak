@@ -156,8 +156,15 @@ export default async function CoachPlanPage({ params }: { params: Promise<{ offe
                 <legend className="px-1 font-semibold">What&rsquo;s included</legend>
                 <CheckboxField name="programme_included" label="A training programme written by me" defaultChecked={draft.programme_included} />
                 <TextField name="programme_review_cadence" label="Programme reviewed" required={false} defaultValue={draft.programme_review_cadence ?? ""} placeholder="e.g. every 4 weeks" maxLength={60} />
-                <TextField name="calls_included_per_month" label="Video or audio calls a month" required={false} inputMode="numeric" defaultValue={draft.calls_included_per_month?.toString() ?? ""} />
-                <TextField name="call_duration_minutes" label="Minutes per call" required={false} inputMode="numeric" defaultValue={draft.call_duration_minutes?.toString() ?? ""} />
+                <input type="hidden" name="service_type" value={draft.service_type} />
+                {draft.service_type === "one_off_consultation" ? (
+                  <TextField name="call_duration_minutes" label="Session length (minutes)" required inputMode="numeric" defaultValue={draft.call_duration_minutes?.toString() ?? ""} help="Shown before purchase. The client picks a time from your calendar when they buy." />
+                ) : (
+                  <>
+                    <TextField name="calls_included_per_month" label="Video or audio calls a month" required={false} inputMode="numeric" defaultValue={draft.calls_included_per_month?.toString() ?? ""} help="Only if this plan includes a set number of calls. Leave empty for flexible coaching: you and your client arrange sessions as needed, with no quota." />
+                    <TextField name="call_duration_minutes" label="Minutes per call" required={false} inputMode="numeric" defaultValue={draft.call_duration_minutes?.toString() ?? ""} />
+                  </>
+                )}
                 <TextField name="check_in_cadence" label="Check-ins" required={false} defaultValue={draft.check_in_cadence ?? ""} placeholder="e.g. weekly" maxLength={60} />
                 <TextField name="messaging_channel" label="Messaging" required={false} defaultValue={draft.messaging_channel ?? ""} placeholder="e.g. in-app messages" maxLength={60} />
                 <TextField name="response_time_hours" label="I reply within (hours)" required={false} inputMode="numeric" defaultValue={draft.response_time_hours?.toString() ?? ""} />

@@ -367,6 +367,62 @@ visitors must read the public live versions before purchase.
 Authored text is stored and rendered as plain text (React-escaped, invisible
 bidirectional/zero-width characters stripped, no links or embeds).
 
+### 3.7e Scheduling (M09) — `0042`, `0043`
+
+```
+scheduling_settings        singleton, mirrors scheduling.v1 (sandbox default)
+coach_schedule_settings    durations, buffers, notice, horizon, daily limit, auto-confirm
+availability_windows       weekday + local start/end, in providers.timezone
+availability_exceptions    unavailable | extra, date range, optional times
+appointment_proposals      pending|accepted|declined|countered|withdrawn|expired|conflicted
+appointments               held|booked|tentative|on_hold|cancelled|replaced|expired
+                           kind coaching|consultation, blocked_from/blocked_to, series_id
+appointment_series         reference_timezone, weekday, local_start, interval_weeks
+appointment_events         append-only history
+appointment_outcomes       append-only, no consequences
+messages.kind              + appointment_proposal, appointment_link
+```
+
+**A proposal is not an appointment.** It holds no time and expires. Accepting
+re-checks eligibility (`meeting_eligibility`) and availability (`slot_problem`)
+under the coach's row lock, then inserts; two exclusion constraints — coach and
+client, over the meeting plus the coach's buffers (`blocked_from/to`) — make a
+double booking impossible, so simultaneous acceptances produce one winner and
+a `conflicted` proposal with a reason.
+
+**Lifecycle, history, outcome, payment and eligibility are separate.** State
+changes only through the functions (`propose_appointment`,
+`respond_to_proposal`, `cancel_appointment`, `record_appointment_outcome`,
+`reconcile_appointments`), each writing `appointment_events`. Rescheduling
+replaces the original in the same savepoint as the insert, so a failure keeps
+it.
+
+**Time.** Instants are stored; zones are IANA only (`is_iana_zone`). A weekly
+series is anchored to an explicit reference zone; `local_to_instant` moves a
+missing local time forward and uses the first of a repeated one, labelling
+both. Display-zone changes and travel never move a series.
+
+**Paid eligibility.** Sessions after `paid_through_at` are `tentative` (they
+hold no time) and confirm on renewal if free; `reconcile_appointments` (every
+five minutes from the worker) puts sessions on hold when coaching pauses or a
+party is suspended, restores them, cancels them when the relationship ends,
+extends series, and lapses proposals and holds. A coach change cancels the
+outgoing coach's future sessions by trigger.
+
+**Allowances.** Only a purchase whose snapshot names calls per month is
+counted (`claim_call_allowance`, per paid billing cycle, under a lock); flexible
+coaching has no quota. A one-off session is consumed once.
+
+**One-off sessions.** `create_checkout_records` takes the chosen slot and
+inserts a `held` appointment in the same transaction; closing the checkout
+releases it (trigger on `checkout_attempts`); the paid billing cycle confirms
+it (trigger on `billing_cycles`); a payment after the hold lapsed flags the
+purchase `consultation_slot_expired` for an admin (`admin_resolve_consultation`)
+— never an automatic refund.
+
+**Calendar availability is not selling capacity.** `max_active_clients` and
+`reserve_capacity` are untouched by scheduling.
+
 ### 3.8 How the database defends itself
 
 Three mechanisms, all exercised by the test suite:

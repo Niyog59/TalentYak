@@ -77,6 +77,7 @@ export default async function AccountPage() {
         <ButtonLink href="/account/messages" variant="secondary" size="sm">
           Messages{unreadMessages ? <span className="ml-1.5 rounded-full bg-brand px-1.5 text-sm text-white">{unreadMessages}</span> : null}
         </ButtonLink>
+        <ButtonLink href="/account/appointments" variant="secondary" size="sm">Sessions</ButtonLink>
         <ButtonLink href="/account/media" variant="secondary" size="sm">Photos and clips</ButtonLink>
         <ButtonLink href="/account/billing" variant="secondary" size="sm">Billing</ButtonLink>
         <ButtonLink href="/account/security" variant="secondary" size="sm">Sign-in security</ButtonLink>
