@@ -16,7 +16,7 @@ export function SiteNav() {
   return (
     // White, not --paper: the horizontal logo file has an opaque white
     // background, and on the warm ground it would show as a rectangle.
-    <header className="relative border-b border-line bg-surface">
+    <header className="relative border-b border-line bg-surface print:hidden">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
         <BrandLogoLink variant="horizontal" width={160} />
 

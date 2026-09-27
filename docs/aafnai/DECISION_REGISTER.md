@@ -544,3 +544,17 @@ The existing working rules for agents are **kept**, and are now written to this 
 
 The project instructions file that every agent reads first is founder-owned. With the founder's go-ahead (2026-09-25) it now carries a one-line pointer to this section under its standing rules; where the two differ on how a report is written, this entry governs.
 
+---
+
+## P. Seventh-pass decisions — 2026-09-27 (Coaching Welcome & Expectations)
+
+**Source key added:** **FB3** — Founder prompt, *Batch 3 of 5 — Coaching Welcome & Expectations, full scope, one final verification*, revised 21 September 2026. Founder-supplied. One further decision (TY-EXP-02) was taken by the founder in answer to a question asked before implementation began, and is recorded as such.
+
+| ID | Topic | Status | Rule | Source | Modules |
+|---|---|---|---|---|---|
+| **TY-EXP-01** | What the document is | **CONFIRMED** | A mutual-expectations document titled *Coaching Welcome & Expectations*: TalentYak's section (coaches cannot change it), the coach's arrangement (matched to the plan bought), and the client's part with the coach's reciprocal commitments. **Not** a contract, a liability waiver, or a replacement for the platform terms, and no claim of legal enforceability is made. | FB3 | Batch 3 |
+| **TY-EXP-02** | Sale requires a published document | **CONFIRMED** | A plan **cannot be bought** until both the coach's and TalentYak's sections are published. Checkout records the exact versions displayed, and refuses if either changed between reading and paying. | Founder decision, 2026-09-26 | Batch 3, M03 |
+| **TY-EXP-03** | Acknowledgement is not consent to commercial change | **CONFIRMED** | Ticking "I've read and understand these expectations" records a reading only. It cannot change a price, add a fee, change refunds or reduce service; commercial terms stay fixed by the purchase and change only through the existing offer-versioning route. An unread document never removes paid access. | FB3 | Batch 3 |
+| **TY-EXP-04** | Existing customers | **CONFIRMED** | No acknowledgement is fabricated and no document is attached to a purchase that never showed one. Relationships that predate Batch 3 are shown the current version when their coach publishes, labelled as published after they joined. | FB3 | Batch 3 |
+| **TY-EXP-05** | TalentYak's section wording | **OPEN — needed before launch** | The test project carries **test wording marked "Not approved policy"**. Approved wording for conduct, privacy and the support route must be published from the admin page before live launch. The suggested starter text is a draft, not approved policy. | FB3 + engineering | Batch 3 |
+

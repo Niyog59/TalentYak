@@ -14,7 +14,7 @@ const company = [
 
 export function SiteFooter() {
   return (
-    <footer className="mt-auto border-t border-line bg-paper-raised">
+    <footer className="mt-auto border-t border-line bg-paper-raised print:hidden">
       <div className="mx-auto grid max-w-6xl gap-10 px-4 py-12 sm:px-6 md:grid-cols-[1.6fr_1fr_1fr]">
         <div>
           {/* The lockup, not the horizontal file: this surface is not white. */}

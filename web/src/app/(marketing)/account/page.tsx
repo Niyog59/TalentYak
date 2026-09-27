@@ -108,6 +108,11 @@ export default async function AccountPage() {
                     {p.service_type === "recurring_coaching" ? " a month" : ""}
                   </p>
                   {p.paid_through_at ? <p className="mt-1 text-sm">Paid until {formatDate(p.paid_through_at, tz)}</p> : null}
+                  {enrollment ? (
+                    <p className="mt-2">
+                      <Link href={`/account/expectations/${enrollment.id}`} className="text-brand underline underline-offset-4">Welcome &amp; expectations</Link>
+                    </p>
+                  ) : null}
                   {p.state === "past_due" ? (
                     <p role="alert" className="mt-2 font-medium">
                       {/* Founder-approved wording (payment_failure.v2). Before the paid

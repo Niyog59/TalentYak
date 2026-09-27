@@ -86,6 +86,28 @@ async function coachPerson(ctx: HandlerContext, providerId: unknown): Promise<(P
  * (A missing PURCHASE is different: purchases are never deleted, so a missing
  * one means a bug, and those still fail visibly.)
  */
+/**
+ * Worth telling the client about only while it is still theirs and still
+ * unread: already acknowledged (on any device), or no longer their
+ * relationship, and nothing is sent.
+ */
+async function expectationsStillUnread(ctx: HandlerContext, presentationId: string, customerId: string): Promise<Decision> {
+  if (!presentationId) return { proceed: true };
+  const { data, error } = await ctx.admin
+    .from("enrollment_expectations")
+    .select("id, enrollments(customer_id), expectation_acknowledgements(id)")
+    .eq("id", presentationId)
+    .maybeSingle();
+  if (error) return { proceed: false, reason: "expectations could not be checked" };
+  if (!data) return { proceed: false, reason: "that version is no longer on record" };
+  const row = data as { enrollments: { customer_id: string } | { customer_id: string }[] | null; expectation_acknowledgements: unknown[] | { id: string } | null };
+  const enrollment = Array.isArray(row.enrollments) ? row.enrollments[0] : row.enrollments;
+  if (enrollment?.customer_id !== customerId) return { proceed: false, reason: "no longer this client's relationship" };
+  const acks = Array.isArray(row.expectation_acknowledgements) ? row.expectation_acknowledgements : row.expectation_acknowledgements ? [row.expectation_acknowledgements] : [];
+  if (acks.length) return { proceed: false, reason: "already read and acknowledged" };
+  return { proceed: true };
+}
+
 function gone(who: string): Outcome {
   return { kind: "done", result: { sent: false, reason: "skipped", detail: `${who} no longer exists` } };
 }
@@ -577,9 +599,20 @@ export const HANDLERS: Record<string, Handler> = {
     const customer = await person(ctx, job.payload.customer_id);
     const coach = await coachPerson(ctx, job.payload.provider_id);
     if (!customer || !coach) return gone("recipient");
+    const enrollmentId = str(job.payload.enrollment_id);
+    const presentationId = str(job.payload.presentation_id);
+    const path = enrollmentId
+      ? `/account/expectations/${enrollmentId}${presentationId ? `?v=${presentationId}` : ""}`
+      : "/account";
     return send(job, ctx, "expectations_updated", customer,
-      T.expectationsUpdatedEmail(tctx(), { name: customer.name, coachName: coach.displayName }),
-      { category: "expectations", path: "/account" });
+      T.expectationsUpdatedEmail(tctx(), { name: customer.name, coachName: coach.displayName, path }),
+      {
+        category: "expectations",
+        path,
+        // The coach's name and a link. What the document says stays in the app.
+        inboxTitle: `${coach.displayName} shared an updated welcome & expectations`,
+        recheck: () => expectationsStillUnread(ctx, presentationId, customer.id),
+      });
   },
 
   // Sent only by scripts/send-test-notification.mjs, to an address the founder

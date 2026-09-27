@@ -20,10 +20,13 @@ import {
   createTestUser,
   dbAvailability,
   deleteTestUsers,
+  ensurePlatformExpectations,
   errorCode,
+  liveExpectationIds,
   makeCoach,
   makeDraftOffer,
   projectRef,
+  publishCoachExpectations,
   setRole,
   sql,
   lit,
@@ -68,8 +71,16 @@ async function publish(c: CoachFixture, versionId: string) {
 }
 
 async function checkout(customer: TestUser, versionId: string, key = randomUUID(), currency = USD) {
+  // What the checkout page displays: the coach's and TalentYak's live
+  // expectations versions (Batch 3). Without them the database refuses.
+  const { data: v } = await adminClient().from("offer_versions").select("offers(provider_id)").eq("id", versionId).maybeSingle();
+  const offer = (Array.isArray(v?.offers) ? v?.offers[0] : v?.offers) as { provider_id: string } | undefined;
+  const shown = offer ? await liveExpectationIds(offer.provider_id) : { coach: null, platform: null };
   return adminClient().rpc("create_checkout_records", {
-    p: { customer_id: customer.id, offer_version_id: versionId, currency, idempotency_key: key, hold_seconds: 1800 },
+    p: {
+      customer_id: customer.id, offer_version_id: versionId, currency, idempotency_key: key, hold_seconds: 1800,
+      expectations_coach_version_id: shown.coach, expectations_platform_version_id: shown.platform,
+    },
   });
 }
 
@@ -135,6 +146,11 @@ describe("workflows", { skip }, () => {
       coaches.push(c);
       users.push(c.user.id);
     }
+
+    // Batch 3: nothing is sellable until both parts of the welcome document are live.
+    await ensurePlatformExpectations();
+    await publishCoachExpectations(coach);
+    await publishCoachExpectations(coachOther);
   });
 
   after(async () => {

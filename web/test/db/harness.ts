@@ -352,3 +352,84 @@ export async function makeDraftOffer(
 export function errorCode(error: { message?: string } | null | undefined): string | null {
   return error?.message ?? null;
 }
+
+// ---------------------------------------------------------------------------
+// Coaching Welcome & Expectations (Batch 3)
+// ---------------------------------------------------------------------------
+
+/** Fixture wording. Clearly synthetic; never shown to a real person. */
+export const FIXTURE_EXPECTATIONS = {
+  provides: "Fixture: what this test coach provides.",
+  meeting_approach: "Fixture: how we meet.",
+  typical_duration: "",
+  appointments: "Fixture: how appointments are arranged.",
+  messaging_availability: "Fixture: messaging hours.",
+  response_expectation: "Fixture: usually within a day.",
+  changes: "Fixture: we talk changes through in messages.",
+  client_part: ["Fixture: share goals privately."],
+  coach_part: ["Fixture: review check-ins."],
+};
+
+/**
+ * Publishes a coach's expectations through the coach's own session, exactly
+ * as the editor does. Returns the live version id.
+ */
+export async function publishCoachExpectations(
+  coach: CoachFixture,
+  content: Partial<typeof FIXTURE_EXPECTATIONS> = {},
+  opts: { material?: boolean; summary?: string } = {},
+): Promise<string> {
+  const { data: draft, error } = await coach.user.client.rpc("save_my_expectations_draft", { p: { ...FIXTURE_EXPECTATIONS, ...content } });
+  if (error || !draft) throw new Error(`save expectations: ${error?.message}`);
+  const { data, error: publishError } = await coach.user.client.rpc("publish_my_expectations", {
+    p_draft: draft, p_material: opts.material ?? true, p_summary: opts.summary ?? null,
+  });
+  if (publishError) throw new Error(`publish expectations: ${publishError.message}`);
+  return (data as { version_id: string }).version_id;
+}
+
+/**
+ * The live TalentYak section. If the project has none yet, publishes one
+ * through a real admin session at aal2 — the same path the admin page uses —
+ * and says so, because that is a visible change to the test project.
+ */
+export async function ensurePlatformExpectations(): Promise<string> {
+  const sb = adminClient();
+  const { data: live } = await sb.from("platform_expectation_versions").select("id")
+    .not("published_at", "is", null).is("superseded_at", null).maybeSingle();
+  if (live) return live.id as string;
+
+  const founder = await createTestUser("expectations-publisher");
+  try {
+    await setRole(founder.id, "admin");
+    await upgradeToAal2(founder);
+    const { data: draft, error } = await founder.client.rpc("admin_save_platform_expectations_draft", {
+      p: {
+        conduct: "Test project wording — conduct. Not approved policy.",
+        privacy: "Test project wording — privacy. Not approved policy.",
+        support: "Test project wording — open a case from Support in your account.",
+        policy_links: ["/legal/terms", "/legal/privacy", "/account/support"],
+      },
+    });
+    if (error) throw new Error(`platform draft: ${error.message}`);
+    const { data, error: publishError } = await founder.client.rpc("admin_publish_platform_expectations", {
+      p_draft: draft, p_material: true, p_summary: "First version, published for the test project.",
+    });
+    if (publishError) throw new Error(`platform publish: ${publishError.message}`);
+    console.log("  (published a first TalentYak expectations section in the test project)");
+    return (data as { version_id: string }).version_id;
+  } finally {
+    await deleteTestUsers([founder.id]);
+  }
+}
+
+/** The versions a checkout page would display for this coach right now. */
+export async function liveExpectationIds(providerId: string): Promise<{ coach: string | null; platform: string | null }> {
+  const sb = adminClient();
+  const [{ data: c }, { data: p }] = await Promise.all([
+    sb.from("coach_expectation_versions").select("id").eq("provider_id", providerId)
+      .not("published_at", "is", null).is("superseded_at", null).maybeSingle(),
+    sb.from("platform_expectation_versions").select("id").not("published_at", "is", null).is("superseded_at", null).maybeSingle(),
+  ]);
+  return { coach: (c?.id as string) ?? null, platform: (p?.id as string) ?? null };
+}

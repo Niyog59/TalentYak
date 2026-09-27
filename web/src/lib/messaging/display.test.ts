@@ -6,7 +6,7 @@ import type { Message } from "@/lib/messaging/types";
 
 const msg = (seq: number, created_at: string): Message => ({
   id: `m${seq}`, seq, sender_profile_id: "p", sender_role: "customer", kind: "text", body: `m${seq}`,
-  client_message_id: `c${seq}`, created_at, attachment: null, has_attachment: false,
+  client_message_id: `c${seq}`, created_at, expectations_presentation_id: null, attachment: null, has_attachment: false,
 });
 
 describe("conversation display", () => {

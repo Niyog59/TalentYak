@@ -5,7 +5,13 @@ import { formatMinor } from "@/lib/format";
  * What a plan includes, in the same order for every coach, with "Not included"
  * written out — never left blank — so two plans can be compared line by line.
  */
-export function PlanInclusions({ plan }: { plan: PublicPlan }) {
+export type InclusionFacts = Pick<
+  PublicPlan,
+  | "programme_included" | "programme_review_cadence" | "calls_included_per_month" | "call_duration_minutes"
+  | "check_in_cadence" | "messaging_channel" | "response_time_hours" | "form_review_included" | "additional_inclusions"
+>;
+
+export function PlanInclusions({ plan }: { plan: InclusionFacts }) {
   const rows: [string, string][] = [
     ["Training programme", plan.programme_included ? `Included${plan.programme_review_cadence ? `, reviewed ${plan.programme_review_cadence}` : ""}` : "Not included"],
     ["Video or audio calls", plan.calls_included_per_month ? `${plan.calls_included_per_month} a month, ${plan.call_duration_minutes} min each` : "Not included"],

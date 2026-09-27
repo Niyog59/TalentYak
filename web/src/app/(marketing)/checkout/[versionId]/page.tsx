@@ -9,6 +9,9 @@ import { ActionForm } from "@/components/form/action-form";
 import { CheckboxField, SubmitButton } from "@/components/form/fields";
 import { PlanInclusions, planCadence } from "@/components/marketing/plan-details";
 import { formatMinor } from "@/lib/format";
+import { coachPhotoUrl } from "@/lib/storage/photos";
+import { getLiveExpectations } from "@/lib/expectations/server";
+import { ExpectationsDocument } from "@/components/expectations/document";
 import { startCheckoutAction } from "../actions";
 
 export const metadata: Metadata = { title: "Confirm your plan", robots: { index: false } };
@@ -19,9 +22,9 @@ export default async function CheckoutConfirmPage({
   searchParams,
 }: {
   params: Promise<{ versionId: string }>;
-  searchParams: Promise<{ currency?: string }>;
+  searchParams: Promise<{ currency?: string; changed?: string }>;
 }) {
-  const [{ versionId }, { currency: requested }] = await Promise.all([params, searchParams]);
+  const [{ versionId }, { currency: requested, changed }] = await Promise.all([params, searchParams]);
   const session = await requireOnboarded(`/checkout/${versionId}${requested ? `?currency=${encodeURIComponent(requested)}` : ""}`);
 
   const found = await getPublicPlan(versionId);
@@ -30,6 +33,10 @@ export default async function CheckoutConfirmPage({
   const price = plan.prices.find((p) => p.currency === requested?.toUpperCase()) ?? plan.prices[0];
   const recurring = plan.service_type === "recurring_coaching";
   const mode = stripeMode();
+  // Read on every render: what is shown here is exactly what the form names,
+  // and the database refuses the purchase if either version has moved on.
+  const expectations = await getLiveExpectations(coach.provider_id);
+  const sellable = Boolean(expectations.coach && expectations.platform);
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6 md:py-14">
@@ -91,7 +98,40 @@ export default async function CheckoutConfirmPage({
         </p>
       </section>
 
+      <section className="mt-8" aria-labelledby="welcome-heading">
+        <h2 id="welcome-heading" className="text-xl font-semibold">What you and {coach.display_name} can expect</h2>
+        {changed ? (
+          <p role="alert" className="mt-3 rounded-lg border border-line-strong bg-paper-raised p-4 font-medium">
+            {coach.display_name}&rsquo;s welcome and expectations were updated while you were checking out. Nothing was charged. Please read the current version below before you continue.
+          </p>
+        ) : null}
+        {sellable ? (
+          <details className="mt-3 rounded-2xl border border-line" open={Boolean(changed)}>
+            <summary className="flex min-h-11 cursor-pointer items-center px-5 py-3 font-semibold text-brand underline underline-offset-4">
+              Read the Coaching Welcome &amp; Expectations
+            </summary>
+            <div className="border-t border-line">
+              <ExpectationsDocument
+                platform={expectations.platform!}
+                coach={expectations.coach!}
+                coachName={coach.display_name}
+                coachPhotoUrl={coachPhotoUrl(coach.photo_path)}
+                plan={plan}
+                headingLevel={2}
+              />
+            </div>
+          </details>
+        ) : (
+          <p role="alert" className="mt-3 rounded-lg border border-line-strong bg-paper-raised p-4">
+            {coach.display_name} hasn&rsquo;t published their welcome and expectations yet, so this plan can&rsquo;t be bought right now.
+          </p>
+        )}
+      </section>
+
+      {sellable ? (
       <ActionForm action={startCheckoutAction} className="mt-6 grid gap-4" noticeFirst>
+        <input type="hidden" name="expectations_coach_version_id" value={expectations.coach!.id} />
+        <input type="hidden" name="expectations_platform_version_id" value={expectations.platform!.id} />
         <input type="hidden" name="version_id" value={plan.version_id} />
         <input type="hidden" name="currency" value={price.currency} />
         {/* One key per page load: a double click or a retried request reuses the same checkout. */}
@@ -99,13 +139,16 @@ export default async function CheckoutConfirmPage({
         <CheckboxField
           name="agree"
           required
-          label={recurring ? "I understand this renews monthly until I cancel." : "I understand this is a one-off payment."}
+          label={recurring
+            ? "I understand this renews monthly until I cancel, and I've been shown the welcome and expectations above."
+            : "I understand this is a one-off payment, and I've been shown the welcome and expectations above."}
         />
         <div>
           <SubmitButton pendingLabel="Opening secure payment…">Continue to secure payment</SubmitButton>
         </div>
         <p className="text-sm text-ink-muted">You&rsquo;ll enter your card on Stripe&rsquo;s secure page. TalentYak never sees your card number.</p>
       </ActionForm>
+      ) : null}
     </div>
   );
 }

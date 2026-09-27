@@ -77,12 +77,18 @@ export async function startCheckout(args: {
   offerVersionId: string;
   currency: string;
   idempotencyKey: string;
+  /** The expectations versions that were on screen. The database refuses if either is no longer live. */
+  shownCoachExpectations: string;
+  shownPlatformExpectations: string;
 }): Promise<StartedCheckout> {
   const stripe = getStripe();
   const admin = createAdminClient();
   if (!stripe || !admin) throw new CheckoutError("Payments aren't available right now.");
 
-  if (!/^[0-9a-f-]{36}$/i.test(args.offerVersionId) || !/^[A-Z]{3}$/.test(args.currency) || !/^[A-Za-z0-9_-]{16,64}$/.test(args.idempotencyKey)) {
+  if (
+    !/^[0-9a-f-]{36}$/i.test(args.offerVersionId) || !/^[A-Z]{3}$/.test(args.currency) || !/^[A-Za-z0-9_-]{16,64}$/.test(args.idempotencyKey)
+    || !/^[0-9a-f-]{36}$/i.test(args.shownCoachExpectations) || !/^[0-9a-f-]{36}$/i.test(args.shownPlatformExpectations)
+  ) {
     throw new CheckoutError("That checkout link isn't valid. Go back and choose the plan again.");
   }
 
@@ -118,6 +124,8 @@ export async function startCheckout(args: {
       display_currency: args.session.profile.display_currency,
       idempotency_key: args.idempotencyKey,
       hold_seconds: HOLD_SECONDS,
+      expectations_coach_version_id: args.shownCoachExpectations,
+      expectations_platform_version_id: args.shownPlatformExpectations,
     },
   });
   if (error || !records) throw new CheckoutError(friendlyError(error, "We couldn't start checkout. Please try again."), error?.message);

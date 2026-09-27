@@ -81,7 +81,7 @@ export function AppShell({
       {banner}
       <div className="flex flex-1 lg:grid lg:grid-cols-[16rem_minmax(0,1fr)]">
         {/* Desktop sidebar */}
-        <aside className="sticky top-0 hidden h-dvh flex-col border-r border-line bg-surface lg:flex">
+        <aside className="sticky top-0 hidden h-dvh flex-col border-r border-line bg-surface lg:flex print:hidden">
           <div className="px-5 pb-5 pt-6">
             <Link href={nav.homeHref} aria-label="TalentYak home" className="inline-flex min-h-11 items-center rounded-md">
               <Logo decorative className="text-2xl" />
@@ -126,7 +126,7 @@ export function AppShell({
 
         <div className="flex min-w-0 flex-1 flex-col">
           {/* Phone and tablet top bar */}
-          <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-line bg-paper px-4 lg:hidden">
+          <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-line bg-paper px-4 lg:hidden print:hidden">
             <Link href={nav.homeHref} aria-label="TalentYak home" className="flex min-h-11 items-center gap-2.5 rounded-md">
               <Logo decorative className="text-xl" />
               <span className="text-sm font-semibold text-ink-muted">{nav.areaLabel}</span>
@@ -141,7 +141,7 @@ export function AppShell({
           {/* Phone and tablet tab bar */}
           <nav
             aria-label={`${nav.areaLabel} navigation`}
-            className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden"
+            className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden print:hidden"
           >
             <ul className="mx-auto grid max-w-xl grid-cols-5">
               {phoneItems.map((item) => (
