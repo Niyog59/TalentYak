@@ -566,6 +566,12 @@ Proven in the database suite rather than the browser: a published version cannot
 - Stripe test events were processed by the deployed webhook first (the relay saw them as duplicates); the database activation is identical either way.
 - **Cost: none.** No new services, no plan change.
 
+### Deployed — `34c5ada`, www.talentyak.com
+
+Vercel production deployment for `34c5ada`: **success** (2026-09-27 03:49 UTC). Smoke check, signed out: the test coach's public page shows the current welcome document (coach v3, TalentYak v2) with no client details and only the three policy links; the coach, admin, client-copy and checkout pages exist and send a signed-out visitor to sign in.
+
+**Not checked on the deployed site:** a signed-in checkout reaching Stripe. Putting a test account's saved session into the browser for the live domain was refused by this machine's permission settings, so this path was verified only locally (same code, same database). Between the database change and this deployment, checkout on the deployed test site was refused; it is expected to work now, but that is unconfirmed until someone signs in and tries it.
+
 ### Blockers
 
 None for this batch. Founder input needed before launch only: approved wording for TalentYak's section.
