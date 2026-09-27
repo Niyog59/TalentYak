@@ -189,7 +189,7 @@ Status of record: `docs/implementation/M03-M07-STATUS.md`.
 
 - [x] Coach calendar and availability, client sessions, chat proposal cards, weekly series across clock changes, eligibility reconciliation, fixed-call allowances, one-off slot holds with late-payment recovery, admin exceptions, M08 notices (decision register §Q).
 - [ ] **Founder: approve or change the scheduling timings** (`scheduling.v1`, TY-SCHED-05). They stay development defaults until then.
-- [ ] **Apply migrations and deploy together.** Between applying `0042` and deploying, the old deployed worker marked new notice types `failed: no handler` (test accounts only; re-queued). A release step, not code.
+- [x] ~~Deployed worker lacked the new notice handlers~~ — closed by deploying `ab3f2ac`; verified live. Keep applying migrations and deploying together.
 - [ ] **A real Stripe late payment for a lapsed one-off hold was simulated at database level**, not produced through Stripe (it needs a payment completed more than 35 minutes after checkout started). Unblocked by a test clock or a deliberately slow manual run.
 - [ ] **Tentative sessions confirm on the five-minute sweep**, not the instant a renewal is paid. Acceptable; unblocked by calling `reconcile_appointments()` from the payment path if it matters.
 - [ ] **Joining a session** (video/audio) is Batch 5; the session page says so and has no join button.

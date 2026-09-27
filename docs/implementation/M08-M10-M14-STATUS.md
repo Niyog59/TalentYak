@@ -631,6 +631,10 @@ Proven in the database suite rather than the browser: simultaneous acceptances (
 
 Between applying `0042` and deploying this code, the deployed worker (previous code) processed scheduling jobs: it sent old-style links for session notices and marked new notice types `failed: no handler`. Only test accounts were affected; their jobs were re-queued and delivered by the new handler. **Apply scheduling migrations and deploy together next time.**
 
+### Deployed — `ab3f2ac`, www.talentyak.com
+
+Vercel production deployment: **success**. Signed out, the calendar, sessions, session detail and admin scheduling pages exist and redirect to sign-in. On the live system: a test coach suggested a time through the API, and the **deployed** worker, on its normal five-minute schedule, delivered the notice with the new handler ("Anjali (test coach) suggested a session time", link to the client's sessions; email withheld for a reserved test address) — the "no handler" gap is closed. A signed-in browser pass on the live domain was not repeated (blocked by local permission settings last batch); the same code was verified in the browser locally against the same database.
+
 ### Cost
 
 None. No new services or plan changes; the existing five-minute worker runs the reconciliation.
