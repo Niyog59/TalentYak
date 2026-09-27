@@ -39,6 +39,7 @@ The expensive thing to retrofit is never a feature. It's an invariant.
 - **Security-sensitive work routes to the heavy agent.** Auth, RLS, migrations, Stripe, payouts, webhooks — anything touching invariants 2–8.
 - **Stop before commit.** No pushing without explicit approval.
 - **Emit Founder Checkpoints.** After each meaningful unit of work, emit the three-line checkpoint below. Automatically, without being asked.
+- **Report to the founder in plain language.** What happened, how it affects users, what you recommend, and whether the founder must act — no jargon, file names or test counts unless necessary; technical detail goes in the development notes. Simplify the explanation, never the scope or the engineering. Founder-approved: `docs/aafnai/DECISION_REGISTER.md` §O.
 - **Follow the interruption & failure protocol.** STOP conditions, hang handling, and what to report are non-negotiable.
 
 ---
