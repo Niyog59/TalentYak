@@ -97,3 +97,26 @@ export function describeWorkingHours(hours: readonly WorkingHours[]): string | n
   }
   return parts.join("; ");
 }
+
+/**
+ * How long to wait for a realtime prompt that ought to arrive — the echo of
+ * the reader's own message, or the prompt for a message the periodic check
+ * found — before deciding live updates have silently stopped.
+ *
+ * A socket can stay "subscribed" while delivering nothing (seen 2026-09-25):
+ * the connection reports no error, so only a missing prompt reveals it.
+ */
+export const PROMPT_EXPECTED_WITHIN_MS = 8_000;
+
+/**
+ * True when a prompt was expected at `expectedSince` and none has arrived
+ * since, on a channel that claims to be subscribed. The screen then stops
+ * saying "Up to date" and checks more often, until a prompt arrives again.
+ */
+export function liveUpdatesLookSilent(args: {
+  subscribed: boolean;
+  lastPromptAt: number;
+  expectedSince: number;
+}): boolean {
+  return args.subscribed && args.lastPromptAt < args.expectedSince;
+}

@@ -1,7 +1,7 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 
-import { advanceWatermark, dayKey, dayLabel, describeWorkingHours, groupByDay, mergeMessages } from "@/lib/messaging/display";
+import { advanceWatermark, dayKey, dayLabel, describeWorkingHours, groupByDay, liveUpdatesLookSilent, mergeMessages } from "@/lib/messaging/display";
 import type { Message } from "@/lib/messaging/types";
 
 const msg = (seq: number, created_at: string): Message => ({
@@ -54,5 +54,14 @@ describe("conversation display", () => {
     assert.equal(describeWorkingHours([...weekdays, { day: 6, start: "10:00", end: "12:00" }]), "Mon–Fri 09:00–17:00; Sat 10:00–12:00");
     assert.equal(describeWorkingHours([]), null);
     assert.equal(describeWorkingHours([{ day: 9, start: "x", end: "y" }]), null);
+  });
+
+  test("a subscribed channel that never echoes an expected prompt is treated as silent", () => {
+    // Sent at t=1000; no prompt since — silent.
+    assert.equal(liveUpdatesLookSilent({ subscribed: true, lastPromptAt: 500, expectedSince: 1000 }), true);
+    // A prompt arrived after the send — healthy.
+    assert.equal(liveUpdatesLookSilent({ subscribed: true, lastPromptAt: 1200, expectedSince: 1000 }), false);
+    // Not subscribed at all: already shown as paused by the connection state, not by this rule.
+    assert.equal(liveUpdatesLookSilent({ subscribed: false, lastPromptAt: 0, expectedSince: 1000 }), false);
   });
 });

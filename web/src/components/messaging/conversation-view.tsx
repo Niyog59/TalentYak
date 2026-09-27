@@ -5,7 +5,15 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { Button } from "@/components/button";
 import { MediaUploader } from "@/components/media/uploader";
 import { createClient } from "@/lib/supabase/client";
-import { advanceWatermark, describeWorkingHours, groupByDay, mergeMessages, timeLabel } from "@/lib/messaging/display";
+import {
+  PROMPT_EXPECTED_WITHIN_MS,
+  advanceWatermark,
+  describeWorkingHours,
+  groupByDay,
+  liveUpdatesLookSilent,
+  mergeMessages,
+  timeLabel,
+} from "@/lib/messaging/display";
 import {
   attachmentStateAction,
   conversationStatusAction,
@@ -110,6 +118,10 @@ export function ConversationView({
   const scroller = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLDivElement>(null);
   const lastSeq = useRef(initialMessages.at(-1)?.seq ?? 0);
+  // Whether the realtime channel says it is subscribed, and when it last
+  // actually delivered a prompt. The two can disagree: see liveUpdatesLookSilent.
+  const subscribed = useRef(false);
+  const lastPromptAt = useRef(0);
   const watermark = useRef(initialStatus.my_last_read_seq);
   const seen = useRef(new Set<number>());
   const onScreen = useRef(new Set<number>());
@@ -140,15 +152,16 @@ export function ConversationView({
     }
   }, [conversationId]);
 
-  const catchUp = useCallback(async () => {
+  /** Fetches what arrived since the last message shown. Returns how many were from the other person. */
+  const catchUp = useCallback(async (): Promise<number> => {
     const result = await loadMessagesAction(conversationId, { afterSeq: lastSeq.current }).catch(() => null);
-    if (!result) return;
+    if (!result) return 0;
     if (!result.ok) {
       setRevoked(result.message);
-      return;
+      return 0;
     }
     setLoadError(null);
-    if (!result.data.messages.length) return;
+    if (!result.data.messages.length) return 0;
     lastSeq.current = Math.max(lastSeq.current, ...result.data.messages.map((m) => m.seq));
     setMessages((current) => mergeMessages(current, result.data.messages));
     // A confirmed message replaces its unsent copy.
@@ -162,7 +175,20 @@ export function ConversationView({
     const nearBottom = el ? el.scrollHeight - el.scrollTop - el.clientHeight < 120 : true;
     if (nearBottom) stickToBottom.current = true;
     else setNewBelow(true);
-  }, [conversationId, pendingKey]);
+    return result.data.messages.filter((m) => m.sender_profile_id !== viewerId).length;
+  }, [conversationId, pendingKey, viewerId]);
+
+  // A prompt that ought to arrive, and the moment from which it counts. If none
+  // has come within PROMPT_EXPECTED_WITHIN_MS, live updates have silently
+  // stopped: stop saying "Up to date" and check every 20 seconds instead,
+  // until a prompt arrives again.
+  const expectPrompt = useCallback((expectedSince: number) => {
+    setTimeout(() => {
+      if (liveUpdatesLookSilent({ subscribed: subscribed.current, lastPromptAt: lastPromptAt.current, expectedSince })) {
+        setLive("offline");
+      }
+    }, PROMPT_EXPECTED_WITHIN_MS);
+  }, []);
 
   // Realtime prompts, with catch-up on every (re)connection.
   //
@@ -195,6 +221,9 @@ export function ConversationView({
           "postgres_changes",
           { event: "INSERT", schema: "public", table: "conversation_signals", filter: `conversation_id=eq.${conversationId}` },
           (payload) => {
+            lastPromptAt.current = Date.now();
+            // A prompt is proof live updates work, whatever was concluded before.
+            setLive("live");
             const kind = (payload.new as { kind?: string }).kind;
             if (kind === "message") void catchUp();
             void refreshStatus();
@@ -202,10 +231,12 @@ export function ConversationView({
         )
         .subscribe((state) => {
           if (state === "SUBSCRIBED") {
+            subscribed.current = true;
             setLive("live");
             void catchUp();
             void refreshStatus();
           } else if (state === "CHANNEL_ERROR" || state === "TIMED_OUT" || state === "CLOSED") {
+            subscribed.current = false;
             setLive("offline");
           }
         });
@@ -213,6 +244,7 @@ export function ConversationView({
 
     return () => {
       cancelled = true;
+      subscribed.current = false;
       auth.subscription.unsubscribe();
       if (channel) void sb.removeChannel(channel);
     };
@@ -235,7 +267,20 @@ export function ConversationView({
     window.addEventListener("online", onReturn);
     window.addEventListener("offline", onOffline);
     window.addEventListener("focus", onReturn);
-    const poll = setInterval(onReturn, live === "live" ? 60_000 : 20_000);
+    // The periodic check doubles as a watchdog: if it finds a message from the
+    // other person while the screen believes it is live, the prompt for that
+    // message should arrive within moments. If it does not, live updates have
+    // gone quiet without the connection saying so.
+    const onPoll = async () => {
+      if (!navigator.onLine || document.visibilityState !== "visible") return;
+      const startedAt = Date.now();
+      const found = await catchUp();
+      void refreshStatus();
+      // A prompt in the two seconds before this check still counts: it is
+      // most likely the prompt for what this check just found.
+      if (found > 0 && live === "live") expectPrompt(startedAt - 2_000);
+    };
+    const poll = setInterval(() => void onPoll(), live === "live" ? 60_000 : 20_000);
     return () => {
       document.removeEventListener("visibilitychange", onReturn);
       window.removeEventListener("online", onReturn);
@@ -243,7 +288,7 @@ export function ConversationView({
       window.removeEventListener("focus", onReturn);
       clearInterval(poll);
     };
-  }, [live, catchUp, refreshStatus]);
+  }, [live, catchUp, refreshStatus, expectPrompt]);
 
   // Fill the space left below the site's own header, in the VISIBLE viewport —
   // which shrinks when a phone keyboard opens, keeping the composer above it.
@@ -369,9 +414,14 @@ export function ConversationView({
         return next;
       });
       let failure: { message: string; retryable: boolean } | null = null;
+      const sendStartedAt = Date.now();
       try {
         const result = await sendMessageAction(conversationId, item.clientId, item.body, item.mediaId);
         if (!result.ok) failure = { message: result.message, retryable: result.code === "rate_limited" };
+        // Sending emits a prompt to every participant — the sender included.
+        // Its echo is the cheapest proof that live updates still work. A retry
+        // that returned an earlier message emitted nothing new, so expect nothing.
+        else if (!result.data.duplicate) expectPrompt(sendStartedAt);
       } catch {
         failure = { message: "Not sent — the connection dropped. Try again.", retryable: true };
       }
@@ -389,7 +439,7 @@ export function ConversationView({
       stickToBottom.current = true;
       await catchUp();
     },
-    [conversationId, pendingKey, catchUp],
+    [conversationId, pendingKey, catchUp, expectPrompt],
   );
 
   // Unsent messages from an earlier visit, and after coming back online.
