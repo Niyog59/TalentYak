@@ -542,5 +542,5 @@ The existing working rules for agents are **kept**, and are now written to this 
 - **The end-of-work explanation** keeps its purpose. Where it asked for "where each piece lives — file by file", that list moves to the development notes unless the founder asks (TY-REPORT-03, -05). An analogy or a plain description of what each part does replaces the file list.
 - **The CTO briefing** already follows this standard and is unchanged.
 
-The project instructions file that every agent reads first is founder-owned and was **not edited** by this pass. Until it carries a pointer here, this entry governs wherever the two differ on how a report is written.
+The project instructions file that every agent reads first is founder-owned. With the founder's go-ahead (2026-09-25) it now carries a one-line pointer to this section under its standing rules; where the two differ on how a report is written, this entry governs.
 
