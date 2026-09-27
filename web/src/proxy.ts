@@ -18,7 +18,25 @@ import { NextResponse, type NextRequest } from "next/server";
  * it matters, permissive only for styling.
  */
 
-function buildCsp(nonce: string): string {
+/**
+ * The session pages, where the private call runs (kept in step with
+ * CALL_PAGES in next.config.ts). Only these may reach the call provider:
+ * Daily's API and signalling hosts, its media relays, and the web workers its
+ * library starts from blob: URLs. Everywhere else stays as strict as before.
+ */
+const CALL_PAGE = /^\/(account\/appointments|coach\/calendar\/appointments)\/[0-9a-f-]{36}\/?$/i;
+const DAILY_CONNECT = [
+  "https://*.daily.co",
+  "wss://*.daily.co",
+  "https://*.dailywebrtc.com",
+  "wss://*.dailywebrtc.com",
+  "https://*.dailywebrtc.net",
+  "wss://*.dailywebrtc.net",
+  "https://*.pluot.blue",
+  "wss://*.pluot.blue",
+];
+
+function buildCsp(nonce: string, callPage = false): string {
   const isDev = process.env.NODE_ENV === "development";
 
   // The browser Supabase client talks directly to the project over HTTPS and
@@ -51,7 +69,8 @@ function buildCsp(nonce: string): string {
     // execute anything under the app's own origin.
     `media-src 'self' blob: ${supabaseOrigin[0] ?? ""}`.trim(),
     "font-src 'self' data:",
-    `connect-src 'self' ${supabaseOrigin.join(" ")}`.trim(),
+    `connect-src 'self' ${supabaseOrigin.join(" ")}${callPage ? ` ${DAILY_CONNECT.join(" ")}` : ""}`.trim(),
+    ...(callPage ? ["worker-src 'self' blob:"] : []),
     // Stripe Checkout is a full redirect, not an embedded frame, so nothing
     // needs to be framed by us.
     "frame-src 'none'",
@@ -65,7 +84,7 @@ function buildCsp(nonce: string): string {
 
 export async function proxy(request: NextRequest) {
   const nonce = crypto.randomUUID().replaceAll("-", "");
-  const csp = buildCsp(nonce);
+  const csp = buildCsp(nonce, CALL_PAGE.test(request.nextUrl.pathname));
 
   // Next reads the nonce back out of the request's CSP header and applies it to
   // the scripts it renders, so both the request and the response carry it.

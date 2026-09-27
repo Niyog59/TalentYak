@@ -446,3 +446,85 @@ describe("a recipient who no longer exists", () => {
     assert.match(String((outcome as { result: Record<string, unknown> }).result.detail), /no longer exists/);
   });
 });
+
+describe("call room jobs (stand-in provider)", () => {
+  const ROOM_ID = "22222222-2222-4222-8222-222222222222";
+  const room = {
+    id: ROOM_ID, room_name: `ty-${"b".repeat(32)}`, state: "closing", opens_at: "2026-10-01T11:50:00Z",
+    provider_created_at: "2026-10-01T11:51:00Z", close_reason: "session_cancelled", appointment_id: "33333333-3333-4333-8333-333333333333",
+  };
+
+  function callContext(opts: { room?: Record<string, unknown> | null; ejectFails?: boolean } = {}) {
+    const rpcs: { fn: string; args: Record<string, unknown> }[] = [];
+    const provider: string[] = [];
+    const rows: Record<string, unknown> = {
+      call_rooms: opts.room === undefined ? room : opts.room,
+      appointments: { customer_id: "c1", providers: { profile_id: "p1" } },
+      call_settings: { attendance_check_delay_minutes: 3 },
+    };
+    const chain = (table: string) => {
+      const q = { select: () => q, eq: () => q, order: () => q, limit: () => q, maybeSingle: async () => ({ data: rows[table] ?? null, error: null }) };
+      return q;
+    };
+    const admin = {
+      from: chain,
+      rpc: async (fn: string, args: Record<string, unknown>) => {
+        rpcs.push({ fn, args });
+        return { data: true, error: null };
+      },
+    } as unknown as SupabaseClient;
+    const daily = {
+      createRoom: async () => ({ ok: true as const, value: { name: "", url: "" } }),
+      createToken: async () => ({ ok: true as const, value: "" }),
+      eject: async (_r: string, ids: string[]) => {
+        provider.push(`eject:${ids.join(",")}`);
+        return opts.ejectFails
+          ? { ok: false as const, status: 503, error: "503 unavailable", retryable: true }
+          : { ok: true as const, value: { ejected: 1 } };
+      },
+      deleteRoom: async () => {
+        provider.push("delete");
+        return { ok: true as const, value: { deleted: true } };
+      },
+      listMeetings: async () => {
+        provider.push("meetings");
+        return { ok: true as const, value: [] };
+      },
+    };
+    const ctx: HandlerContext = { admin, transport: accepted, enqueue: async () => undefined, daily };
+    return { ctx, rpcs, provider };
+  }
+
+  const closeJob = (payload: Record<string, unknown>): OutboxJob => ({ ...job(payload), topic: "call.close_room" });
+
+  test("closing ejects both people, then deletes the room, then records it closed and queues the attendance fetch", async () => {
+    const { ctx, rpcs, provider } = callContext();
+    const outcome = await HANDLERS["call.close_room"](closeJob({ room_id: ROOM_ID, reason: "session_cancelled" }), ctx);
+    assert.equal(outcome.kind, "done");
+    assert.deepEqual(provider, ["eject:c1,p1", "meetings", "delete"]);
+    assert.deepEqual(rpcs.map((r) => r.fn), ["mark_call_room_closed", "enqueue_outbox"]);
+    assert.equal(rpcs[1].args.p_topic, "call.fetch_attendance");
+  });
+
+  test("a provider outage retries, and the room is NOT recorded as closed", async () => {
+    const { ctx, rpcs, provider } = callContext({ ejectFails: true });
+    const outcome = await HANDLERS["call.close_room"](closeJob({ room_id: ROOM_ID }), ctx);
+    assert.equal(outcome.kind, "retry");
+    assert.deepEqual(provider, ["eject:c1,p1"], "nothing deleted before the eject succeeded");
+    assert.equal(rpcs.length, 0);
+  });
+
+  test("an already closed room is left alone", async () => {
+    const { ctx, provider } = callContext({ room: { ...room, state: "closed" } });
+    const outcome = await HANDLERS["call.close_room"](closeJob({ room_id: ROOM_ID }), ctx);
+    assert.equal(outcome.kind, "done");
+    assert.deepEqual(provider, []);
+  });
+
+  test("a room that was never created at the provider has no attendance to fetch", async () => {
+    const { ctx, provider } = callContext({ room: { ...room, provider_created_at: null } });
+    const outcome = await HANDLERS["call.fetch_attendance"]({ ...job({ room_id: ROOM_ID }), topic: "call.fetch_attendance" }, ctx);
+    assert.equal(outcome.kind, "done");
+    assert.deepEqual(provider, []);
+  });
+});

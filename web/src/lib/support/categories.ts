@@ -14,6 +14,16 @@ export const CASE_STATE_LABEL: Record<string, string> = {
   resolved: "Resolved",
 };
 
-export function categoryLabel(value: string): string {
+/**
+ * Opened from a session page, not from the general support form: a problem
+ * with a call, or a client questioning a recorded outcome.
+ */
+export const SESSION_TOPIC_LABEL: Record<string, string> = {
+  call_problem: "A problem with a call",
+  outcome_incorrect: "A recorded session outcome is questioned",
+};
+
+export function categoryLabel(value: string, sessionTopic?: string | null): string {
+  if (value === "session") return (sessionTopic && SESSION_TOPIC_LABEL[sessionTopic]) || "A session or call";
   return SUPPORT_CATEGORIES.find((c) => c.value === value)?.label ?? value;
 }

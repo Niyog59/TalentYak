@@ -23,6 +23,8 @@ export interface SweepSummary {
   retentionCancelled: number;
   /** Counts from reconcile_appointments(): proposals expired, holds released, meetings held, confirmed, occurrences created. */
   appointments: Record<string, number>;
+  /** Session call rooms whose window ended, queued to be emptied and deleted. */
+  callRoomsClosed: number;
   errors: string[];
 }
 
@@ -39,6 +41,7 @@ export async function runSweeps(): Promise<SweepSummary> {
     mediaRequeued: 0,
     retentionCancelled: 0,
     appointments: {},
+    callRoomsClosed: 0,
     errors: [],
   };
   const admin = createAdminClient();
@@ -142,6 +145,13 @@ export async function runSweeps(): Promise<SweepSummary> {
   const scheduling = await admin.rpc("reconcile_appointments");
   if (scheduling.error) summary.errors.push(`appointments: ${scheduling.error.message}`);
   else summary.appointments = (scheduling.data ?? {}) as Record<string, number>;
+
+  // Calls: rooms whose window is over are closed at the provider, so a
+  // session's room can never outlive it. Rooms of sessions that were cancelled
+  // or put on hold above were already queued by the database.
+  const rooms = await admin.rpc("close_due_call_rooms");
+  if (rooms.error) summary.errors.push(`call rooms: ${rooms.error.message}`);
+  else summary.callRoomsClosed = Number(rooms.data) || 0;
 
   return summary;
 }

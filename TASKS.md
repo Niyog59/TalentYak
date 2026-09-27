@@ -192,5 +192,15 @@ Status of record: `docs/implementation/M03-M07-STATUS.md`.
 - [x] ~~Deployed worker lacked the new notice handlers~~ — closed by deploying `ab3f2ac`; verified live. Keep applying migrations and deploying together.
 - [ ] **A real Stripe late payment for a lapsed one-off hold was simulated at database level**, not produced through Stripe (it needs a payment completed more than 35 minutes after checkout started). Unblocked by a test clock or a deliberately slow manual run.
 - [ ] **Tentative sessions confirm on the five-minute sweep**, not the instant a renewal is paid. Acceptable; unblocked by calling `reconcile_appointments()` from the payment path if it matters.
-- [ ] **Joining a session** (video/audio) is Batch 5; the session page says so and has no join button.
+- [x] ~~**Joining a session** (video/audio) is Batch 5~~ — built in Batch 5.
 
+
+## Batch 5 — M10 private calls (2026-09-27)
+
+- [x] Private per-session rooms at Daily, server-issued short-lived passes, call screen with device check, audio-only, waiting/reconnecting/leave/rejoin, room window with warnings, closing on every loss of access, attendance fetch, outcome corrections, client reports via support cases, notices.
+- [ ] **Founder: add a payment method to the Daily account** (dashboard.daily.co → Billing). Daily refuses every meeting until then (`account-missing-payment-method`), so no two-person call has run yet. Then: run the live call checks listed in the checklist's Batch 5 section.
+- [ ] **Founder: approve or change the call timings** (`calls.v1`, TY-CALL-04). Development defaults until then.
+- [ ] **Daily has no spending cap** (TY-CALL-10). Consider a billing alert in the Daily dashboard once a card is on file; the app's own limits are two people per room, rooms only for their window, and pass limits.
+- [ ] **Daily webhooks** need a paid Daily plan. The receiver is built and refuses everything until `DAILY_WEBHOOK_SECRET` is set; attendance comes from the after-call fetch meanwhile.
+- [ ] **Physical phones not tested**: iOS Safari / Android Chrome camera switching, backgrounding, Bluetooth headsets. Needs real devices once calls can run.
+- [ ] **Test hygiene (found in Batch 5):** `web/test/db/scheduling.db.test.ts` cleans up by deleting EVERY `email.appointment%` outbox row created in the last three hours, not only its own. In the shared test project that removed another journey's pending reminders. Scope the delete to the suite's own appointment ids.

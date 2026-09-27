@@ -274,7 +274,38 @@ export interface SchedulingPolicy extends PolicyMeta {
   readonly outcomesHaveConsequences: false;
 }
 
+/**
+ * Private calls (M10). Mirrored into the `call_settings` table (0044), which
+ * is what the database uses; a database test asserts the two agree. Every
+ * value is a development default until the founder approves it. None of them
+ * is a business rule about lateness or attendance: they only bound how long a
+ * session's private room exists, so a paid session is never cut off at the
+ * booked minute and a room can never become an open-ended free meeting room.
+ */
+export interface CallsPolicy extends PolicyMeta {
+  readonly kind: "calls";
+  /** The room opens this long before the start. */
+  readonly joinOpensMinutesBefore: number;
+  /** And stays open this long after the booked end. */
+  readonly graceAfterEndMinutes: number;
+  /** Shown in the call, counting down to the room closing. */
+  readonly closingWarningMinutes: readonly number[];
+  /** How long a join pass may be used for; it only has to last until the person is in. */
+  readonly joinPassSeconds: number;
+  /** Join passes per person per session per ten minutes (refreshes, rejoins). */
+  readonly joinRequestsPer10Minutes: number;
+  /** How long after a room closes the provider's attendance record is fetched. */
+  readonly attendanceCheckDelayMinutes: number;
+  /** Two people: the client and their coach. Not configurable. */
+  readonly maxParticipants: 2;
+  /** Joining, attendance and outcomes never move money or mark service delivered. */
+  readonly attendanceHasConsequences: false;
+  /** A dropped connection is never classified as a no-show. */
+  readonly automaticNoShow: false;
+}
+
 export type Policy =
+  | CallsPolicy
   | SchedulingPolicy
   | MessagingPolicy
   | CommissionPolicy

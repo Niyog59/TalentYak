@@ -7,6 +7,8 @@ import { SelectField, SubmitButton, TextArea } from "@/components/form/fields";
 import { Facts, PageHeader, Panel } from "@/components/ui/panel";
 import { CASE_STATE_LABEL, categoryLabel } from "@/lib/support/categories";
 import { grantMessageAccessAction, revokeMessageAccessAction, updateSupportCaseAction } from "@/lib/support/actions";
+import { recordOutcomeAction } from "@/lib/scheduling/actions";
+import { APPOINTMENT_STATE_LABEL, OUTCOME_LABEL, type AppointmentState } from "@/lib/scheduling/types";
 
 export const metadata = { title: "Support case" };
 export const dynamic = "force-dynamic";
@@ -40,6 +42,21 @@ export default async function SupportCasePage({ params }: { params: Promise<{ id
     supabase.from("support_message_access").select("id, granted_to, reason, granted_at, expires_at, revoked_at").eq("case_id", id).order("granted_at", { ascending: false }),
     supabase.from("support_access_log").select("id, admin_profile_id, action, detail, created_at").eq("case_id", id).order("created_at", { ascending: false }).limit(50),
   ]);
+  // A report opened from a session page: the session, what was recorded, and
+  // who the call service saw connect — the context needed to settle a call
+  // problem or a questioned outcome. Nothing here moves money.
+  const { data: link } = await supabase.from("support_cases").select("appointment_id, session_topic").eq("id", id).maybeSingle();
+  const appointmentId = (link?.appointment_id as string | null) ?? null;
+  const [{ data: appt }, { data: outcomes }, { data: attendance }, { data: rooms }] = appointmentId
+    ? await Promise.all([
+        supabase.from("appointments").select("id, kind, state, state_reason, starts_at, ends_at, purpose").eq("id", appointmentId).maybeSingle(),
+        supabase.from("appointment_outcomes").select("id, outcome, note, recorded_role, recorded_at, corrects").eq("appointment_id", appointmentId)
+          .order("recorded_at", { ascending: false }).order("id", { ascending: false }),
+        supabase.from("call_attendance").select("role, joined_at, duration_seconds, source").eq("appointment_id", appointmentId).order("joined_at"),
+        supabase.from("call_rooms").select("state, opens_at, closes_at, close_reason, provider_created_at, closed_at").eq("appointment_id", appointmentId).order("created_at"),
+      ])
+    : [{ data: null }, { data: null }, { data: null }, { data: null }];
+
   const myGrant = (grants ?? []).find((g) => g.granted_to === session.userId && !g.revoked_at && new Date(g.expires_at) > new Date());
 
   // Reading is itself recorded by the database, every time this page loads.
@@ -53,7 +70,7 @@ export default async function SupportCasePage({ params }: { params: Promise<{ id
 
   return (
     <div>
-      <PageHeader title={categoryLabel(c.category)}>
+      <PageHeader title={categoryLabel(c.category, link?.session_topic as string | null)}>
         <Link href="/admin/support" className="text-brand underline underline-offset-4">All cases</Link>
       </PageHeader>
 
@@ -64,12 +81,72 @@ export default async function SupportCasePage({ params }: { params: Promise<{ id
               ["State", CASE_STATE_LABEL[c.state] ?? c.state],
               ["Opened", when(c.created_at)],
               ["From", `${c.reporter_name} (${c.reporter_role === "coach" ? "coach" : "client"})`],
-              ["Conversation with", c.other_name ?? "Not about a conversation"],
+              ["Conversation with", c.other_name ?? (appointmentId ? "Not about a conversation — about a session, below" : "Not about a conversation")],
               ...(c.resolved_at ? [["Resolved", when(c.resolved_at)] as [string, string]] : []),
             ]}
           />
           <p className="mt-4 whitespace-pre-wrap break-words rounded-lg bg-paper-raised px-3 py-2">{c.description}</p>
         </Panel>
+
+        {appt ? (
+          <Panel title="Session" id="session">
+            <Facts
+              items={[
+                ["When", `${when(appt.starts_at)} – ${when(appt.ends_at)}`],
+                ["State", APPOINTMENT_STATE_LABEL[appt.state as AppointmentState] ?? appt.state],
+                ["Kind", appt.kind === "consultation" ? "One-off session" : "Coaching session"],
+                ...(appt.purpose ? [["Purpose", appt.purpose] as [string, string]] : []),
+              ]}
+            />
+            <h3 className="mt-4 font-semibold">Call</h3>
+            {(rooms ?? []).length === 0 ? (
+              <p className="text-sm text-ink-muted">No call room was ever opened for this session.</p>
+            ) : (
+              <ul className="mt-1 space-y-1 text-sm">
+                {(rooms ?? []).map((r, i) => (
+                  <li key={i}>
+                    Room {r.provider_created_at ? `open ${when(r.opens_at)} – ${when(r.closes_at)}` : "reserved but never created at the call service"}
+                    {r.closed_at ? `; closed ${when(r.closed_at)}${r.close_reason ? ` (${String(r.close_reason).replaceAll("_", " ")})` : ""}` : `; ${r.state}`}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <h3 className="mt-4 font-semibold">Who connected (from the call service)</h3>
+            {(attendance ?? []).length === 0 ? (
+              <p className="text-sm text-ink-muted">Nobody, or not recorded yet. The call service&rsquo;s record is fetched a few minutes after the room closes.</p>
+            ) : (
+              <ul className="mt-1 space-y-1 text-sm">
+                {(attendance ?? []).map((x, i) => (
+                  <li key={i}>{x.role === "coach" ? "Coach" : "Client"} — joined {when(x.joined_at)}, {Math.round(x.duration_seconds / 60)} min</li>
+                ))}
+              </ul>
+            )}
+            <p className="mt-1 text-sm text-ink-muted">Connection is not proof that coaching was delivered, and a dropped connection is not a no-show.</p>
+            <h3 className="mt-4 font-semibold">Recorded outcome</h3>
+            {(outcomes ?? []).length === 0 ? (
+              <p className="text-sm text-ink-muted">Nothing recorded.</p>
+            ) : (
+              <ul className="mt-1 space-y-1 text-sm">
+                {(outcomes ?? []).map((o, i) => (
+                  <li key={o.id}>
+                    <span className="font-semibold">{OUTCOME_LABEL[o.outcome] ?? o.outcome}</span>{i === 0 ? " (current)" : " (corrected later)"} — {o.recorded_role === "admin" ? "TalentYak" : "coach"}, {when(o.recorded_at)}{o.note ? `: ${o.note}` : ""}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {appt.state === "booked" ? (
+              <ActionForm action={recordOutcomeAction} className="mt-4 grid gap-3 sm:max-w-md">
+                <input type="hidden" name="appointment_id" value={appt.id} />
+                {(outcomes ?? []).length ? <input type="hidden" name="correcting" value="1" /> : null}
+                <SelectField name="outcome" label={(outcomes ?? []).length ? "Correct the outcome to" : "Record the outcome as"} required
+                  options={Object.entries(OUTCOME_LABEL).map(([value, label]) => ({ value, label }))} />
+                <TextArea name="note" label="Reason (shown on the session to both people)" required rows={2} maxLength={500} />
+                <p className="text-sm text-ink-muted">Adds a record; the earlier one is kept. Both people are told. No charge, refund or payout follows from it — use the finance tools for those.</p>
+                <div><SubmitButton variant="secondary" pendingLabel="Saving…">Save outcome</SubmitButton></div>
+              </ActionForm>
+            ) : null}
+          </Panel>
+        ) : null}
 
         <Panel title="Resolve" id="resolve">
           <ActionForm action={updateSupportCaseAction} className="grid gap-4">

@@ -5,6 +5,7 @@ import { getSession } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { type ActionState, fail, field, succeed } from "@/lib/actions";
 import { rateLimit, tooMany } from "@/lib/rate-limit";
+import { kickWorker } from "@/lib/worker/outbox";
 import { CONFLICT_REASON, OUTCOME_LABEL, scheduleError, whenIn } from "@/lib/scheduling/types";
 
 /*
@@ -21,6 +22,9 @@ const uuid = (form: FormData, name: string) => {
 };
 
 function refresh() {
+  // Notices, reminders and — for a session that stops being confirmed — the
+  // closing of its call room are queued by the database. Run them now.
+  kickWorker();
   revalidatePath("/account/appointments", "layout");
   revalidatePath("/coach/calendar", "layout");
   revalidatePath("/account/messages/[id]", "page");
@@ -138,17 +142,71 @@ export async function cancelAppointmentAction(_: ActionState, form: FormData): P
   return succeed(r.repeated ? "Already cancelled." : r.count && r.count > 1 ? `${r.count} sessions cancelled. They've been told.` : "Cancelled. They've been told.");
 }
 
-/** A record of what happened. Moves no money and changes nothing else. */
+/**
+ * A record of what happened. Moves no money and changes nothing else. A
+ * second record for the same session is a correction: it keeps the first,
+ * points at it, and needs a reason.
+ */
 export async function recordOutcomeAction(_: ActionState, form: FormData): Promise<ActionState> {
   const ctx = await signedIn();
   if (!ctx) return fail("Sign in again to continue.");
   const id = uuid(form, "appointment_id");
   const outcome = field(form, "outcome", 40);
   if (!id || !(outcome in OUTCOME_LABEL)) return fail("Choose what happened.");
+  const note = field(form, "note", 500);
+  const correcting = form.get("correcting") === "1";
+  if (correcting && note.length < 5) {
+    return fail("Say why the earlier record is being corrected.", { fieldErrors: { note: "Required for a correction." } });
+  }
   const { error } = await ctx.supabase.rpc("record_appointment_outcome", {
-    p_appointment: id, p_outcome: outcome, p_note: field(form, "note", 500) || null,
+    p_appointment: id, p_outcome: outcome, p_note: note || null,
   });
   if (error) return fail(scheduleError(error.message));
   refresh();
-  return succeed("Recorded.");
+  revalidatePath("/admin/support/[id]", "page");
+  return succeed(correcting
+    ? "Corrected. The earlier record is kept, and the people on the session are told."
+    : "Recorded. The client is told, and can let TalentYak know if it isn't right.");
+}
+
+/** An optional note of what a session is for. Either person, before it ends. */
+export async function setPurposeAction(_: ActionState, form: FormData): Promise<ActionState> {
+  const ctx = await signedIn();
+  if (!ctx) return fail("Sign in again to continue.");
+  const id = uuid(form, "appointment_id");
+  if (!id) return fail("That session isn't available.");
+  const purpose = field(form, "purpose", 200);
+  if (purpose.length > 140) return fail("Keep it to 140 characters.", { fieldErrors: { purpose: "140 characters at most." }, values: { purpose } });
+  const limit = await rateLimit("schedule_purpose", ctx.session.userId, 30, 600);
+  if (!limit.allowed) return fail(tooMany(limit));
+  const { error } = await ctx.supabase.rpc("set_appointment_purpose", { p_appointment: id, p_purpose: purpose || null });
+  if (error) return fail(scheduleError(error.message));
+  revalidatePath("/account/appointments", "layout");
+  revalidatePath("/coach/calendar", "layout");
+  return succeed(purpose ? "Saved. You'll both see it on the session." : "Removed.");
+}
+
+/**
+ * A report about a session, through the existing support cases: a problem
+ * with the call (either person), or the client saying the recorded outcome is
+ * wrong. It is noted in the session's history; nothing is changed by it.
+ */
+export async function openSessionCaseAction(_: ActionState, form: FormData): Promise<ActionState> {
+  const ctx = await signedIn();
+  if (!ctx) return fail("Sign in again to continue.");
+  const id = uuid(form, "appointment_id");
+  const topic = field(form, "topic", 30);
+  const description = field(form, "description", 2000);
+  if (!id || !["outcome_incorrect", "call_problem"].includes(topic)) return fail("That session isn't available.");
+  if (description.length < 10) {
+    return fail("Tell us a little more.", { fieldErrors: { description: "At least a sentence, please." }, values: { description } });
+  }
+  const { error } = await ctx.supabase.rpc("open_session_case", { p_appointment: id, p_topic: topic, p_description: description });
+  if (error) return fail(scheduleError(error.message, "That didn't send. Please try again."), { values: { description } });
+  refresh();
+  revalidatePath("/account/support");
+  revalidatePath("/coach/support");
+  return succeed(topic === "outcome_incorrect"
+    ? "Sent. TalentYak will look into it and reply in Support. The record isn't changed until then."
+    : "Sent. TalentYak will reply in Support. A technical problem is never counted against you.");
 }

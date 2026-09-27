@@ -12,6 +12,33 @@ import type { NextConfig } from "next";
  * deliberately and the reason recorded — it is not deleted to make something
  * work.
  */
+/**
+ * Hardware and sensitive browser features. Everything is denied everywhere,
+ * except that a session page — where the private call runs — may use the
+ * camera, the microphone and autoplay (to play the other person's audio),
+ * for this site only. Screen capture stays denied: calls
+ * have no screen sharing.
+ */
+function permissionsPolicy(call: boolean): string {
+  const self = (feature: string) => (call ? `${feature}=(self)` : `${feature}=()`);
+  return [
+    "accelerometer=()",
+    self("autoplay"),
+    self("camera"),
+    "display-capture=()",
+    "geolocation=()",
+    "gyroscope=()",
+    "magnetometer=()",
+    self("microphone"),
+    "payment=()",
+    "usb=()",
+    "interest-cohort=()",
+  ].join(", ");
+}
+
+/** The session pages. Kept in step with CALL_PAGES in src/proxy.ts. */
+const CALL_PAGES = ["/account/appointments/:id", "/coach/calendar/appointments/:id"];
+
 const securityHeaders = [
   // Never let a browser guess a response's type. A user-uploaded file served
   // with the wrong type is how an image becomes a script.
@@ -24,25 +51,10 @@ const securityHeaders = [
   // Belt and braces with the CSP's frame-ancestors, for older browsers.
   { key: "X-Frame-Options", value: "DENY" },
 
-  // Deny hardware and sensitive APIs by default. Video and audio calls are a
-  // later module; when they arrive, camera and microphone are widened to
-  // 'self' here, deliberately and in one place.
-  {
-    key: "Permissions-Policy",
-    value: [
-      "accelerometer=()",
-      "autoplay=()",
-      "camera=()",
-      "display-capture=()",
-      "geolocation=()",
-      "gyroscope=()",
-      "magnetometer=()",
-      "microphone=()",
-      "payment=()",
-      "usb=()",
-      "interest-cohort=()",
-    ].join(", "),
-  },
+  // Deny hardware and sensitive APIs by default. Camera, microphone and
+  // autoplay are widened to 'self' on the two session pages only, below —
+  // deliberately and in one place.
+  { key: "Permissions-Policy", value: permissionsPolicy(false) },
 
   // Isolate our browsing context from anything that opens us or that we open.
   { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
@@ -88,7 +100,11 @@ const nextConfig: NextConfig = {
   ),
 
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      // Later entries override earlier ones for the same header name.
+      ...CALL_PAGES.map((source) => ({ source, headers: [{ key: "Permissions-Policy", value: permissionsPolicy(true) }] })),
+    ];
   },
 
   async redirects() {
