@@ -6,6 +6,8 @@ import { getPublicCoach } from "@/lib/offers/public";
 import { coachPhotoUrl } from "@/lib/storage/photos";
 import { PlanInclusions, PriceList } from "@/components/marketing/plan-details";
 import { getSession } from "@/lib/auth";
+import { getLiveExpectations } from "@/lib/expectations/server";
+import { ExpectationsDocument } from "@/components/expectations/document";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +36,9 @@ export default async function CoachProfilePage({
   const photo = coachPhotoUrl(coach.photo_path);
   const years = coach.experience_since ? new Date().getUTCFullYear() - Number(coach.experience_since.slice(0, 4)) : null;
   const displayCurrency = session?.profile.display_currency ?? null;
+  // The public, non-personalised version: no client, no health data, nothing
+  // about anyone who has bought.
+  const expectations = await getLiveExpectations(coach.provider_id);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 md:py-14">
@@ -121,6 +126,36 @@ export default async function CoachProfilePage({
               );
             })}
           </ul>
+        )}
+      </section>
+
+      <section className="mt-12" aria-labelledby="welcome">
+        <h2 id="welcome" className="text-2xl font-semibold">Welcome &amp; expectations</h2>
+        {expectations.coach && expectations.platform ? (
+          <>
+            <p className="mt-2 max-w-3xl text-ink-muted">
+              What you and {coach.display_name} can expect from each other. You&rsquo;ll see it again, with your plan&rsquo;s details, before you pay.
+            </p>
+            <details className="mt-4 max-w-3xl rounded-2xl border border-line">
+              <summary className="flex min-h-11 cursor-pointer items-center px-5 py-3 font-semibold text-brand underline underline-offset-4">
+                Read {coach.display_name}&rsquo;s welcome &amp; expectations
+              </summary>
+              <div className="border-t border-line">
+                <ExpectationsDocument
+                  platform={expectations.platform}
+                  coach={expectations.coach}
+                  coachName={coach.display_name}
+                  coachPhotoUrl={photo}
+                  plan={null}
+                  headingLevel={2}
+                />
+              </div>
+            </details>
+          </>
+        ) : (
+          <p className="mt-2 text-ink-muted">
+            {coach.display_name} hasn&rsquo;t published their welcome and expectations yet. Plans can be bought once they have.
+          </p>
         )}
       </section>
     </div>

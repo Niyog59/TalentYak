@@ -172,3 +172,13 @@ Status of record: `docs/implementation/M03-M07-STATUS.md`.
 - [x] ~~**Add a one-line pointer to §O in the project instructions file.**~~ Added 2026-09-25 with the founder's go-ahead, under the standing rules every agent reads first.
 - [x] ~~**Live new-message alerts no longer reach signed-in people (found 2026-09-25).**~~ Resolved 2026-09-26. The next day alerts arrived in under half a second and could not be made to fail again; the cause could not be confirmed (the platform's own logs were not reachable through the API), and the evidence points to a temporary fault in the hosting provider's live-update service. Two real weaknesses it exposed were fixed: the screen now notices when live alerts go quiet without the connection saying so, stops claiming "Up to date", checks every 20 seconds, and recovers by itself when alerts return (verified in a browser by silently blocking alerts); and the realtime tests now confirm their own message was sent, wait with a deadline instead of a fixed pause, and prove delivery works for an active participant before treating a suspended one's silence as meaningful.
 
+---
+
+## Batch 3 — Coaching Welcome & Expectations (2026-09-27) — complete
+
+- [x] Coach draft, preview, publish; TalentYak section (admin at aal2); shown before purchase; version recorded with the purchase; publish/checkout race refused; personal copy with acknowledgement; revisions with what changed; existing clients labelled; conversation link card; update notices (decision register §P).
+- [ ] **Founder: publish approved wording for TalentYak's section** before launch (`TY-EXP-05`). The test project carries test wording.
+- [ ] **Policy links are hidden when the document is printed.** On paper they could appear as plain text (page names) instead. Small; unblocked any time.
+- [ ] **The public site header shows "Log in" even when signed in** (seen during Batch 3 browser checks; predates this batch). Unblocked by checking how the marketing header reads the session.
+- [ ] **The document's rendering safety is proven in the browser, not in unit tests** — Node's test runner cannot load JSX. A static test guards against raw-HTML rendering in the expectations code. Unblocked by a decision to add a JSX-capable test setup.
+

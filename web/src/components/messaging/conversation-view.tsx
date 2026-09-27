@@ -528,6 +528,9 @@ export function ConversationView({
   const groups = groupByDay(messages, timeZone);
   const firstUnreadSeq = messages.find((m) => m.seq > unreadFrom && m.sender_profile_id !== viewerId)?.seq;
   const closed = Boolean(revoked) || !status.can_send;
+  const expectationsHref = status.role === "customer"
+    ? `/account/expectations/${enrollmentId}`
+    : `/coach/expectations/clients/${enrollmentId}`;
 
   return (
     <div ref={frame} className="flex h-[calc(100dvh-4rem)] flex-col">
@@ -536,6 +539,7 @@ export function ConversationView({
           <div className="min-w-0">
             <Link href={backHref} className="text-sm text-brand underline underline-offset-4">All conversations</Link>
             <h1 className="mt-1 truncate text-2xl font-semibold">{other}</h1>
+            <Link href={expectationsHref} className="text-sm text-brand underline underline-offset-4">Welcome &amp; expectations</Link>
           </div>
           <p className="text-sm text-ink-muted" aria-live="polite">
             {live === "live" ? "Up to date" : live === "connecting" ? "Connecting…" : "Live updates paused — checking every 20 seconds"}
@@ -632,8 +636,8 @@ export function ConversationView({
                       className={`flex ${own ? "justify-end" : "justify-start"}`}
                     >
                       <div className={`max-w-[85%] rounded-2xl px-3.5 py-2 ${own ? "bg-brand-tint" : "border border-line bg-surface"}`}>
-                        <span className="sr-only">{own ? "You" : other}: </span>
-                        <MessageBody message={m} />
+                        <span className="sr-only">{own ? "You" : m.sender_role === "system" ? "TalentYak" : other}: </span>
+                        <MessageBody message={m} expectationsHref={expectationsHref} />
                         <p className="mt-1 text-right text-xs text-ink-muted">
                           <time dateTime={m.created_at}>{timeLabel(m.created_at, timeZone)}</time>
                           {own ? <span> · {m.seq <= status.their_last_read_seq ? "Read" : "Sent"}</span> : null}
@@ -753,8 +757,20 @@ export function ConversationView({
   );
 }
 
-function MessageBody({ message }: { message: Message }) {
+function MessageBody({ message, expectationsHref }: { message: Message; expectationsHref: string }) {
   const a = message.attachment;
+  if (message.kind === "expectations_link" && message.expectations_presentation_id) {
+    // A link to one presented version of the welcome document. The words are
+    // ours (written by the database); the destination checks access again.
+    return (
+      <p>
+        <span className="block font-semibold">{message.body ?? "Coaching Welcome & Expectations"}</span>
+        <Link href={`${expectationsHref}?v=${message.expectations_presentation_id}`} className="mt-1 inline-flex min-h-11 items-center font-semibold text-brand underline underline-offset-4">
+          Open the Coaching Welcome &amp; Expectations
+        </Link>
+      </p>
+    );
+  }
   return (
     <>
       {a ? (

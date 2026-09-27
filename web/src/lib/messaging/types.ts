@@ -7,19 +7,19 @@ export type ConversationRole = "customer" | "coach";
 export type ConversationState = "active" | "paused" | "pending" | "ended" | "reassigned" | "suspended";
 
 /**
- * Message kinds the database accepts today. Structured kinds — an appointment
- * proposal, a link to a confirmed appointment or to agreed expectations — are
- * added by the batches that own those features (3 and 4), together with their
- * renderer. Until then the database refuses them, and this screen shows an
- * unknown kind as a neutral placeholder rather than a button that does nothing.
+ * Message kinds the database accepts today. `expectations_link` (Batch 3) is a
+ * system message pointing at one presented version of the welcome document.
+ * The remaining structured kinds — an appointment proposal, a link to a
+ * confirmed appointment — are added by Batch 4 with their renderer. Until then
+ * the database refuses them, and this screen shows an unknown kind as a neutral
+ * placeholder rather than a button that does nothing.
  */
-export type MessageKind = "text" | "attachment" | "system";
+export type MessageKind = "text" | "attachment" | "system" | "expectations_link";
 
 /** Integrations recorded as pending, not built. */
 export const PENDING_STRUCTURED_KINDS = [
   { kind: "appointment_proposal", owner: "Batch 4 — scheduling" },
   { kind: "appointment_link", owner: "Batch 4 — scheduling" },
-  { kind: "expectations_link", owner: "Batch 3 — expectations" },
 ] as const;
 
 export interface MessageAttachment {
@@ -39,6 +39,8 @@ export interface Message {
   body: string | null;
   client_message_id: string;
   created_at: string;
+  /** Set only on an `expectations_link` message. */
+  expectations_presentation_id: string | null;
   /** Null when there is none, or when the viewer may no longer see it. */
   attachment: MessageAttachment | null;
   has_attachment: boolean;

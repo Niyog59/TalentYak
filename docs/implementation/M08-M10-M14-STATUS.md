@@ -291,8 +291,8 @@ These are wired as reusable hooks now and connected when their owning batch is b
 |---|---|---|
 | Unread-message notifications | Batch 2 (conversations) | **connected in M14** |
 | Appointment proposals / links to confirmed appointments inside a conversation | Batch 4 | message `kind` boundary in `0037`; database refuses structured kinds until built |
-| Links to agreed expectations inside a conversation | Batch 3 | same boundary |
-| Expectations updates | Batch 3 | scheduling + dedupe |
+| Links to agreed expectations inside a conversation | Batch 3 | **connected in Batch 3** (`expectations_link` kind, `0040`); tested through the actual conversation link |
+| Expectations updates | Batch 3 | **connected in Batch 3** — producer in `0040`, handler rechecks before sending |
 | Appointment reminders / expiry | Batch 4 | scheduling + authorisation recheck |
 | Call outcomes | Batch 5 | delivery recheck |
 
@@ -499,7 +499,7 @@ What it exposed, now fixed: (1) the conversation screen trusted the connection's
 
 | Deferred item | Owning batch |
 |---|---|
-| Expectations-updated notifications, and links to agreed expectations inside a conversation | **Batch 3** — expectations |
+| ~~Expectations-updated notifications, and links to agreed expectations inside a conversation~~ | **Batch 3** — done, see below |
 | Session confirmations, changes, cancellations, reminders, expired holds (producers); reminders at a specific hour, which need scheduling finer than daily | **Batch 4** — scheduling |
 | Call-outcome notifications | **Batch 5** — calls |
 | Coach-side screens that view a client's photos and clips; progress and form-review workflows | **M11–M13** — progress and form review |
@@ -513,3 +513,59 @@ Do not start Batch 2 from this file; it has its own prompt.
 ### Cleanup after the deployed checks
 
 All synthetic accounts used above were deleted, with their rows and 21 stored objects across both buckets; the staged test files were removed from the holding bucket. Nothing test-made remains in storage.
+
+---
+
+## Batch 3 — Coaching Welcome & Expectations, built and verified 2026-09-26/27
+
+Scope: the full brief ("Revised 21 September 2026"). No deferrals. Migrations `0040_coaching_expectations.sql` and `0041_expectations_public_read.sql`, applied to the hosted TEST project.
+
+### What exists
+
+- **Coach:** `/coach/expectations` — starter template, draft, preview (`/preview`, sample client, choice of plan), publish with a "meaningful change" flag and a one-line summary, version history. Linked from the coach navigation and from the setup checklist on `/coach` (new and existing coaches).
+- **TalentYak section:** `/admin/expectations` — admin role at aal2 only, enforced again by the database. Links are restricted to a fixed list of internal pages; the database refuses anything else, including `https://` and `//` links. Missing essentials are listed, not invented.
+- **Before purchase:** the coach's public page and the checkout page show the non-personalised document (no client name, status or health data). Checkout names the versions it displayed; `create_checkout_records` refuses with `expectations_changed` if either is no longer live, and with `expectations_missing` if the coach has not published. The provider row lock serialises this against the coach's publish.
+- **At purchase:** the purchase records both versions (frozen with the rest of the snapshot). When the relationship opens, that exact version is presented, and a link card is posted into the conversation.
+- **After purchase:** `/account/expectations/<enrollment>` (client) and `/coach/expectations/clients/<enrollment>` (current coach only) — personalised header, unticked acknowledgement box (server-checked), what changed from the previous version, every version shared, print styling.
+- **Revisions:** a meaningful revision is presented to every current client and queues `email.expectations_updated` (identifiers only; the handler rechecks that it is still theirs and still unread). A minor correction is shared for information, with no email. A TalentYak revision fans out the same way. A coach change presents the incoming coach's version.
+- **Existing clients:** nothing is backfilled. They are presented the version when their coach publishes, labelled "Published after joining — not part of the original purchase".
+
+### Verified
+
+| Check | How | Result |
+|---|---|---|
+| Typecheck, lint, migration structure, unit tests | `npm run verify` | pass — 261 tests |
+| Production build | `npm run build` | pass |
+| Database suites | `npm run test:db` on TEST, real signed-in users | **227/227 pass**, including 25 new expectations tests and the existing workflow suite (its checkout helper now passes the displayed versions) |
+| Not sellable before publishing | browser, signed-in client | no payment form; plain explanation |
+| Draft, preview, publish | browser, coach | pass |
+| Hostile coach text (`<script>`, `<img onerror>`, a URL) | browser, preview and public page | shown as literal text; no script ran, no image, no link; only the three policy links render |
+| Public page, signed out | browser | document shown; no client row, no status |
+| Publish racing checkout | browser: page showed coach v1, coach published v2, client submitted | refused, nothing charged, page reloaded with a notice and v2 open; one purchase in total, recording v2 |
+| Stripe test purchase | Stripe-hosted checkout reached in the browser; completed with `pm_card_visa` (a Stripe test token, no card typed) | purchase active; client given v2 as the purchase copy; one link card in the conversation |
+| Conversation link | browser, client | card and header link both open the personal copy |
+| Acknowledgement | browser: box removed from the page's validation and submitted unticked, then ticked | server refused the unticked submission; ticked one recorded with the server's time; coach sees "Read and understood" |
+| Cross-client | browser, second client opening the first client's address | not found; nothing about the first client in the page source |
+| Meaningful revision | browser, coach (v3) | client sees what changed with the coach's summary, is asked to acknowledge v3; v2 acknowledgement kept in history |
+| Notice | local worker run | in-app notice "<coach> shared an updated welcome & expectations", link only; email withheld (reserved test address) |
+| TalentYak revision | browser, admin at aal2 | v2 published, shared with 5 current test clients; client sees "From TalentYak" and the conduct change |
+| Phone width (375 px) | browser | no horizontal scroll on the client copy, coach editor or checkout; 44 px buttons |
+| Print | styles inspected in the page | site chrome, buttons, acknowledgement box and history hidden on print. **Not printed to paper or PDF** |
+
+Proven in the database suite rather than the browser: a published version cannot be edited or deleted, even with the server key; an acknowledgement cannot be forged, edited or deleted; acknowledging changes no purchase, billing cycle, ledger row or enrollment; an unread document leaves messaging and coaching live; a coach cannot post an expectations link, write a version row directly, or touch TalentYak's section; an admin without a second factor cannot either; a former coach loses access after a coach change.
+
+### Found and fixed during verification
+
+- **Signed-out visitors could not read any coach's expectations** (the whole query failed on a permission for a helper used by a sibling access rule). Fixed in `0041` by granting it to anonymous visitors; it returns false for them.
+- **A TalentYak-only revision repeated the coach's earlier change summary.** Summaries now appear only for the side that changed.
+
+### Test-project state and cost
+
+- TalentYak's section on TEST is **test wording, labelled "Not approved policy"** (versions 1–2). It was needed to sell anything in the test project. **It must be replaced with approved wording before live launch**; the admin page shows the suggested starting text.
+- Synthetic accounts from the browser acceptance run remain on TEST as test data (all `example.test`); the database suites retire their own fixture coaches. No real email was sent.
+- Stripe test events were processed by the deployed webhook first (the relay saw them as duplicates); the database activation is identical either way.
+- **Cost: none.** No new services, no plan change.
+
+### Blockers
+
+None for this batch. Founder input needed before launch only: approved wording for TalentYak's section.

@@ -307,6 +307,66 @@ Vault — never in a file or a commit. The daily Vercel cron remains an
 independent second trigger; every sweep and job is idempotent, so two
 schedulers cannot double-send.
 
+### 3.7d Coaching Welcome & Expectations — `0040`, `0041`
+
+```
+platform_expectation_versions(id, version, conduct, privacy, support,
+                              policy_links[], material, change_summary,
+                              published_at, published_by, superseded_at)
+coach_expectation_versions(id, provider_id, version, provides, meeting_approach,
+                           typical_duration, appointments, messaging_availability,
+                           response_expectation, changes, client_part[], coach_part[],
+                           material, change_summary, published_at, published_by, superseded_at)
+enrollment_expectations(id, enrollment_id, provider_id, coach_version_id,
+                        platform_version_id, purchase_id, offer_version_id,
+                        source, acknowledgement_requested, previous_id, presented_at)
+expectation_acknowledgements(id, presentation_id UNIQUE, actor_profile_id,
+                             coach_version_id, platform_version_id, acknowledged_at)
+purchases.expectations_coach_version_id / expectations_platform_version_id
+messages.kind 'expectations_link' + messages.expectations_presentation_id
+```
+
+A mutual-expectations document in three parts: TalentYak's section (admin at
+aal2 only), the coach's arrangement (the coach's own words, plus the facts of
+the plan from the purchase snapshot, so it always matches what was bought), and
+the client's part with the coach's reciprocal commitments. **It is not a
+contract, and nothing in it touches money or access.**
+
+**Published versions are immutable**, like offer versions: one draft and at
+most one live version at a time (per coach; one platform-wide), a freeze
+trigger on everything but `superseded_at`, and no deletion once published.
+Coaches and admins write only through functions (`save_my_expectations_draft`,
+`publish_my_expectations`, `admin_save_platform_expectations_draft`,
+`admin_publish_platform_expectations`). Policy links must be internal paths
+(`internal_paths_only()`), so an external link cannot be stored.
+
+**What was shown is what is bought.** The checkout page names the two versions
+it displayed; `create_checkout_records()` refuses with `expectations_missing`
+(nothing published) or `expectations_changed` (a publish landed in between).
+Both it and the coach's publish take the provider row lock, so the check and
+the publish serialise. The purchase stores both ids, frozen by
+`freeze_purchase_snapshot()`.
+
+**Presentation is one path.** `present_expectations()` (internal: EXECUTE is
+revoked from every API role; reached only from the security-definer publish
+functions and the assignment trigger) records what a relationship was shown,
+posts an `expectations_link` system message into the open conversation, and —
+except at purchase — queues `email.expectations_updated` with identifiers
+only. Sources: `purchase` (from the snapshot, when the first assignment
+opens), `revision`, `reassignment` (the incoming coach's version) and `legacy`
+(a relationship that predates this — nothing is ever backfilled).
+
+**Acknowledging records a reading and nothing else.** `acknowledge_expectations()`
+is the client's only write: idempotent, server time, append-only (updates and
+deletes refused except by cascade). No access function reads acknowledgements,
+so an unread document never withholds anything. Reading is decided by
+`expectations_readable()` — the client, or the currently assigned coach;
+`0041` grants it to `anon` because a sibling policy calls it and anonymous
+visitors must read the public live versions before purchase.
+
+Authored text is stored and rendered as plain text (React-escaped, invisible
+bidirectional/zero-width characters stripped, no links or embeds).
+
 ### 3.8 How the database defends itself
 
 Three mechanisms, all exercised by the test suite:

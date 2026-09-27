@@ -25,8 +25,15 @@ export async function startCheckoutAction(_: ActionState, form: FormData): Promi
       offerVersionId: versionId,
       currency,
       idempotencyKey: field(form, "idempotency_key", 64),
+      shownCoachExpectations: field(form, "expectations_coach_version_id", 40),
+      shownPlatformExpectations: field(form, "expectations_platform_version_id", 40),
     }));
   } catch (err) {
+    // The document changed between reading and paying: show the new one rather
+    // than letting the purchase record something the customer never saw.
+    if (err instanceof CheckoutError && err.code === "expectations_changed") {
+      redirect(`/checkout/${versionId}?currency=${currency}&changed=1`);
+    }
     return fail(err instanceof CheckoutError ? err.message : "We couldn't start checkout. Nothing was charged. Please try again.");
   }
   // Stripe-hosted checkout. Card details never touch TalentYak (invariant 4).

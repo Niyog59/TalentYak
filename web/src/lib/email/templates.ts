@@ -410,13 +410,14 @@ ${button(`${ctx.siteUrl}${d.path?.startsWith("/") ? d.path : "/account"}`, "Read
 
 export function expectationsUpdatedEmail(
   ctx: TemplateContext,
-  d: { name?: string | null; coachName: string },
+  d: { name?: string | null; coachName: string; path?: string },
 ): RenderedEmail {
   return build(
-    "Your coach has updated your plan",
+    "An updated welcome & expectations from your coach",
     `${greet(d.name)}
-<p>${escapeHtml(d.coachName)} has updated what you've agreed to work on together.</p>
-${button(`${ctx.siteUrl}/account`, "See what changed")}
+<p>${escapeHtml(d.coachName)} has shared an updated Coaching Welcome &amp; Expectations — what you and your coach can expect from each other. Please read it when you have a moment.</p>
+<p>Your price, your plan and your coaching haven't changed, and nothing is paused while you read it.</p>
+${button(`${ctx.siteUrl}${d.path?.startsWith("/") ? d.path : "/account"}`, "Read what changed")}
 <p style="font-size:13px;color:${MUTED}">You can turn these emails off in your email settings.</p>`,
     ctx.supportEmail,
   );
