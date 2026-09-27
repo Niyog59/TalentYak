@@ -181,4 +181,4 @@ Status of record: `docs/implementation/M03-M07-STATUS.md`.
 - [ ] **Policy links are hidden when the document is printed.** On paper they could appear as plain text (page names) instead. Small; unblocked any time.
 - [ ] **The public site header shows "Log in" even when signed in** (seen during Batch 3 browser checks; predates this batch). Unblocked by checking how the marketing header reads the session.
 - [ ] **The document's rendering safety is proven in the browser, not in unit tests** — Node's test runner cannot load JSX. A static test guards against raw-HTML rendering in the expectations code. Unblocked by a decision to add a JSX-capable test setup.
-
+- [ ] **Confirm a signed-in checkout on the deployed test site reaches Stripe** after `34c5ada`. Verified locally only; the signed-in browser check on the live domain was blocked by local permission settings. Unblocked by the founder (or an allowed session) opening a test plan and pressing Continue.
