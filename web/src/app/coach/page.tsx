@@ -24,13 +24,14 @@ export default async function CoachOverviewPage() {
   const supabase = (await createClient())!;
   const { provider } = session;
 
-  const [{ data: capacity }, { data: profile }, { data: offers }, { data: balances }, { data: liveExpectations }] = await Promise.all([
+  const [{ data: capacity }, { data: profile }, { data: offers }, { data: balances }, { data: liveExpectations }, { count: hourWindows }] = await Promise.all([
     supabase.rpc("my_capacity_summary"),
     supabase.from("provider_public_profiles").select("display_name, bio, languages").eq("provider_id", provider.id).maybeSingle(),
     supabase.from("offers").select("id, status").eq("provider_id", provider.id),
     supabase.from("coach_balances").select("*").eq("provider_id", provider.id),
     supabase.from("coach_expectation_versions").select("id").eq("provider_id", provider.id)
       .not("published_at", "is", null).is("superseded_at", null).maybeSingle(),
+    supabase.from("availability_windows").select("id", { count: "exact", head: true }).eq("provider_id", provider.id),
   ]);
   const cap = capacity as CapacitySummary | null;
   const onSale = (offers ?? []).filter((o) => o.status === "published").length;
@@ -41,6 +42,7 @@ export default async function CoachOverviewPage() {
     { done: provider.status === "approved", label: "Get approved", href: "/coach/profile" },
     { done: onSale > 0, label: "Publish a plan with your price", href: "/coach/plans" },
     { done: Boolean(liveExpectations), label: "Publish your welcome & expectations (needed before anyone can buy)", href: "/coach/expectations" },
+    { done: (hourWindows ?? 0) > 0, label: "Set the hours clients can book you", href: "/coach/calendar#hours" },
     { done: Boolean(provider.published_at), label: "Make your profile public", href: "/coach/profile" },
     { done: Boolean(cap?.accepting_new_clients), label: "Open for new clients", href: "#capacity" },
   ];

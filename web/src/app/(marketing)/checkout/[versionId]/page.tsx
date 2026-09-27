@@ -12,6 +12,9 @@ import { formatMinor } from "@/lib/format";
 import { coachPhotoUrl } from "@/lib/storage/photos";
 import { getLiveExpectations } from "@/lib/expectations/server";
 import { ExpectationsDocument } from "@/components/expectations/document";
+import { SlotList } from "@/components/scheduling/slot-picker";
+import { freeSlots } from "@/lib/scheduling/server";
+import { durationLabel } from "@/lib/scheduling/types";
 import { startCheckoutAction } from "../actions";
 
 export const metadata: Metadata = { title: "Confirm your plan", robots: { index: false } };
@@ -36,7 +39,10 @@ export default async function CheckoutConfirmPage({
   // Read on every render: what is shown here is exactly what the form names,
   // and the database refuses the purchase if either version has moved on.
   const expectations = await getLiveExpectations(coach.provider_id);
-  const sellable = Boolean(expectations.coach && expectations.platform);
+  const oneOffMinutes = !recurring ? plan.call_duration_minutes : null;
+  // A one-off session states its length and has its time chosen before paying.
+  const slots = !recurring && oneOffMinutes ? await freeSlots(coach.provider_id, oneOffMinutes, 28) : [];
+  const sellable = Boolean(expectations.coach && expectations.platform) && (recurring || Boolean(oneOffMinutes));
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6 md:py-14">
@@ -54,6 +60,9 @@ export default async function CheckoutConfirmPage({
       <section className="mt-6 rounded-2xl border border-line bg-surface p-5" aria-labelledby="summary">
         <h2 id="summary" className="text-xl font-semibold">{plan.title}</h2>
         <p className="text-ink-muted">with {coach.display_name}</p>
+        {!recurring ? (
+          <p className="mt-1 font-semibold">{oneOffMinutes ? `One session, ${durationLabel(oneOffMinutes)}` : "Session length not stated yet"}</p>
+        ) : null}
         <p className="mt-3 text-2xl">
           <strong>{formatMinor(price.amount_minor, price.currency)}</strong> <span className="text-base text-ink-muted">{planCadence(plan)}</span>
         </p>
@@ -88,7 +97,10 @@ export default async function CheckoutConfirmPage({
               <li>Your place with {coach.display_name} is held for about 30 minutes while you pay.</li>
             </>
           ) : (
-            <li>You pay once. Nothing renews.</li>
+            <>
+              <li>You pay once. Nothing renews.</li>
+              <li>The time you choose below is held for about 30 minutes while you pay. If the payment doesn&rsquo;t finish, the time is released.</li>
+            </>
           )}
           <li>If something goes wrong, contact TalentYak. Refunds are reviewed individually.</li>
         </ul>
@@ -105,15 +117,15 @@ export default async function CheckoutConfirmPage({
             {coach.display_name}&rsquo;s welcome and expectations were updated while you were checking out. Nothing was charged. Please read the current version below before you continue.
           </p>
         ) : null}
-        {sellable ? (
+        {expectations.coach && expectations.platform ? (
           <details className="mt-3 rounded-2xl border border-line" open={Boolean(changed)}>
             <summary className="flex min-h-11 cursor-pointer items-center px-5 py-3 font-semibold text-brand underline underline-offset-4">
               Read the Coaching Welcome &amp; Expectations
             </summary>
             <div className="border-t border-line">
               <ExpectationsDocument
-                platform={expectations.platform!}
-                coach={expectations.coach!}
+                platform={expectations.platform}
+                coach={expectations.coach}
                 coachName={coach.display_name}
                 coachPhotoUrl={coachPhotoUrl(coach.photo_path)}
                 plan={plan}
@@ -126,6 +138,11 @@ export default async function CheckoutConfirmPage({
             {coach.display_name} hasn&rsquo;t published their welcome and expectations yet, so this plan can&rsquo;t be bought right now.
           </p>
         )}
+        {!recurring && !oneOffMinutes ? (
+          <p role="alert" className="mt-3 rounded-lg border border-line-strong bg-paper-raised p-4">
+            This session doesn&rsquo;t say how long it is yet, so it can&rsquo;t be booked.
+          </p>
+        ) : null}
       </section>
 
       {sellable ? (
@@ -133,6 +150,12 @@ export default async function CheckoutConfirmPage({
         <input type="hidden" name="expectations_coach_version_id" value={expectations.coach!.id} />
         <input type="hidden" name="expectations_platform_version_id" value={expectations.platform!.id} />
         <input type="hidden" name="version_id" value={plan.version_id} />
+        {!recurring && oneOffMinutes ? (
+          <section aria-labelledby="slot-heading" className="grid gap-3">
+            <h2 id="slot-heading" className="text-xl font-semibold">Choose a time</h2>
+            <SlotList slots={slots} viewerTz={session.profile.timezone ?? "UTC"} coachTz={coach.timezone ?? "UTC"} name="slot_starts_at" />
+          </section>
+        ) : null}
         <input type="hidden" name="currency" value={price.currency} />
         {/* One key per page load: a double click or a retried request reuses the same checkout. */}
         <input type="hidden" name="idempotency_key" value={randomUUID()} />

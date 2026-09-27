@@ -80,6 +80,8 @@ export async function startCheckout(args: {
   /** The expectations versions that were on screen. The database refuses if either is no longer live. */
   shownCoachExpectations: string;
   shownPlatformExpectations: string;
+  /** One-off sessions: the time chosen on the checkout page, held while paying. */
+  slotStartsAt?: string | null;
 }): Promise<StartedCheckout> {
   const stripe = getStripe();
   const admin = createAdminClient();
@@ -126,6 +128,7 @@ export async function startCheckout(args: {
       hold_seconds: HOLD_SECONDS,
       expectations_coach_version_id: args.shownCoachExpectations,
       expectations_platform_version_id: args.shownPlatformExpectations,
+      slot_starts_at: args.slotStartsAt && !Number.isNaN(Date.parse(args.slotStartsAt)) ? args.slotStartsAt : null,
     },
   });
   if (error || !records) throw new CheckoutError(friendlyError(error, "We couldn't start checkout. Please try again."), error?.message);

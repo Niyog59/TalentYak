@@ -288,7 +288,14 @@ export async function saveDraftAction(_: ActionState, form: FormData): Promise<A
   if (calls === "invalid") fieldErrors.calls_included_per_month = "A whole number from 0 to 31.";
   if (callMinutes === "invalid") fieldErrors.call_duration_minutes = "Minutes, from 5 to 240.";
   if (responseHours === "invalid") fieldErrors.response_time_hours = "Hours, from 1 to 336.";
-  if (typeof calls === "number" && calls > 0 && callMinutes === null) {
+  // A one-off session states its length before anyone buys it (M09). Monthly
+  // coaching may name a fixed number of calls; left empty, it is flexible and
+  // sessions are arranged as needed with no quota.
+  const oneOff = form.get("service_type") === "one_off_consultation";
+  if (oneOff && callMinutes === null) {
+    fieldErrors.call_duration_minutes = "Say how long the session is.";
+  }
+  if (!oneOff && typeof calls === "number" && calls > 0 && callMinutes === null) {
     fieldErrors.call_duration_minutes = "Say how long each call is.";
   }
   if (Object.keys(fieldErrors).length) return fail("Check the highlighted fields.", { fieldErrors });
@@ -300,8 +307,8 @@ export async function saveDraftAction(_: ActionState, form: FormData): Promise<A
       title,
       description,
       intended_client: intendedClient || null,
-      calls_included_per_month: calls,
-      call_duration_minutes: typeof calls === "number" && calls > 0 ? callMinutes : null,
+      calls_included_per_month: oneOff ? null : calls,
+      call_duration_minutes: oneOff ? callMinutes : typeof calls === "number" && calls > 0 ? callMinutes : null,
       check_in_cadence: checkInCadence || null,
       response_time_hours: responseHours,
       programme_included: form.get("programme_included") === "on",

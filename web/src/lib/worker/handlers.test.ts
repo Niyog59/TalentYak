@@ -131,6 +131,11 @@ describe("email jobs", () => {
       "email.reservation_expired",
       "email.unread_messages",
       "email.expectations_updated",
+      "email.appointment_proposed",
+      "email.appointment_proposal_update",
+      "email.appointment_on_hold",
+      "email.consultation_needs_rebooking",
+      "email.consultation_rebook",
       "email.support_case_opened",
     ]) {
       assert.equal(typeof HANDLERS[topic], "function", `no handler for ${topic}`);

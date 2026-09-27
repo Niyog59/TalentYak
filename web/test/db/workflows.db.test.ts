@@ -70,7 +70,7 @@ async function publish(c: CoachFixture, versionId: string) {
   return c.user.client.rpc("publish_offer_version", { p_version_id: versionId });
 }
 
-async function checkout(customer: TestUser, versionId: string, key = randomUUID(), currency = USD) {
+async function checkout(customer: TestUser, versionId: string, key = randomUUID(), currency = USD, slotStartsAt?: string) {
   // What the checkout page displays: the coach's and TalentYak's live
   // expectations versions (Batch 3). Without them the database refuses.
   const { data: v } = await adminClient().from("offer_versions").select("offers(provider_id)").eq("id", versionId).maybeSingle();
@@ -80,8 +80,23 @@ async function checkout(customer: TestUser, versionId: string, key = randomUUID(
     p: {
       customer_id: customer.id, offer_version_id: versionId, currency, idempotency_key: key, hold_seconds: 1800,
       expectations_coach_version_id: shown.coach, expectations_platform_version_id: shown.platform,
+      // Batch 4: a one-off session states its length and has its time chosen first.
+      slot_starts_at: slotStartsAt ?? null,
     },
   });
+}
+
+/**
+ * A published one-off session from coachOther, bought by `customer` at the
+ * first free time (Batch 4: a one-off states its length and has its time
+ * chosen before payment). coachOther's hours are set in "refunds and disputes".
+ */
+async function oneOffCheckout(customer: TestUser) {
+  const offer = await makeDraftOffer(coachOther, { serviceType: "one_off_consultation" });
+  await adminClient().from("offer_versions").update({ call_duration_minutes: 30 }).eq("id", offer.versionId);
+  await publish(coachOther, offer.versionId);
+  const { data: slots } = await customer.client.rpc("available_slots", { p_provider: coachOther.providerId, p_duration: 30, p_from: null, p_days: 7 });
+  return checkout(customer, offer.versionId, randomUUID(), USD, (slots as { starts_at: string }[])[0].starts_at);
 }
 
 async function pay(
@@ -608,9 +623,11 @@ describe("workflows", { skip }, () => {
     const cycleKey = `pi_${RUN_ID}_refund`;
 
     before(async () => {
-      const offer = await makeDraftOffer(coachOther, { serviceType: "one_off_consultation" });
-      await publish(coachOther, offer.versionId);
-      const r = await checkout(customerB, offer.versionId);
+      // Batch 4: one-off sessions are booked inside the coach's hours.
+      await coachOther.user.client.from("availability_windows").insert(
+        Array.from({ length: 7 }, (_, d) => ({ provider_id: coachOther.providerId, weekday: d, start_time: "00:00", end_time: "23:45" })),
+      );
+      const r = await oneOffCheckout(customerB);
       purchaseId = r.data.purchase_id;
       providerId = coachOther.providerId;
       await pay(purchaseId, { sourceKey: cycleKey, serviceType: "one_off_consultation" });
@@ -663,9 +680,7 @@ describe("workflows", { skip }, () => {
     });
 
     test("a dispute holds, and a LOST dispute delivered before the OPEN one converges", async () => {
-      const offer = await makeDraftOffer(coachOther, { serviceType: "one_off_consultation" });
-      await publish(coachOther, offer.versionId);
-      const r = await checkout(customerA, offer.versionId);
+      const r = await oneOffCheckout(customerA);
       const pid = r.data.purchase_id;
       await pay(pid, { sourceKey: `pi_${RUN_ID}_disp`, serviceType: "one_off_consultation" });
 
@@ -690,9 +705,7 @@ describe("workflows", { skip }, () => {
     });
 
     test("a WON dispute releases the hold and changes nothing else", async () => {
-      const offer = await makeDraftOffer(coachOther, { serviceType: "one_off_consultation" });
-      await publish(coachOther, offer.versionId);
-      const r = await checkout(customerC, offer.versionId);
+      const r = await oneOffCheckout(customerC);
       const pid = r.data.purchase_id;
       await pay(pid, { sourceKey: `pi_${RUN_ID}_won`, serviceType: "one_off_consultation" });
       const input = {

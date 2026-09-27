@@ -273,7 +273,7 @@ Ordered as they will be built — one usable workflow finished at a time.
 | 2 | **Notification preferences**, separating essential service/account mail from optional. No `notification_preferences` table. | same migration + preferences screen | **done (pass A–C)** |
 | 3 | **Pre-delivery recheck.** Handlers send what the payload says. Nothing rechecks appointment version, recipient authorisation, cancellation/reschedule state, or preferences at delivery time. Obsolete reminders are not skipped. | `src/lib/worker/handlers.ts` + a shared recheck module | **done (pass A–C)** |
 | 4 | **Unread-message debounce/aggregation.** No aggregation window, no read-status recheck. | worker + sweep | **done (M14)** — producer in `send_message`, one job per unread run, 15-minute delay, live count + access recheck at send |
-| 5 | **Appointment job family** — confirmation, change requested, change accepted, cancellation, reminder, expired reservation/proposal. Table exists; no handlers, no templates. | handlers + templates | handlers, templates and rechecks **done**; **producers pending (Batch 4)** |
+| 5 | **Appointment job family** — confirmation, change requested, change accepted, cancellation, reminder, expired reservation/proposal. Table exists; no handlers, no templates. | handlers + templates | handlers, templates, rechecks **and producers done (Batch 4)** |
 | 6 | **Media assets.** No `media_assets` table, no ownership/purpose metadata, no processing states, no chat/video path, no abandoned-upload cleanup, no thumbnail/preview authorisation, no signed-link policy. | new migration + `src/lib/media/` + upload UI | **done** — photos and clips processed, including HEIC and HDR (completion pass) |
 | 7 | **Reassignment media revocation** honouring `history_scope`, covering new fetches and subscriptions. | media authorisation layer | **done (pass D)** — reuses `coach_may_read_record`; 2-minute residual link window documented |
 | 8 | **Retention execution** — dry-run eligibility, notice retry/failure handling, holds, cancellation on changed eligibility, final eligibility recheck. Destructive execution stays **off**. | sweeps + admin screen | **done (pass E)** — destructive execution still off |
@@ -290,10 +290,10 @@ These are wired as reusable hooks now and connected when their owning batch is b
 | Producer | Owner | Hook prepared here |
 |---|---|---|
 | Unread-message notifications | Batch 2 (conversations) | **connected in M14** |
-| Appointment proposals / links to confirmed appointments inside a conversation | Batch 4 | message `kind` boundary in `0037`; database refuses structured kinds until built |
+| Appointment proposals / links to confirmed appointments inside a conversation | Batch 4 | **connected in Batch 4** (`appointment_proposal`, `appointment_link`, `0042`); tested through the actual conversation |
 | Links to agreed expectations inside a conversation | Batch 3 | **connected in Batch 3** (`expectations_link` kind, `0040`); tested through the actual conversation link |
 | Expectations updates | Batch 3 | **connected in Batch 3** — producer in `0040`, handler rechecks before sending |
-| Appointment reminders / expiry | Batch 4 | scheduling + authorisation recheck |
+| Appointment reminders / expiry | Batch 4 | **connected in Batch 4** — producers in `0042`, obsolete reminders cancelled on change, recheck at send |
 | Call outcomes | Batch 5 | delivery recheck |
 
 ---
@@ -575,3 +575,67 @@ Vercel production deployment for `34c5ada`: **success** (2026-09-27 03:49 UTC). 
 ### Blockers
 
 None for this batch. Founder input needed before launch only: approved wording for TalentYak's section.
+
+---
+
+## Batch 4 — M09 flexible scheduling, built and verified 2026-09-27
+
+Scope: the full brief ("Revised 21 September 2026"). No deferrals; calls themselves remain Batch 5 (the session page has no join button). Migrations `0042_scheduling.sql` and `0043_scheduling_fixes.sql`, applied to the hosted TEST project.
+
+### What exists
+
+- **Coach calendar** (`/coach/calendar`): weekly hours with several windows a day, time off and extra hours by date, session lengths, gaps before/after, minimum notice, horizon, optional daily limit, and an auto-confirm switch for client requests (off by default: the coach confirms). Clashes list: booked sessions that no longer fit the hours, or that clash — kept until the coach moves or cancels them. Suggest a time to any client. Zone: the coach's IANA zone (`providers.timezone`).
+- **Client sessions** (`/account/appointments`): free times from the coach's calendar in the client's own zone with the coach's local time alongside; request, suggest another time, answer suggestions, one-off rebooking.
+- **Proposals** (`appointment_proposals`): pending, never hold time, expire after 48 h or at their start time; accept / decline / withdraw / counter; repeated clicks return the first answer. Acceptance re-checks eligibility and availability under the coach's row lock; two exclusion constraints (coach and client, over the meeting plus the coach's buffers) guarantee one winner; the other request becomes `conflicted` with a reason.
+- **Conversation cards**: `appointment_proposal` and `appointment_link`, embedded through row-level security and showing their current state; only their buttons change the calendar.
+- **Series**: weekly, anchored to the zone the time was typed in; occurrences materialised to the coach's horizon; a missing local time moves forward and is labelled, a repeated one uses the first and is labelled; this-occurrence and this-and-future edits; past occurrences never change.
+- **Eligibility** (`meeting_eligibility`): coaching must be live; sessions after the paid period are `tentative` (hold no time) and confirm on renewal if free (founder decision); a plan that is ending cancels them. Reconciliation every five minutes puts sessions on hold (payment paused, suspension) with a notice, restores them when possible, cancels them when the relationship ends or the coach changes.
+- **Fixed-call plans** (a number of calls in the purchase snapshot): one call per booking per paid period, under a lock; cancelling frees it. Flexible plans have no quota.
+- **One-off sessions**: length stated before purchase; the time is chosen at checkout and held with the checkout; abandoned checkout releases it with a notice; payment confirms it; a payment after the hold lapsed flags the purchase (`consultation_slot_expired`) for an admin to reopen for rebooking or refund through the existing refund process — no automatic refund.
+- **Outcomes**: recorded separately (`appointment_outcomes`), append-only, no consequence; history in `appointment_events`, append-only.
+- **Admin** (`/admin/scheduling`): sessions on hold, late-paid one-offs (reopen / resolve), refused suggestions, cancel on someone's behalf with a reason, platform timings (clearly unapproved).
+- **Notices** (M08): suggested, answered (declined/expired/conflicted), confirmed, moved, cancelled, on hold, reminders (24 h / 1 h), one-off rebooking. Each rechecks before sending; reminders for a changed session are cancelled outright; emails hold names, times and a link only.
+- **Policy**: `scheduling.v1`, sandbox default, mirrored in `scheduling_settings`. Every timing is configurable; none is an approved rule.
+
+### Verified
+
+| Check | How | Result |
+|---|---|---|
+| Typecheck, lint, migration structure, unit tests | `npm run verify` | pass — 268 tests |
+| Production build | `npm run build` | pass |
+| Database suites | `npm run test:db` on TEST, real signed-in users | 253/259 on the full run; the 6 were existing refund/dispute tests buying one-off sessions without a length or time — the new rule working. Their setup was updated and the workflow suite rerun: **56/56**. Scheduling suite **32/32** |
+| Kathmandu coach, New York and Sydney clients | browser | free times shown in each client's zone with the coach's alongside (20:15 NY = 06:00 KTM; 10:15 Sydney = 06:00 KTM) |
+| Request → counter in chat → accept in chat | browser, both people | one confirmed session, link card, both zones; stale cards show the latest state |
+| Time typed in the other person's clock | browser | 08:00 Kathmandu entered by the New York client = 22:15 New York |
+| Reschedule | browser (client suggests, coach accepts on calendar) | original kept until accepted, then `replaced`; one session in Upcoming |
+| Weekly series across 1 November | browser | 18:00 New York every week; coach sees 03:45 → 04:45 Kathmandu after the change; first inside the paid month confirmed, later ones tentative |
+| Cancel this and later | browser | 17 and 24 Nov cancelled, earlier kept, series ends 16 Nov, one notice each |
+| Decline | browser | declined, proposer's notice queued |
+| Availability edit | browser (time off on a booked day) | session stays booked, listed under Clashes |
+| One-off session through Stripe | browser: time chosen at checkout, Stripe's hosted test page completed with Stripe's published test card | held → booked by the webhook; confirmation and reminders queued |
+| Late payment for a lapsed hold | **simulated at database level** (hold expired, then payment recorded as the webhook would) | purchase flagged; admin reopened it in the browser; client offered new times |
+| Notices | local worker | suggestion notice delivered to the inbox ("<coach> suggested a session time", link only); answered suggestions correctly skipped; emails withheld for reserved test addresses |
+| Outsider | browser | another client's session address: not found, nothing in the page source |
+| Phone width (375 px) | browser | no horizontal scroll on calendar, conversation, sessions and session pages; 44 px time buttons |
+
+Proven in the database suite rather than the browser: simultaneous acceptances (one coach, and one client across two coaches) produce one winner; coach and client full-interval and buffer conflicts; expiry by sweep; paused/suspended/ending/reassigned relationships; fixed-call double use; slot taken by a second buyer; outsiders cannot read, propose, answer, cancel or write directly; history and outcomes immutable; `local_to_instant` for a missing and a repeated New York time.
+
+### Found and fixed during this batch
+
+- **A payment could fail to record.** `reconciliation_exceptions` refused `consultation_slot_expired` (new) and `payment_could_not_resume_coaching` (from `0039`, earlier batch). The refusal rolled back the payment record inside `record_cycle_payment`. Fixed in `0043`. The second was a latent bug in shipped code.
+- **Free-times listing timed out** (the zone check read the full zone list per candidate). Rewritten set-based; ~0.1 s.
+- **A one-off could be offered a second session.** Refused unless it is a reschedule.
+- Old conversation cards kept offering buttons for answered suggestions; weekly series defaulted to the wrong anchor zone. Both fixed.
+
+### Deployment gap (expected, closes on deploy)
+
+Between applying `0042` and deploying this code, the deployed worker (previous code) processed scheduling jobs: it sent old-style links for session notices and marked new notice types `failed: no handler`. Only test accounts were affected; their jobs were re-queued and delivered by the new handler. **Apply scheduling migrations and deploy together next time.**
+
+### Cost
+
+None. No new services or plan changes; the existing five-minute worker runs the reconciliation.
+
+### Blockers
+
+None. Founder input needed before launch only: approve or change the scheduling timings (`scheduling.v1`).
+

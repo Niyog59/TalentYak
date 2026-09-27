@@ -18,6 +18,7 @@ export async function listConversations(role: ConversationRole): Promise<Convers
 export interface LoadedConversation {
   status: ConversationStatus;
   enrollmentId: string;
+  providerId: string;
   messages: Message[];
   hasOlder: boolean;
 }
@@ -34,7 +35,7 @@ export async function loadConversation(conversationId: string, role: Conversatio
 
   const { data: status } = await supabase.rpc("conversation_status", { p_conversation: conversationId });
   if (!status || (status as ConversationStatus).role !== role) return null;
-  const { data: conv } = await supabase.from("conversations").select("enrollment_id").eq("id", conversationId).maybeSingle();
+  const { data: conv } = await supabase.from("conversations").select("enrollment_id, provider_id").eq("id", conversationId).maybeSingle();
   if (!conv) return null;
 
   const first = await loadMessagesAction(conversationId);
@@ -48,5 +49,5 @@ export async function loadConversation(conversationId: string, role: Conversatio
     hasOlder = older.data.hasOlder;
   }
 
-  return { status: status as ConversationStatus, enrollmentId: conv.enrollment_id as string, messages, hasOlder };
+  return { status: status as ConversationStatus, enrollmentId: conv.enrollment_id as string, providerId: conv.provider_id as string, messages, hasOlder };
 }

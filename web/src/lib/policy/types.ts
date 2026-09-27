@@ -249,7 +249,33 @@ export interface MessagingPolicy extends PolicyMeta {
   readonly supportCasesPerDay: number;
 }
 
+/**
+ * Scheduling timings (M09). Mirrored into the `scheduling_settings` table
+ * (0042), which is what the database uses; a database test asserts the two
+ * agree. Every value is a development default until the founder approves it:
+ * the timings discussed (24-hour and 1-hour reminders, 12 hours' notice, a
+ * 28-day horizon, 10-minute buffers) were illustrative, not rules.
+ */
+export interface SchedulingPolicy extends PolicyMeta {
+  readonly kind: "scheduling";
+  /** An unanswered proposal lapses after this (or at its start time, if sooner). */
+  readonly proposalTtlHours: number;
+  readonly reminderOffsetsMinutes: readonly number[];
+  readonly defaultMinNoticeMinutes: number;
+  readonly defaultHorizonDays: number;
+  readonly defaultBufferMinutes: number;
+  /** How long a one-off consultation's chosen time is held during checkout. */
+  readonly slotHoldMinutes: number;
+  /** Meetings after the paid period: tentative until renewal (false) or confirmed (true). */
+  readonly confirmBeyondPaidThrough: boolean;
+  /** Client requests wait for the coach unless the coach switches on auto-confirm. */
+  readonly clientRequestsNeedCoachConfirmation: boolean;
+  /** Recording an outcome never moves money or marks a service delivered. */
+  readonly outcomesHaveConsequences: false;
+}
+
 export type Policy =
+  | SchedulingPolicy
   | MessagingPolicy
   | CommissionPolicy
   | DiscountPolicy

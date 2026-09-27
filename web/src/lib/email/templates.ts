@@ -311,20 +311,20 @@ ${button(`${ctx.siteUrl}/account`, "Review your data")}`,
 
 export function appointmentConfirmedEmail(
   ctx: TemplateContext,
-  d: { name?: string | null; otherPartyName: string; startsAt: string; timezone?: string | null },
+  d: { name?: string | null; otherPartyName: string; startsAt: string; timezone?: string | null; path?: string },
 ): RenderedEmail {
   return build(
     "Your session is booked",
     `${greet(d.name)}
 <p>Your session with ${escapeHtml(d.otherPartyName)} is booked for <strong>${escapeHtml(dateTime(d.startsAt, d.timezone))}</strong>.</p>
-${button(`${ctx.siteUrl}/account`, "View your sessions")}`,
+${button(`${ctx.siteUrl}${d.path?.startsWith("/") ? d.path : "/account"}`, "View your sessions")}`,
     ctx.supportEmail,
   );
 }
 
 export function appointmentChangedEmail(
   ctx: TemplateContext,
-  d: { name?: string | null; otherPartyName: string; startsAt: string; previousStartsAt?: string | null; timezone?: string | null },
+  d: { name?: string | null; otherPartyName: string; startsAt: string; previousStartsAt?: string | null; timezone?: string | null; path?: string },
 ): RenderedEmail {
   return build(
     "Your session has moved",
@@ -333,14 +333,14 @@ export function appointmentChangedEmail(
       d.previousStartsAt ? ` from ${escapeHtml(dateTime(d.previousStartsAt, d.timezone))}` : ""
     } to <strong>${escapeHtml(dateTime(d.startsAt, d.timezone))}</strong>.</p>
 <p>Nothing else about your plan changes.</p>
-${button(`${ctx.siteUrl}/account`, "View your sessions")}`,
+${button(`${ctx.siteUrl}${d.path?.startsWith("/") ? d.path : "/account"}`, "View your sessions")}`,
     ctx.supportEmail,
   );
 }
 
 export function appointmentCancelledEmail(
   ctx: TemplateContext,
-  d: { name?: string | null; otherPartyName: string; startsAt: string; byCoach: boolean; timezone?: string | null },
+  d: { name?: string | null; otherPartyName: string; startsAt: string; byCoach: boolean; timezone?: string | null; path?: string },
 ): RenderedEmail {
   return build(
     "Your session has been cancelled",
@@ -348,21 +348,21 @@ export function appointmentCancelledEmail(
 <p>The session with ${escapeHtml(d.otherPartyName)} on ${escapeHtml(dateTime(d.startsAt, d.timezone))} has been cancelled${
       d.byCoach ? " by your coach" : ""
     }.</p>
-<p>The session is still yours to use — you can book another time.</p>
-${button(`${ctx.siteUrl}/account`, "Book another time")}`,
+<p>You can arrange another time with them whenever it suits you both.</p>
+${button(`${ctx.siteUrl}${d.path?.startsWith("/") ? d.path : "/account"}`, "See your sessions")}`,
     ctx.supportEmail,
   );
 }
 
 export function appointmentReminderEmail(
   ctx: TemplateContext,
-  d: { name?: string | null; otherPartyName: string; startsAt: string; timezone?: string | null },
+  d: { name?: string | null; otherPartyName: string; startsAt: string; timezone?: string | null; path?: string },
 ): RenderedEmail {
   return build(
     "A reminder about your session",
     `${greet(d.name)}
 <p>Your session with ${escapeHtml(d.otherPartyName)} is at <strong>${escapeHtml(dateTime(d.startsAt, d.timezone))}</strong>.</p>
-${button(`${ctx.siteUrl}/account`, "View your sessions")}
+${button(`${ctx.siteUrl}${d.path?.startsWith("/") ? d.path : "/account"}`, "View your sessions")}
 <p style="font-size:13px;color:${MUTED}">You can turn session reminders off in your email settings. Booking changes and cancellations will still reach you.</p>`,
     ctx.supportEmail,
   );
@@ -378,6 +378,81 @@ export function reservationExpiredEmail(
 <p>The time you were holding — ${escapeHtml(dateTime(d.startsAt, d.timezone))} — has been released, because the booking was not finished.</p>
 <p>Nothing was charged. The time may still be free.</p>
 ${button(`${ctx.siteUrl}/account`, "Book a session")}`,
+    ctx.supportEmail,
+  );
+}
+
+/**
+ * Scheduling (M09). Like every session email: the time in the recipient's own
+ * zone with the zone named, the other person's name, a link — and nothing
+ * about what the session is for.
+ */
+export function appointmentProposedEmail(
+  ctx: TemplateContext,
+  d: { name?: string | null; otherPartyName: string; startsAt: string; timezone?: string | null; reschedule: boolean; weekly: boolean; path: string },
+): RenderedEmail {
+  return build(
+    d.reschedule ? "A new time has been suggested for your session" : "A session time has been suggested",
+    `${greet(d.name)}
+<p>${escapeHtml(d.otherPartyName)} suggested ${d.weekly ? "a weekly session starting" : "a session at"} <strong>${escapeHtml(dateTime(d.startsAt, d.timezone))}</strong>${d.reschedule ? " in place of your current time" : ""}.</p>
+<p>Nothing is booked until you accept. You can also suggest another time.</p>
+${button(`${ctx.siteUrl}${d.path}`, "Answer the suggestion")}`,
+    ctx.supportEmail,
+  );
+}
+
+export function appointmentProposalUpdateEmail(
+  ctx: TemplateContext,
+  d: { name?: string | null; otherPartyName: string; startsAt: string; timezone?: string | null; state: string; path: string },
+): RenderedEmail {
+  const what = d.state === "declined" ? `${escapeHtml(d.otherPartyName)} declined the time you suggested`
+    : d.state === "expired" ? "The time you suggested wasn't answered in time, so it has lapsed"
+    : d.state === "conflicted" ? "The time you suggested couldn't be confirmed, because it was no longer free"
+    : "Your suggested time has been answered";
+  return build(
+    "About the session time you suggested",
+    `${greet(d.name)}
+<p>${what} (${escapeHtml(dateTime(d.startsAt, d.timezone))}).</p>
+<p>Nothing was booked. You can suggest another time.</p>
+${button(`${ctx.siteUrl}${d.path}`, "Suggest another time")}`,
+    ctx.supportEmail,
+  );
+}
+
+export function appointmentOnHoldEmail(
+  ctx: TemplateContext,
+  d: { name?: string | null; otherPartyName: string; startsAt: string; timezone?: string | null; reason: string; path: string },
+): RenderedEmail {
+  const why = d.reason === "payment_paused" ? "coaching is paused until the payment is sorted. It comes back if the payment goes through and the time is still free"
+    : d.reason === "conflict" ? "something else is now booked at that time. Please agree a new time"
+    : d.reason === "payment_issue" ? "there's a problem with the payment for it"
+    : "an account involved needs attention from TalentYak support";
+  return build(
+    "A session is on hold",
+    `${greet(d.name)}
+<p>Your session with ${escapeHtml(d.otherPartyName)} on ${escapeHtml(dateTime(d.startsAt, d.timezone))} is on hold, because ${why}.</p>
+${button(`${ctx.siteUrl}${d.path}`, "See the session")}`,
+    ctx.supportEmail,
+  );
+}
+
+export function consultationNeedsRebookingEmail(ctx: TemplateContext, d: { name?: string | null }): RenderedEmail {
+  return build(
+    "Your payment arrived after the held time was released",
+    `${greet(d.name)}
+<p>Your payment for a one-off session came through after the time you chose had been released, so that time wasn't kept for you.</p>
+<p>Nothing has been lost: TalentYak will help you choose a new time, or refund you if you'd prefer. You don't need to do anything yet.</p>
+${button(`${ctx.siteUrl}/account/appointments`, "See your sessions")}`,
+    ctx.supportEmail,
+  );
+}
+
+export function consultationRebookEmail(ctx: TemplateContext, d: { name?: string | null }): RenderedEmail {
+  return build(
+    "Choose a new time for your session",
+    `${greet(d.name)}
+<p>Your one-off session is ready to be booked again. Choose a time that suits you.</p>
+${button(`${ctx.siteUrl}/account/appointments`, "Choose a time")}`,
     ctx.supportEmail,
   );
 }

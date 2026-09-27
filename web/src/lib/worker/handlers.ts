@@ -286,6 +286,43 @@ function recipientOf(
   return null;
 }
 
+/** Where each side manages a session. */
+function appointmentPath(id: string, isCustomer: boolean): string {
+  return isCustomer ? `/account/appointments/${id}` : `/coach/calendar/appointments/${id}`;
+}
+function schedulePath(isCustomer: boolean): string {
+  return isCustomer ? "/account/appointments" : "/coach/calendar";
+}
+
+async function appointmentState(ctx: HandlerContext, id: string): Promise<string | null> {
+  const { data } = await ctx.admin.from("appointments").select("state").eq("id", id).maybeSingle();
+  return (data?.state as string) ?? null;
+}
+
+async function proposalState(ctx: HandlerContext, id: string): Promise<string | null> {
+  const { data } = await ctx.admin.from("appointment_proposals").select("state, expires_at").eq("id", id).maybeSingle();
+  if (!data) return null;
+  if (data.state === "pending" && Date.parse(data.expires_at) <= Date.now()) return "expired";
+  return data.state as string;
+}
+
+async function proposalContext(ctx: HandlerContext, proposalId: unknown): Promise<(AppointmentContext & { reschedule: boolean; weekly: boolean }) | null> {
+  if (typeof proposalId !== "string") return null;
+  const { data } = await ctx.admin
+    .from("appointment_proposals")
+    .select("id, starts_at, state, customer_id, provider_id, replaces_appointment_id, recurrence")
+    .eq("id", proposalId)
+    .maybeSingle();
+  if (!data) return null;
+  const customer = await person(ctx, data.customer_id);
+  const coach = await coachPerson(ctx, data.provider_id);
+  if (!customer || !coach) return null;
+  return {
+    id: data.id, starts_at: data.starts_at, state: data.state, customer, coach,
+    reschedule: Boolean(data.replaces_appointment_id), weekly: data.recurrence === "weekly",
+  };
+}
+
 async function purchaseContext(ctx: HandlerContext, purchaseId: unknown) {
   if (typeof purchaseId !== "string") return null;
   const { data } = await ctx.admin
@@ -454,10 +491,8 @@ export const HANDLERS: Record<string, Handler> = {
 
   // --- Sessions -------------------------------------------------------------
   //
-  // PRODUCERS PENDING (Batch 4). Nothing enqueues these topics yet: booking,
-  // rescheduling and reminder scheduling are that batch's work. The handlers,
-  // their templates and their rechecks are finished and tested here so that
-  // wiring a producer is the only thing left to do.
+  // Producers: the scheduling functions in 0042 (accept, reschedule, cancel,
+  // reconciliation, consultation payment and checkout expiry).
 
   "email.appointment_confirmed": async (job, ctx) => {
     const ap = await appointmentContext(ctx, job.payload.appointment_id);
@@ -467,11 +502,11 @@ export const HANDLERS: Record<string, Handler> = {
 
     return send(job, ctx, "appointment_confirmed", to.person,
       T.appointmentConfirmedEmail(tctx(), {
-        name: to.person.name, otherPartyName: to.otherName, startsAt: ap.starts_at, timezone: to.person.timezone,
+        name: to.person.name, otherPartyName: to.otherName, startsAt: ap.starts_at, timezone: to.person.timezone, path: appointmentPath(ap.id, to.isCustomer),
       }),
       {
         category: "appointments",
-        path: to.isCustomer ? "/account" : "/coach",
+        path: appointmentPath(ap.id, to.isCustomer),
         recheck: () => appointmentStillCurrent(ctx.admin, ap.id, {
           startsAt: ap.starts_at, recipientProfileId: to.person.id,
         }),
@@ -487,11 +522,11 @@ export const HANDLERS: Record<string, Handler> = {
     return send(job, ctx, "appointment_changed", to.person,
       T.appointmentChangedEmail(tctx(), {
         name: to.person.name, otherPartyName: to.otherName, startsAt: ap.starts_at,
-        previousStartsAt: str(job.payload.previous_starts_at) || null, timezone: to.person.timezone,
+        previousStartsAt: str(job.payload.previous_starts_at) || null, timezone: to.person.timezone, path: appointmentPath(ap.id, to.isCustomer),
       }),
       {
         category: "appointments",
-        path: to.isCustomer ? "/account" : "/coach",
+        path: appointmentPath(ap.id, to.isCustomer),
         // The new time must still be the current one. If it moved twice, only
         // the later message is worth sending.
         recheck: () => appointmentStillCurrent(ctx.admin, ap.id, {
@@ -511,9 +546,9 @@ export const HANDLERS: Record<string, Handler> = {
     return send(job, ctx, "appointment_cancelled", to.person,
       T.appointmentCancelledEmail(tctx(), {
         name: to.person.name, otherPartyName: to.otherName, startsAt: ap.starts_at,
-        byCoach: job.payload.by_coach === true, timezone: to.person.timezone,
+        byCoach: job.payload.by_coach === true, timezone: to.person.timezone, path: appointmentPath(ap.id, to.isCustomer),
       }),
-      { category: "appointments", path: to.isCustomer ? "/account" : "/coach" });
+      { category: "appointments", path: appointmentPath(ap.id, to.isCustomer) });
   },
 
   "email.appointment_reminder": async (job, ctx) => {
@@ -524,13 +559,13 @@ export const HANDLERS: Record<string, Handler> = {
 
     return send(job, ctx, "appointment_reminder", to.person,
       T.appointmentReminderEmail(tctx(), {
-        name: to.person.name, otherPartyName: to.otherName, startsAt: ap.starts_at, timezone: to.person.timezone,
+        name: to.person.name, otherPartyName: to.otherName, startsAt: ap.starts_at, timezone: to.person.timezone, path: appointmentPath(ap.id, to.isCustomer),
       }),
       {
         // Optional: a person may switch session reminders off. Cancellations
         // and reschedules are a different, essential category.
         category: "appointment_reminders",
-        path: to.isCustomer ? "/account" : "/coach",
+        path: appointmentPath(ap.id, to.isCustomer),
         // The strictest recheck in the system. A reminder for a session that
         // was cancelled, moved, or has already started makes somebody act on
         // something untrue.
@@ -540,6 +575,82 @@ export const HANDLERS: Record<string, Handler> = {
           mustBeInFuture: true,
         }),
       });
+  },
+
+  "email.appointment_proposed": async (job, ctx) => {
+    const pr = await proposalContext(ctx, job.payload.proposal_id);
+    if (!pr) return { kind: "fail", error: "proposal not found" };
+    const to = recipientOf(pr, job.payload.recipient);
+    if (!to) return gone("recipient");
+    return send(job, ctx, "appointment_proposed", to.person,
+      T.appointmentProposedEmail(tctx(), {
+        name: to.person.name, otherPartyName: to.otherName, startsAt: pr.starts_at, timezone: to.person.timezone,
+        reschedule: pr.reschedule, weekly: pr.weekly, path: schedulePath(to.isCustomer),
+      }),
+      {
+        category: "appointments",
+        path: schedulePath(to.isCustomer),
+        inboxTitle: `${to.otherName} suggested a session time`,
+        // Answered, withdrawn or lapsed since: nothing to answer any more.
+        recheck: async () => (await proposalState(ctx, pr.id)) === "pending"
+          ? { proceed: true } : { proceed: false, reason: "the suggestion is no longer waiting for an answer" },
+      });
+  },
+
+  "email.appointment_proposal_update": async (job, ctx) => {
+    const pr = await proposalContext(ctx, job.payload.proposal_id);
+    if (!pr) return { kind: "fail", error: "proposal not found" };
+    const to = recipientOf(pr, job.payload.recipient);
+    if (!to) return gone("recipient");
+    const state = str(job.payload.state);
+    return send(job, ctx, "appointment_proposal_update", to.person,
+      T.appointmentProposalUpdateEmail(tctx(), {
+        name: to.person.name, otherPartyName: to.otherName, startsAt: pr.starts_at, timezone: to.person.timezone,
+        state, path: schedulePath(to.isCustomer),
+      }),
+      {
+        category: "appointments",
+        path: schedulePath(to.isCustomer),
+        recheck: async () => (await proposalState(ctx, pr.id)) === state
+          ? { proceed: true } : { proceed: false, reason: "the suggestion has changed since" },
+      });
+  },
+
+  "email.appointment_on_hold": async (job, ctx) => {
+    const ap = await appointmentContext(ctx, job.payload.appointment_id);
+    if (!ap) return { kind: "fail", error: "appointment not found" };
+    const to = recipientOf(ap, job.payload.recipient);
+    if (!to) return gone("recipient");
+    return send(job, ctx, "appointment_on_hold", to.person,
+      T.appointmentOnHoldEmail(tctx(), {
+        name: to.person.name, otherPartyName: to.otherName, startsAt: ap.starts_at, timezone: to.person.timezone,
+        reason: str(job.payload.reason), path: appointmentPath(ap.id, to.isCustomer),
+      }),
+      {
+        category: "appointments",
+        path: appointmentPath(ap.id, to.isCustomer),
+        // Restored (payment recovered, time freed) before this went out: say nothing.
+        recheck: async () => ap.state === "on_hold" && (await appointmentState(ctx, ap.id)) === "on_hold"
+          ? { proceed: true } : { proceed: false, reason: "the session is no longer on hold" },
+      });
+  },
+
+  "email.consultation_needs_rebooking": async (job, ctx) => {
+    const pu = await purchaseContext(ctx, job.payload.purchase_id);
+    if (!pu) return { kind: "fail", error: "purchase not found" };
+    const customer = await person(ctx, pu.customer_id);
+    if (!customer) return gone("customer");
+    return send(job, ctx, "consultation_needs_rebooking", customer, T.consultationNeedsRebookingEmail(tctx(), { name: customer.name }),
+      { category: "appointments", path: "/account/appointments" });
+  },
+
+  "email.consultation_rebook": async (job, ctx) => {
+    const pu = await purchaseContext(ctx, job.payload.purchase_id);
+    if (!pu) return { kind: "fail", error: "purchase not found" };
+    const customer = await person(ctx, pu.customer_id);
+    if (!customer) return gone("customer");
+    return send(job, ctx, "consultation_rebook", customer, T.consultationRebookEmail(tctx(), { name: customer.name }),
+      { category: "appointments", path: "/account/appointments" });
   },
 
   "email.reservation_expired": async (job, ctx) => {

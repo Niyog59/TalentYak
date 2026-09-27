@@ -85,7 +85,7 @@ export function coachNav(
       { label: "Profile", href: `${base}/profile`, icon: "profile", available: built.extras },
       { label: "Welcome & expectations", shortLabel: "Expectations", href: `${base}/expectations`, icon: "check", available: built.extras },
       { label: "Payout details", href: `${base}/payouts`, icon: "lock", available: built.extras },
-      { label: "Calendar", href: `${base}/calendar`, icon: "calendar", available: false },
+      { label: "Calendar", href: `${base}/calendar`, icon: "calendar", available: built.extras },
       { label: "Messages", href: `${base}/messages`, icon: "messages", available: built.extras, alsoActiveFor: [`${base}/support`] },
     ],
   };
@@ -108,6 +108,7 @@ export function founderNav(
       { label: "Payouts", href: at("/payouts"), icon: "earnings", available: opts.real },
       { label: "Coach changes", href: at("/coach-changes"), icon: "clients", available: opts.real },
       { label: "Support cases", shortLabel: "Support", href: at("/support"), icon: "messages", available: opts.real },
+      { label: "Scheduling", href: at("/scheduling"), icon: "calendar", available: opts.real },
       { label: "Welcome & expectations", shortLabel: "Expectations", href: at("/expectations"), icon: "check", available: opts.real },
       { label: "Data and retention", shortLabel: "Retention", href: at("/retention"), icon: "lock", available: opts.real },
       { label: "Legacy bookings", href: at("/bookings"), icon: "catalog", available: opts.real },
