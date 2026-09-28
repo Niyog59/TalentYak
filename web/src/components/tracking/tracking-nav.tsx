@@ -11,6 +11,7 @@ const TABS = [
   { id: "workouts", label: "Workouts", path: "/workouts" },
   { id: "body", label: "Body & photos", path: "/body" },
   { id: "food", label: "Food diary", path: "/food" },
+  { id: "checkins", label: "Check-ins", path: "/check-ins" },
 ] as const;
 
 export function TrackingHeader({

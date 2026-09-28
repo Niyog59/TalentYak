@@ -30,6 +30,7 @@ export type NotificationCategory =
   | "appointment_reminders"
   | "messages"
   | "expectations"
+  | "checkins"
   | "product_updates";
 
 export interface NotifyArgs {

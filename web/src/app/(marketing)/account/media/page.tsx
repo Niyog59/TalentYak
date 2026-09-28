@@ -42,6 +42,7 @@ const PURPOSE_LABEL: Record<string, string> = {
   form_review_clip: "Form review clip",
   chat_attachment: "Attachment",
   food_photo: "Food photo",
+  checkin_attachment: "Check-in attachment",
 };
 
 const STATE_LABEL: Record<string, string> = {

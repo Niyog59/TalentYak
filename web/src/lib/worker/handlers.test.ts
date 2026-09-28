@@ -138,6 +138,7 @@ describe("email jobs", () => {
       "email.consultation_rebook",
       "email.support_case_opened",
       "email.plan_updated",
+      "email.checkin_notice",
     ]) {
       assert.equal(typeof HANDLERS[topic], "function", `no handler for ${topic}`);
     }

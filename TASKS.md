@@ -228,3 +228,16 @@ Status of record: `docs/implementation/M03-M07-STATUS.md`.
 - [ ] **Drafts on a shared device when a session simply expires.** They're separated by account and dropped after 30 days if already saved, but only cleared on an explicit sign-out.
 - [ ] **Form review (AAF-PROG-08)** — clips with coach feedback on a set — is still unbuilt; `FULFILLMENT.formReview` stays not ready.
 - [ ] **Charts are per date range, not paged.** Very long histories (hundreds of workouts) load the range in one read; add paging if it gets slow.
+
+---
+
+## M13 — Check-ins and coach feedback (2026-09-28) — complete
+
+- [x] Coach templates (versioned; weekly starter), per-client schedules with explicit client timezone and optional reply time, pauses and planned breaks without backlog, client form with device drafts and duplicate-safe sending, period progress summary from M12 kept as sent, corrections with history and re-review, coach queue and review with dated feedback, next steps and plan/message links, notices through the outbox, coach-change hand-over or flag, and the **approved exception** to finish a review sent in paid time after it expires (decision register §U, TY-CHECKIN-02; `checkin_access.v1`).
+- [ ] **Founder: approve or change the reminder timings** (`checkin_reminders.v1`, TY-CHECKIN-06). Development defaults until then.
+- [ ] **Check-ins aren't a per-plan inclusion.** Any coach can schedule them for any paid client (OPEN-06 still open). Gate by plan if inclusions become first-class.
+- [ ] **Attachments aren't checked against the question kind.** A client can attach a photo to the clip question (or the reverse); both are private check-in attachments. Tighten if it confuses coaches.
+- [ ] **Flagged check-ins need a person.** The admin page lists them (metadata only); nobody is emailed when one appears. Add an admin alert if coach changes become common.
+- [ ] **Reminder and review-due notices not verified by a live send.** Queue, dedupe and recheck are tested; watch the first real week after deploy.
+- [ ] **The coach's feedback editor keeps the last published text** as the starting point for an update. Convenient, but a coach could republish unchanged text; consider clearing it.
+- [ ] **Test hygiene:** the messaging suite's realtime signal test timed out once in this pass and passed on rerun (known timing sensitivity).

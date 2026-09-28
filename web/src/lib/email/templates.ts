@@ -569,6 +569,40 @@ ${button(`${ctx.siteUrl}${d.path?.startsWith("/") ? d.path : "/account/plan"}`, 
 }
 
 /**
+ * Check-in notices. A summary and a link: never an answer, a photo, a
+ * weight, or anything the client or coach wrote.
+ */
+export type CheckinNoticeEvent = "due_soon" | "late" | "submitted" | "corrected" | "review_overdue" | "transferred" | "feedback" | "closed";
+
+export function checkinNoticeEmail(
+  ctx: TemplateContext,
+  d: { event: CheckinNoticeEvent; name?: string | null; clientName?: string | null; coachName?: string | null; dueAt?: string | null; timeZone?: string | null; path: string },
+): RenderedEmail {
+  const client = escapeHtml(d.clientName || "Your client");
+  const coach = escapeHtml(d.coachName || "Your coach");
+  const due = d.dueAt ? dateTime(d.dueAt, d.timeZone) : "";
+  const copy: Record<CheckinNoticeEvent, [string, string, string]> = {
+    due_soon: ["Your check-in is due soon", `<p>Your check-in for ${coach} is due ${escapeHtml(due)}. It takes about two minutes, and your workouts, weight and food diary are added for you.</p><p>If it's not a good week, that's fine — missing one never affects your coaching.</p>`, "Open your check-in"],
+    late: ["Your check-in is still open", `<p>Your check-in for ${coach} is still open. Late is fine — send it whenever suits you, or leave it.</p>`, "Open your check-in"],
+    submitted: [`${d.clientName || "A client"} sent a check-in`, `<p>${client} sent a check-in. Their answers and the period's progress are waiting for you.</p>`, "Review the check-in"],
+    corrected: [`${d.clientName || "A client"} updated a check-in`, `<p>${client} changed something in a check-in that may matter for your feedback. The original and any feedback you gave are kept.</p>`, "See what changed"],
+    review_overdue: ["A check-in is waiting for your review", `<p>A check-in from ${client} is past the reply time you set, or has waited a while. If you're away, update your away dates so your client sees the right expectation.</p>`, "Review the check-in"],
+    transferred: [`A check-in from ${d.clientName || "your new client"} is yours to review`, `<p>After a coach change, a check-in ${client} sent is now yours to review, within what they agreed to share.</p>`, "Review the check-in"],
+    feedback: [`${d.coachName || "Your coach"} replied to your check-in`, `<p>${coach} has published feedback on your check-in.</p>`, "Read the feedback"],
+    closed: ["A check-in from before your coach change was closed", `<p>A check-in you sent before changing coach has been closed, because of what you chose to share with your new coach. Nothing you wrote was shown to anyone new. You can share anything important in your next check-in or in messages.</p>`, "See your check-ins"],
+  };
+  const [subject, body, action] = copy[d.event];
+  return build(
+    subject,
+    `${greet(d.name)}
+${body}
+${button(`${ctx.siteUrl}${d.path.startsWith("/") ? d.path : "/account"}`, action)}
+<p style="font-size:13px;color:${MUTED}">You can turn check-in emails off in your email settings.</p>`,
+    ctx.supportEmail,
+  );
+}
+
+/**
  * A controlled test of the email pipeline, sent only by
  * scripts/send-test-notification.mjs to an address the founder named. It says
  * plainly what it is, so nobody mistakes it for account activity.

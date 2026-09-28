@@ -131,6 +131,12 @@ async function planNoticeStillTrue(ctx: HandlerContext, versionId: string, custo
   return { proceed: true };
 }
 
+async function checkinNoticeStillTrue(ctx: HandlerContext, payload: Record<string, unknown>): Promise<Decision> {
+  const { data, error } = await ctx.admin.rpc("checkin_notice_still_true", { p_job: payload });
+  if (error) return { proceed: false, reason: "check-in notice could not be checked" };
+  return data ? { proceed: false, reason: String(data) } : { proceed: true };
+}
+
 function gone(who: string): Outcome {
   return { kind: "done", result: { sent: false, reason: "skipped", detail: `${who} no longer exists` } };
 }
@@ -906,6 +912,37 @@ export const HANDLERS: Record<string, Handler> = {
       // The coach's name and a date. What the plan says stays in the app.
       inboxTitle: email.subject,
       recheck: () => planNoticeStillTrue(ctx, versionId, customer.id, event),
+    });
+  },
+
+  "email.checkin_notice": async (job, ctx) => {
+    const recipient = await person(ctx, job.payload.recipient_id);
+    if (!recipient) return gone("recipient");
+    const { data: c } = await ctx.admin
+      .from("checkins")
+      .select("id, enrollment_id, customer_id, responsible_provider_id, due_at, timezone")
+      .eq("id", str(job.payload.checkin_id))
+      .maybeSingle();
+    if (!c) return gone("check-in");
+    const event = str(job.payload.event) as T.CheckinNoticeEvent;
+    const toCoach = ["submitted", "corrected", "review_overdue", "transferred"].includes(event);
+    const [client, coach] = await Promise.all([person(ctx, c.customer_id), coachPerson(ctx, c.responsible_provider_id)]);
+    const path = toCoach ? `/coach/check-ins/${c.id}` : `/account/progress/${c.enrollment_id}/check-ins/${c.id}`;
+    const email = T.checkinNoticeEmail(tctx(), {
+      event,
+      name: recipient.name,
+      clientName: client?.name?.split(" ")[0] ?? null,
+      coachName: coach?.displayName ?? null,
+      dueAt: c.due_at,
+      timeZone: toCoach ? recipient.timezone : c.timezone,
+      path,
+    });
+    return send(job, ctx, "checkin_notice", recipient, email, {
+      category: "checkins",
+      path,
+      inboxTitle: email.subject,
+      // Status and permission as they are now, not as they were when queued.
+      recheck: () => checkinNoticeStillTrue(ctx, job.payload),
     });
   },
 

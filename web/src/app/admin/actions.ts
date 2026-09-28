@@ -439,3 +439,29 @@ export async function releaseRetentionHoldAction(_: ActionState, form: FormData)
   revalidatePath("/admin/retention");
   return succeed("Released. New notices must be issued before anything could happen to it.");
 }
+
+/**
+ * A check-in flagged after a coach change: look again (the client may have
+ * widened what they share), or close it and tell the client. Nothing here
+ * reads what the client wrote.
+ */
+export async function resolveCheckinFlagAction(_: ActionState, form: FormData): Promise<ActionState> {
+  await requireAdmin("/admin/check-ins");
+  const supabase = await createClient();
+  const checkinId = field(form, "checkin_id", 36);
+  const resolution = field(form, "resolution", 10);
+  if (!supabase || !/^[0-9a-f-]{36}$/.test(checkinId) || !["close", "recheck"].includes(resolution)) return fail("That didn't work. Please try again.");
+  const { data, error } = await supabase.rpc("resolve_checkin_flag", { p_checkin: checkinId, p_action: resolution });
+  if (error) return fail(friendlyError(error));
+  revalidatePath("/admin/check-ins");
+  const outcome = String(data);
+  return succeed(
+    outcome === "transferred"
+      ? "Handed to the current coach — their sharing choice now covers it."
+      : outcome === "closed"
+        ? "Closed. The client has been told."
+        : outcome === "still_flagged"
+          ? "Still can't be handed on: the client's sharing choice hasn't changed."
+          : "Nothing to resolve any more.",
+  );
+}

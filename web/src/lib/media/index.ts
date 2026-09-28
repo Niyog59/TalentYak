@@ -50,7 +50,7 @@ export interface UploadTicket {
 export async function createUpload(args: {
   ownerProfileId: string;
   enrollmentId: string | null;
-  purpose: "progress_photo" | "form_review_clip" | "chat_attachment" | "food_photo";
+  purpose: "progress_photo" | "form_review_clip" | "chat_attachment" | "food_photo" | "checkin_attachment";
   kind: "image" | "video";
   bytes: number;
 }): Promise<UploadTicket> {

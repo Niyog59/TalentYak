@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getStripe } from "@/lib/payments/stripe";
+import { currentCheckinReminderPolicy } from "@/lib/policy";
 
 /**
  * Time-based housekeeping, run by the scheduled job endpoint.
@@ -27,6 +28,10 @@ export interface SweepSummary {
   callRoomsClosed: number;
   /** Gentle in-app "a workout is planned today" notices. */
   logReminders: number;
+  /** Check-in requests made for the period now running. */
+  checkinsCreated: number;
+  /** Check-in notices queued (each once only; re-checked before sending). */
+  checkinNotices: number;
   errors: string[];
 }
 
@@ -45,6 +50,8 @@ export async function runSweeps(): Promise<SweepSummary> {
     appointments: {},
     callRoomsClosed: 0,
     logReminders: 0,
+    checkinsCreated: 0,
+    checkinNotices: 0,
     errors: [],
   };
   const admin = createAdminClient();
@@ -164,6 +171,23 @@ export async function runSweeps(): Promise<SweepSummary> {
   } catch (err) {
     summary.errors.push(`log reminders: ${err instanceof Error ? err.message : String(err)}`);
   }
+
+  // Check-ins: the request for the period running now (never a past one,
+  // never while coaching is paused, never inside a break), then due-soon,
+  // late and unanswered-review notices. Runs after end_lapsed_enrollments, so
+  // a relationship paused this minute asks nothing new.
+  const made = await admin.rpc("materialize_checkins");
+  if (made.error) summary.errors.push(`checkins: ${made.error.message}`);
+  else summary.checkinsCreated = Number(made.data) || 0;
+  const timings = currentCheckinReminderPolicy();
+  const notices = await admin.rpc("queue_checkin_reminders", {
+    p_due_soon_hours: timings.dueSoonHours,
+    p_late_after_hours: timings.lateAfterHours,
+    p_late_window_hours: timings.lateWindowHours,
+    p_review_default_hours: timings.reviewWithoutStatedTimeHours,
+  });
+  if (notices.error) summary.errors.push(`checkin notices: ${notices.error.message}`);
+  else summary.checkinNotices = Number(notices.data) || 0;
 
   return summary;
 }
