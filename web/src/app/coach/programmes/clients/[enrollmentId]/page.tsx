@@ -140,6 +140,9 @@ export default async function CoachClientProgrammePage({ params }: { params: Pro
     <div className="mx-auto max-w-3xl">
       <p><Link href="/coach/programmes" className="text-brand underline underline-offset-4">← Programmes</Link></p>
       <PageHeader title={client.client_name}>{client.offer_title}</PageHeader>
+      <nav aria-label="Client" className="mt-4 flex flex-wrap gap-3">
+        <ButtonLink href={`${base}/progress`} variant="secondary" size="sm">Progress and logs</ButtonLink>
+      </nav>
 
       {!live ? (
         <Notice tone="bad">

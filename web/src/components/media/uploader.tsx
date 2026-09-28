@@ -59,13 +59,18 @@ export function MediaUploader({
   label = "Add a photo or clip",
   help,
   onUploaded,
+  imagesOnly = false,
+  disabled = false,
 }: {
-  purpose: "progress_photo" | "form_review_clip" | "chat_attachment";
+  purpose: "progress_photo" | "form_review_clip" | "chat_attachment" | "food_photo";
   enrollmentId?: string | null;
   label?: string;
   help?: string;
   /** Called once the upload is stored and handed to processing. */
   onUploaded?: (assetId: string, kind: "image" | "video") => void;
+  /** Refuse clips up front: a progress or food photo is a photo. */
+  imagesOnly?: boolean;
+  disabled?: boolean;
 }) {
   const [status, setStatus] = useState<Status>("idle");
   const [sent, setSent] = useState(0);
@@ -215,6 +220,13 @@ export function MediaUploader({
       setHasSession(false);
       return;
     }
+    if (imagesOnly && kind.kind !== "image") {
+      setStatus("error");
+      setMessage("Choose a photo here. Clips can be added on your photos and clips page.");
+      session.current = null;
+      setHasSession(false);
+      return;
+    }
     if (file.size > capFor(kind.kind)) {
       setStatus("error");
       setMessage(tooLargeMessage(kind.kind));
@@ -260,9 +272,9 @@ export function MediaUploader({
         id={`upload-${purpose}`}
         type="file"
         // A convenience for the file picker only; the server decides.
-        accept="image/jpeg,image/png,image/webp,image/avif,image/heic,image/heif,video/mp4,video/quicktime,video/webm,video/3gpp"
+        accept={imagesOnly ? "image/jpeg,image/png,image/webp,image/avif,image/heic,image/heif" : "image/jpeg,image/png,image/webp,image/avif,image/heic,image/heif,video/mp4,video/quicktime,video/webm,video/3gpp"}
         onChange={onChange}
-        disabled={busy || status === "paused"}
+        disabled={disabled || busy || status === "paused"}
         className="mt-3 block w-full text-sm file:mr-3 file:min-h-11 file:rounded-lg file:border file:border-line-strong file:bg-paper file:px-4 file:font-semibold"
       />
 

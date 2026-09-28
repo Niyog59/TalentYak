@@ -5,6 +5,7 @@ import { safeNextPath } from "@/lib/redirects";
 import { MfaChallenge, MfaEnrol, RemoveFactorButton } from "@/components/auth/mfa";
 import { SubmitButton } from "@/components/form/fields";
 import { signOutEverywhereAction } from "../actions";
+import { SignOutForm } from "@/components/tracking/sign-out-form";
 
 export const metadata: Metadata = { title: "Sign-in security" };
 export const dynamic = "force-dynamic";
@@ -95,11 +96,11 @@ export default async function SecurityPage({
           Signed-in devices
         </h2>
         <p className="mt-2 text-ink-muted">Sign out everywhere, including this device — useful if a phone or laptop is lost.</p>
-        <form action={signOutEverywhereAction} className="mt-4">
+        <SignOutForm action={signOutEverywhereAction} className="mt-4">
           <SubmitButton variant="secondary" pendingLabel="Signing out…">
             Sign out on all devices
           </SubmitButton>
-        </form>
+        </SignOutForm>
       </section>
     </div>
   );

@@ -10,7 +10,7 @@ import { mediaSession, UUID } from "@/lib/media/session";
  */
 export const dynamic = "force-dynamic";
 
-const PURPOSES = new Set(["progress_photo", "form_review_clip", "chat_attachment"]);
+const PURPOSES = new Set(["progress_photo", "form_review_clip", "chat_attachment", "food_photo"]);
 
 export async function POST(request: Request) {
   const session = await mediaSession();
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
       // file media into somebody else's history.
       ownerProfileId: session.userId,
       enrollmentId,
-      purpose: purpose as "progress_photo" | "form_review_clip" | "chat_attachment",
+      purpose: purpose as "progress_photo" | "form_review_clip" | "chat_attachment" | "food_photo",
       kind,
       bytes: Number(body.bytes),
     });

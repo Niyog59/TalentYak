@@ -216,3 +216,15 @@ Status of record: `docs/implementation/M03-M07-STATUS.md`.
 - [ ] **Renaming an exercise keeps its identity** (so progress continues). Replacing one with a different exercise should be done by removing it and adding a new one; the editor does not warn about this. Consider a hint in the editor.
 - [ ] **Legacy page `/coach/clients/[bookingId]`** still uses the old `programs` tables for legacy bookings. Retire with the legacy booking path.
 - [ ] **Deploy with the migration.** A plan notice queued before the new worker is live fails with "no handler" (test data only so far).
+
+---
+
+## M12 — Client logging and progress (2026-09-27) — complete
+
+- [x] Workout logging from the plan (confirmed sets only, alternatives/substitutes/extras, load meaning, kg/lb, rest timer, backdating, corrections), reliable saving with device drafts, conflict choice and pause holding; body weight and measurements; dated private photos with comparison; food diary; progress and consistency; coach review and "useful to track"; gentle reminders (decision register §T).
+- [ ] **Same-day coach handover.** Records are dated by the client's day, so on the day of a coach change a new coach on the "share nothing" choice doesn't see that day's entries (they appear from the next day). Errs on privacy; revisit if coaches notice.
+- [ ] **Corrections while paused also wait.** Editing or deleting an existing workout, food entry or reading is held like new entries (TY-TRACK-06 read strictly). Relax for corrections if the founder wants.
+- [ ] **Reminder send not verified live.** Logic and dedupe reviewed; watch the first evening's notifications after deploy.
+- [ ] **Drafts on a shared device when a session simply expires.** They're separated by account and dropped after 30 days if already saved, but only cleared on an explicit sign-out.
+- [ ] **Form review (AAF-PROG-08)** — clips with coach feedback on a set — is still unbuilt; `FULFILLMENT.formReview` stays not ready.
+- [ ] **Charts are per date range, not paged.** Very long histories (hundreds of workouts) load the range in one read; add paging if it gets slow.

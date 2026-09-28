@@ -264,20 +264,24 @@ describe("M11 programmes", { skip }, () => {
   });
 
   test("M12 records point only at a real session and exercise of a published version on their own relationship", async () => {
+    // Written with the service role: since M12 the client writes through
+    // save_workout_log() (tested in tracking.db.test.ts); these triggers are the
+    // backstop beneath it and apply to every writer.
     const today = new Date().toISOString().slice(0, 10);
-    const ok = await customer.client.from("workout_logs").insert({ enrollment_id: enrollment, plan_version_id: v1, session_key: S1, performed_at: today }).select("id").single();
+    const writer = adminClient();
+    const ok = await writer.from("workout_logs").insert({ enrollment_id: enrollment, plan_version_id: v1, session_key: S1, performed_at: today }).select("id").single();
     assert.equal(ok.error, null, ok.error?.message);
 
-    const foreign = await customer.client.from("workout_logs").insert({ enrollment_id: enrollment, plan_version_id: otherVersion, session_key: S1, performed_at: today });
+    const foreign = await writer.from("workout_logs").insert({ enrollment_id: enrollment, plan_version_id: otherVersion, session_key: S1, performed_at: today });
     assert.equal(errorCode(foreign.error), "workout_log_reference_invalid", "another client's plan version is refused");
-    const ghost = await customer.client.from("workout_logs").insert({ enrollment_id: enrollment, plan_version_id: v1, session_key: randomUUID(), performed_at: today });
+    const ghost = await writer.from("workout_logs").insert({ enrollment_id: enrollment, plan_version_id: v1, session_key: randomUUID(), performed_at: today });
     assert.equal(errorCode(ghost.error), "workout_log_reference_invalid");
 
-    const main = await customer.client.from("set_logs").insert({ workout_log_id: ok.data!.id, set_index: 1, reps: 10, exercise_key: EX1 });
+    const main = await writer.from("set_logs").insert({ workout_log_id: ok.data!.id, set_index: 1, reps: 10, exercise_key: EX1 });
     assert.equal(main.error, null, main.error?.message);
-    const alt = await customer.client.from("set_logs").insert({ workout_log_id: ok.data!.id, set_index: 1, reps: 10, exercise_key: EX1, alternative_key: ALT1 });
+    const alt = await writer.from("set_logs").insert({ workout_log_id: ok.data!.id, set_index: 1, reps: 10, exercise_key: EX1, alternative_key: ALT1 });
     assert.equal(alt.error, null, alt.error?.message);
-    const wrong = await customer.client.from("set_logs").insert({ workout_log_id: ok.data!.id, set_index: 2, reps: 10, exercise_key: randomUUID() });
+    const wrong = await writer.from("set_logs").insert({ workout_log_id: ok.data!.id, set_index: 2, reps: 10, exercise_key: randomUUID() });
     assert.equal(errorCode(wrong.error), "set_log_reference_invalid");
   });
 
