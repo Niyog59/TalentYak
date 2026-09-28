@@ -37,3 +37,7 @@ Scope: the full founder brief (FM13, 2026-09-27). Migrations `0050_media_checkin
 - Real phones, real offline, screen readers (labels, fieldsets, 44 px targets checked).
 - Uploading a photo or clip inside the check-in form in the browser (M08 uploader unchanged; attachment access rules verified in the database suite).
 - Linking a promised step to a real published plan version end to end (refusal of an invalid version verified; M11 publishing unchanged).
+
+## Deployed — `b24d4ca`, www.talentyak.com
+
+Vercel production deployment: **success**. Signed out, the new client, coach and admin check-in pages redirect to sign-in; the home page answers 200; the check-in save route refuses an unauthenticated request (401). Migrations `0050`–`0052` were applied before the push. Not checked on the live domain: a signed-in client or coach journey (done locally against the same database).
