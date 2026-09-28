@@ -204,3 +204,15 @@ Status of record: `docs/implementation/M03-M07-STATUS.md`.
 - [ ] **Daily webhooks** need a paid Daily plan. The receiver is built and refuses everything until `DAILY_WEBHOOK_SECRET` is set; attendance comes from the after-call fetch meanwhile.
 - [ ] **Physical phones not tested**: iOS Safari / Android Chrome camera switching, backgrounding, Bluetooth headsets. Needs real devices once calls can run.
 - [ ] **Test hygiene (found in Batch 5):** `web/test/db/scheduling.db.test.ts` cleans up by deleting EVERY `email.appointment%` outbox row created in the last three hours, not only its own. In the shared test project that removed another journey's pending reminders. Scope the delete to the suite's own appointment ids.
+
+---
+
+## M11 — Coach-created programmes (2026-09-27) — complete
+
+- [x] Workout and nutrition plans per client: templates copied into independent plans, drafts, preview, publish now or on a date, cancel before start, version history, Monday–Sunday week with rest days and in-order plans, one-week session moves, exercise details with alternatives, client training & food profile, M08 notices, M12 references (decision register §S).
+- [ ] **Clients aren't prompted to fill in their training & food profile.** It is linked from their plan page and the coach is told when it's empty. Unblocked by adding a step after purchase or on first sign-in.
+- [ ] **In-order plans can't show "next session"** — that needs recorded workouts (M12). They show the order instead.
+- [ ] **Coaches can't move a client's session from their screens** (the database allows it; only the client's screen offers it). Add if coaches ask.
+- [ ] **Renaming an exercise keeps its identity** (so progress continues). Replacing one with a different exercise should be done by removing it and adding a new one; the editor does not warn about this. Consider a hint in the editor.
+- [ ] **Legacy page `/coach/clients/[bookingId]`** still uses the old `programs` tables for legacy bookings. Retire with the legacy booking path.
+- [ ] **Deploy with the migration.** A plan notice queued before the new worker is live fails with "no handler" (test data only so far).

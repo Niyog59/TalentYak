@@ -80,6 +80,7 @@ export function coachNav(
         exact: true,
       },
       { label: "Clients", href: `${base}/clients`, icon: "clients", available: built.clientsIndex, phone: true },
+      { label: "Programmes", href: `${base}/programmes`, icon: "training", available: built.extras },
       { label: "Plans & pricing", shortLabel: "Plans", href: `${base}/plans`, icon: "plans", available: built.extras, phone: true },
       { label: "Earnings", href: `${base}/earnings`, icon: "earnings", available: built.extras, phone: true },
       { label: "Profile", href: `${base}/profile`, icon: "profile", available: built.extras },

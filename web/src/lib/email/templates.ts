@@ -534,6 +534,41 @@ ${button(`${ctx.siteUrl}${d.path?.startsWith("/") ? d.path : "/account"}`, "Read
 }
 
 /**
+ * A plan version was published, or a planned update was cancelled. Names the
+ * coach and when it starts — never what the plan says, which may describe an
+ * injury or a diet.
+ */
+export function planUpdatedEmail(
+  ctx: TemplateContext,
+  d: { name?: string | null; coachName: string; kind: "workout" | "nutrition"; event: "published" | "withdrawn"; first: boolean; startsLabel: string | null; path?: string },
+): RenderedEmail {
+  const what = d.kind === "workout" ? "workout plan" : "nutrition plan";
+  const subject =
+    d.event === "withdrawn"
+      ? `A planned change to your ${what} was cancelled`
+      : d.first
+        ? `Your ${what} is ready`
+        : d.startsLabel
+          ? `Your ${what} changes on ${d.startsLabel}`
+          : `Your ${what} has been updated`;
+  const body =
+    d.event === "withdrawn"
+      ? `<p>${escapeHtml(d.coachName)} cancelled a planned change to your ${what}. Nothing changes: keep following your current plan.</p>`
+      : d.first
+        ? `<p>${escapeHtml(d.coachName)} has written your ${what}${d.startsLabel ? `, starting ${escapeHtml(d.startsLabel)}` : ""}.</p>`
+        : `<p>${escapeHtml(d.coachName)} has updated your ${what}${d.startsLabel ? `. The new version starts ${escapeHtml(d.startsLabel)}; until then, keep following your current plan` : ""}. Your coach's note about what changed is on the plan page.</p>
+<p>Anything you've already done stays exactly as it was.</p>`;
+  return build(
+    subject,
+    `${greet(d.name)}
+${body}
+${button(`${ctx.siteUrl}${d.path?.startsWith("/") ? d.path : "/account/plan"}`, "Open your plan")}
+<p style="font-size:13px;color:${MUTED}">You can turn these emails off in your email settings.</p>`,
+    ctx.supportEmail,
+  );
+}
+
+/**
  * A controlled test of the email pipeline, sent only by
  * scripts/send-test-notification.mjs to an address the founder named. It says
  * plainly what it is, so nobody mistakes it for account activity.

@@ -368,7 +368,7 @@ describe("policies that are not yet approved stay switched off", () => {
 });
 
 describe("selling a specific offer for real money", () => {
-  test("stays blocked even with every policy approved, because legal terms are drafts and fulfilment is unbuilt", async () => {
+  test("stays blocked even with every policy approved, because legal terms are drafts and parts of fulfilment are unbuilt", async () => {
     const { evaluateSaleReadiness } = await import("@/lib/policy");
     const saved = process.env.LIVE_BILLING;
     process.env.LIVE_BILLING = "true";
@@ -377,7 +377,8 @@ describe("selling a specific offer for real money", () => {
       assert.equal(readiness.ready, false);
       assert.ok(readiness.blockers.some((b) => b.includes("drafts")), "legal drafts block live sales");
       assert.ok(readiness.blockers.some((b) => b.includes("Scheduled video and audio calls")), "an offer with calls is blocked until calls exist");
-      assert.ok(readiness.blockers.some((b) => b.includes("training programmes")));
+      assert.ok(!readiness.blockers.some((b) => b.includes("training programmes")), "programmes are built (M11) and no longer block a sale");
+      assert.ok(readiness.blockers.some((b) => b.includes("tracking")), "tracking (M12) still does");
     } finally {
       if (saved === undefined) delete process.env.LIVE_BILLING;
       else process.env.LIVE_BILLING = saved;

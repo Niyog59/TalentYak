@@ -112,6 +112,25 @@ async function expectationsStillUnread(ctx: HandlerContext, presentationId: stri
   return { proceed: true };
 }
 
+/**
+ * Still worth telling: the version is still this client's, and a "published"
+ * notice is not sent for an update that was cancelled before the worker ran.
+ */
+async function planNoticeStillTrue(ctx: HandlerContext, versionId: string, customerId: string, event: string): Promise<Decision> {
+  if (!versionId) return { proceed: false, reason: "no version named" };
+  const { data, error } = await ctx.admin
+    .from("client_plan_versions")
+    .select("id, withdrawn_at, client_plans(enrollments(customer_id))")
+    .eq("id", versionId)
+    .maybeSingle();
+  if (error) return { proceed: false, reason: "plan version could not be checked" };
+  if (!data) return { proceed: false, reason: "that version is no longer on record" };
+  const plan = data.client_plans as unknown as { enrollments: { customer_id: string } | null } | null;
+  if (plan?.enrollments?.customer_id !== customerId) return { proceed: false, reason: "no longer this client's plan" };
+  if (event === "published" && data.withdrawn_at) return { proceed: false, reason: "the update was cancelled before the notice went out" };
+  return { proceed: true };
+}
+
 function gone(who: string): Outcome {
   return { kind: "done", result: { sent: false, reason: "skipped", detail: `${who} no longer exists` } };
 }
@@ -864,6 +883,30 @@ export const HANDLERS: Record<string, Handler> = {
         inboxTitle: `${coach.displayName} shared an updated welcome & expectations`,
         recheck: () => expectationsStillUnread(ctx, presentationId, customer.id),
       });
+  },
+
+  "email.plan_updated": async (job, ctx) => {
+    const customer = await person(ctx, job.payload.customer_id);
+    const coach = await coachPerson(ctx, job.payload.provider_id);
+    if (!customer || !coach) return gone("recipient");
+    const enrollmentId = str(job.payload.enrollment_id);
+    const versionId = str(job.payload.version_id);
+    const event = job.payload.event === "withdrawn" ? "withdrawn" : "published";
+    const kind = job.payload.kind === "nutrition" ? "nutrition" : "workout";
+    const effective = str(job.payload.effective_from);
+    const later = effective && Date.parse(effective) > Date.now() + 60_000;
+    const startsLabel = later
+      ? new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: customer.timezone || "UTC" }).format(new Date(effective))
+      : null;
+    const path = enrollmentId ? `/account/plan/${enrollmentId}${versionId && event === "published" && later ? `/history?v=${versionId}` : ""}` : "/account/plan";
+    const email = T.planUpdatedEmail(tctx(), { name: customer.name, coachName: coach.displayName, kind, event, first: num(job.payload.version) === 1, startsLabel, path });
+    return send(job, ctx, "plan_updated", customer, email, {
+      category: "coaching",
+      path,
+      // The coach's name and a date. What the plan says stays in the app.
+      inboxTitle: email.subject,
+      recheck: () => planNoticeStillTrue(ctx, versionId, customer.id, event),
+    });
   },
 
   // Sent only by scripts/send-test-notification.mjs, to an address the founder
