@@ -64,6 +64,8 @@ export function customerNav(base: string): NavConfig {
 export function coachNav(
   base: string,
   built: { clientsIndex: boolean; extras: boolean },
+  /** Also a client: a link to their own, separate client dashboard. */
+  alsoClient = false,
 ): NavConfig {
   return {
     area: "coach",
@@ -89,6 +91,7 @@ export function coachNav(
       { label: "Payout details", href: `${base}/payouts`, icon: "lock", available: built.extras },
       { label: "Calendar", href: `${base}/calendar`, icon: "calendar", available: built.extras },
       { label: "Messages", href: `${base}/messages`, icon: "messages", available: built.extras, alsoActiveFor: [`${base}/support`] },
+      ...(alsoClient ? [{ label: "My own coaching", href: "/account", icon: "home" as const, available: true }] : []),
     ],
   };
 }

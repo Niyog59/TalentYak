@@ -10,44 +10,26 @@ import { StatusPill } from "@/components/ui/panel";
 import { SessionCard, PlanWeek, Paragraphs } from "@/components/programmes/workout-view";
 import { NutritionView } from "@/components/programmes/nutrition-view";
 import { moveSessionAction } from "@/lib/programmes/actions";
-import { myEnrollments, plansForEnrollment, weekRecords, type ClientPlan, type PlanVersion } from "@/lib/programmes/server";
+import { currentPlanOf, loggedSessions, myEnrollments, plansForEnrollment, weekLayout, type ClientPlan, type PlanVersion } from "@/lib/programmes/server";
 import {
   DAY_NAMES,
   addDays,
   isDateOnly,
-  layOutWeek,
   localDate,
   mondayOf,
   scheduledVersions,
-  startOfLocalDay,
   versionInForce,
   weekday,
   type NutritionContent,
   type PlacedSession,
-  type WeekDay,
   type WorkoutContent,
 } from "@/lib/programmes/content";
 import { formatDate, formatDay } from "@/lib/format";
 import { PAUSED_FOR_PAYMENT_NOTICE } from "@/lib/policy";
-import { createClient } from "@/lib/supabase/server";
 import { STATUS_LABEL, type WorkoutStatus } from "@/lib/tracking/workout";
 
 export const metadata: Metadata = { title: "Your plan" };
 export const dynamic = "force-dynamic";
-
-async function week(plan: ClientPlan, weekStart: string, today: string, tz: string | null, now: Date): Promise<WeekDay[]> {
-  const records = await weekRecords(plan, weekStart, addDays(weekStart, 6));
-  const byId = new Map(plan.versions.map((v) => [v.id, v]));
-  const asWorkout = (v: PlanVersion | null | undefined) => (v ? { id: v.id, content: v.content as WorkoutContent } : null);
-  return layOutWeek({
-    weekStart,
-    // Today follows what is in force right now; other days, what is in force when they start.
-    versionForDay: (date) => asWorkout(versionInForce(plan.versions, date === today ? now : startOfLocalDay(date, tz))),
-    versionById: (id) => asWorkout(byId.get(id)),
-    moves: records.moves,
-    started: records.started,
-  });
-}
 
 function MoveForm({ plan, placed, weekStart, enrollmentId, day }: { plan: ClientPlan; placed: PlacedSession; weekStart: string; enrollmentId: string; day: number }) {
   return (
@@ -88,17 +70,6 @@ function PutBack({ plan, placed, weekStart, enrollmentId }: { plan: ClientPlan; 
   );
 }
 
-/** Records already started for sessions in this week, by date and session. */
-async function loggedThisWeek(enrollmentId: string, from: string, to: string): Promise<Map<string, { id: string; status: WorkoutStatus }>> {
-  const supabase = await createClient();
-  const out = new Map<string, { id: string; status: WorkoutStatus }>();
-  if (!supabase) return out;
-  const { data } = await supabase.from("workout_logs").select("id, session_key, performed_at, status")
-    .eq("enrollment_id", enrollmentId).not("session_key", "is", null).gte("performed_at", from).lte("performed_at", to);
-  for (const r of data ?? []) out.set(`${r.performed_at}:${r.session_key}`, { id: r.id as string, status: r.status as WorkoutStatus });
-  return out;
-}
-
 function LogLink({ enrollmentId, placed, date, logged, primary }: { enrollmentId: string; placed: PlacedSession; date: string; logged: { id: string; status: WorkoutStatus } | undefined; primary?: boolean }) {
   const base = `/account/progress/${enrollmentId}/workouts`;
   const href = logged ? `${base}/${logged.id}` : `${base}/new?${new URLSearchParams({ version: placed.versionId, session: placed.session.key, date }).toString()}`;
@@ -135,9 +106,7 @@ export default async function ClientPlanPage({
 
   const plans = await plansForEnrollment(enrollmentId);
   // The current coach's plans. An earlier coach's stay readable in the history.
-  const currentPlan = (kind: "workout" | "nutrition") =>
-    plans.find((p) => p.kind === kind && p.assignment_id === enrollment.openAssignmentId && p.versions.length) ??
-    (enrollment.openAssignmentId ? undefined : plans.find((p) => p.kind === kind && p.versions.length));
+  const currentPlan = (kind: "workout" | "nutrition") => currentPlanOf(plans, kind, enrollment.openAssignmentId);
   const workout = currentPlan("workout");
   const nutrition = currentPlan("nutrition");
   const earlierPlans = plans.some((p) => p.versions.length && p !== workout && p !== nutrition);
@@ -149,8 +118,8 @@ export default async function ClientPlanPage({
   const workoutNow = workout ? versionInForce(workout.versions, now) : null;
   const weekly = (workoutNow?.content as WorkoutContent | undefined)?.schedule !== "in_order";
 
-  const currentWeek = workout && weekly ? await week(workout, thisWeek, today, tz, now) : null;
-  const displayedWeek = workout && weekly ? (shownWeek === thisWeek ? currentWeek : await week(workout, shownWeek, today, tz, now)) : null;
+  const currentWeek = workout && weekly ? await weekLayout(workout, thisWeek, today, tz, now) : null;
+  const displayedWeek = workout && weekly ? (shownWeek === thisWeek ? currentWeek : await weekLayout(workout, shownWeek, today, tz, now)) : null;
   const todayPlan = currentWeek?.[weekday(today)] ?? null;
 
   const nutritionNow = nutrition ? versionInForce(nutrition.versions, now) : null;
@@ -159,7 +128,7 @@ export default async function ClientPlanPage({
     ...(nutrition ? scheduledVersions(nutrition.versions, now).map((v) => ({ v, kind: "nutrition plan" })) : []),
   ];
   const canMove = enrollment.state !== "ended" && shownWeek >= thisWeek;
-  const logged = workout && weekly ? await loggedThisWeek(enrollmentId, shownWeek < thisWeek ? shownWeek : thisWeek, addDays(shownWeek > thisWeek ? shownWeek : thisWeek, 6)) : new Map();
+  const logged = workout && weekly ? await loggedSessions(enrollmentId, shownWeek < thisWeek ? shownWeek : thisWeek, addDays(shownWeek > thisWeek ? shownWeek : thisWeek, 6)) : new Map();
   const base = `/account/plan/${enrollmentId}`;
 
   return (

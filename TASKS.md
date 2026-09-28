@@ -241,3 +241,13 @@ Status of record: `docs/implementation/M03-M07-STATUS.md`.
 - [ ] **Reminder and review-due notices not verified by a live send.** Queue, dedupe and recheck are tested; watch the first real week after deploy.
 - [ ] **The coach's feedback editor keeps the last published text** as the starting point for an update. Convenient, but a coach could republish unchanged text; consider clearing it.
 - [ ] **Test hygiene:** the messaging suite's realtime signal test timed out once in this pass and passed on rerun (known timing sensitivity).
+
+## M15 — Client and coach dashboards (2026-09-28) — complete
+
+- [x] Client dashboard (`/account`): today's workout with Start/Continue, rest days and week links; to-do (payment pause, check-in due or draft, session suggestions to answer, unread per conversation); getting-started steps (never blocking); per relationship: next session with Join only when M10 would allow it, requests and cancellations, check-ins, messages, nutrition and today's food diary, 4-week progress by the coach's focus, plan and renewal, calls left where included; plan and expectations updates with dismiss; support routes (also while paused); earlier coaching. Coach dashboard (`/coach`): one filtered queue (check-ins, updated check-ins, form-check clips, unanswered messages, booking requests, plans) with snooze and "no reply needed"; today's sessions with call links; searchable clients with factual last activity and next item; plans; recent activity; capacity and availability shortcuts; earnings by currency. Role switch for coach-and-client accounts. Decision register §V.
+- [ ] **Unread counts include system cards** (session and expectations cards in a conversation), exactly as the Messages screen counts them. Consider counting only people's messages in both places.
+- [ ] **Form-check detection counts any video attached to a check-in**, not only one on the clip question (the check-in attachment kind isn't matched to the question; see M13).
+- [ ] **Notifications inbox is shared** between a person's coach and client roles (existing behaviour); the dashboards themselves are separated.
+- [ ] **Not verified live:** a signed-in journey on the deployed site, real phones and screen readers, and a payment pause through the real Stripe path (the walkthrough changed states directly; the real path also puts sessions on hold).
+- [ ] **Test hygiene:** three synthetic walkthrough profiles remain on TEST, held by their append-only payment records (retired coaches, nothing public) — same as the scheduling suite's fixtures.
+

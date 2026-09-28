@@ -482,6 +482,17 @@ media_purpose                   + checkin_attachment (coach sees it only once se
 
 Requests are made by `materialize_checkins_for()` (worker sweep, and `refresh_checkins()` on page load) only for the period running now, only while `coaching_is_live()`, never inside a break or pause, never overlapping an earlier request — so no backlog. Clients save drafts with `save_checkin_draft` (live only; paused → held on the device, draft kept). Sending goes through `POST /api/checkins`, which builds the M12 progress summary with the client's own session and calls the service-only `submit_checkin(p_actor, …)` — a device can never write the summary; `submit_id` makes a retry one submission. Coaches read by `coach_may_read_record()` with attachments judged as media, write only feedback (`save_/publish_checkin_feedback`, `complete_checkin_review`, `link_checkin_step`) under `checkin_coach_may_review()`, which includes the approved paid-time exception `checkin_review_exception()`. A trigger on `enrollment_assignments` hands unanswered reviews to the new coach within `history_scope` or flags them; `admin_checkin_attention()` gives TalentYak metadata only. Notices: `email.checkin_notice` through the outbox with per-event dedupe keys, re-checked by `checkin_notice_still_true()` before sending; category `checkins` (optional). Policy: `checkin_access.v1` (confirmed), `checkin_reminders.v1` (sandbox default).
 
+### 3.7i Client and coach dashboards (M15) — `0053`
+
+```
+dashboard_marks            a person's own snoozed / handled / dismissed marks (owner reads; written only by set_dashboard_mark)
+coach_message_attention()  per coach conversation: unread vs unanswered, waiting since, handled reach — no text
+coach_client_activity(ts)  per current client: last dates and counts (security INVOKER: the coach's own RLS)
+my_call_allowance(e)       calls left in the current paid cycle, fixed-allowance packages only
+```
+
+Both dashboards are server-rendered summaries of the existing modules, read with the person's own session (`web/src/lib/dashboard/client.ts`, `coach.ts`). Each section loads through `attempt()` and fails on its own with a retry (`SectionFailed`); a failed source makes the coach's affected counts read "N+" instead of pretending to be complete. The coach queue is derived by the pure `buildQueue()` (`web/src/lib/dashboard/tasks.ts`): check-ins awaiting feedback (`coach_checkin_queue`, including the M13 paid-time exception), re-reviews (`reopened`), form-check clips (a video in the latest submission that the media policy lets the coach read), unanswered messages, client booking requests (`loadSchedule`), and plans not yet written or drafts. Marks never change the underlying record; a snooze never hides an item that is due, and "handled" covers messages up to the seq the database recorded. Nothing on either dashboard writes a read marker. Today's workout reuses `currentPlanOf` / `weekLayout` / `loggedSessions` (moved from the plan page into `web/src/lib/programmes/server.ts`). Join is offered only for a booked session whose room is open (`appointment_call_info` + `callClock`) and whose coaching is live. `LiveRefresh` re-reads on reconnect, on return to the tab and every two minutes while visible.
+
 ### 3.8 How the database defends itself
 
 Three mechanisms, all exercised by the test suite:

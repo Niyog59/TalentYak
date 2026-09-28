@@ -676,3 +676,27 @@ The project instructions file that every agent reads first is founder-owned. Wit
 | OPEN-06 | Partly resolved; check-ins not first-class | **Unchanged.** Check-ins are available in every paid relationship where the coach sets a schedule; no per-plan entitlement gate was added |
 | `FULFILLMENT.checkIns` | not ready | **Ready.** Live sales remain refused for the reasons already listed (legal drafts, unapproved policies, calls, form review) |
 | AAF-PROG-08 (form review) | unbuilt | **Unchanged.** A check-in can carry an optional form-check clip; per-set form review with feedback is still separate |
+
+## V. Thirteenth-pass decisions — 2026-09-28 (M15 client and coach dashboards)
+
+**Source key added:** **FM15** — Founder prompt, *Implement M15: client and coach dashboards*, 2026-09-28. Founder-supplied. Founder-wide analytics and operations stay in M17.
+
+| ID | Topic | Status | Rule | Source | Modules |
+|---|---|---|---|---|---|
+| **TY-DASH-01** | Completion comes from the work | **CONFIRMED** (FM15) | Every dashboard item opens its real record, and leaves the list only when that record changes (feedback published, request answered, plan published, reply sent). Opening an item completes nothing, accepts no terms and resolves no request. | FM15 | M15 |
+| **TY-DASH-02** | Snooze, handled, dismiss | **CONFIRMED** (FM15) + engineering defaults | A person's marks only change what they see. Snooze (coach, 4 hours / 1 day / 3 days, at most 7 days) hides an item until the snooze ends or it falls due, whichever is first; a due or overdue item is always shown and its deadline never moves. "No reply needed" exists only for a conversation and covers the client's messages up to the point the database records, so a new message brings it back. A client can dismiss a plan or expectations update; dismissing accepts nothing and never hides a step still asked of them. The snooze lengths are engineering defaults. | FM15 | M15 |
+| **TY-DASH-03** | Unread vs unanswered | **CONFIRMED** (FM15) | Unread = the client's messages after the coach's own read marker; unanswered = the client wrote last. Only opening the conversation moves the read marker — the dashboard never does, so a preview never produces a read receipt. No message text is shown on either home screen. A conversation the coach can no longer reply in (paused, ended, reassigned) is not a task. | FM15 | M15, M14 |
+| **TY-DASH-04** | Form-review tasks | **CONFIRMED** (FM15 + engineering) | A form-review task is a check-in waiting for the coach's feedback whose latest version carries a video the coach may watch under the existing media rules. Chat attachments, progress photos and other uploads are never treated as review requests. The feedback is the check-in's feedback (M13). A separate per-set form-review workflow (AAF-PROG-08) is still unbuilt. | FM15 | M15, M13 |
+| **TY-DASH-05** | Factual activity | **CONFIRMED** (FM15) | A client's last activity is shown as what they recorded and when ("Logged a workout 2 days ago"), from dates and counts only — never values, never an "at risk" or similar label. When the coach can't see a client's records (e.g. while paused) it says so rather than showing no activity. | FM15 | M15 |
+| **TY-DASH-06** | Earnings summary | **CONFIRMED** (FM15; AAF-DATA-05) | One row per currency, never added across currencies (no approved conversion rule). Pending (not yet delivered), earned but not yet paid (ready, or in a payout being prepared), and paid (a transfer recorded as sent) are separate figures. A payout date is shown only when a payout was recorded as paid; no future payout date is predicted. | FM15 | M15, M07 |
+| **TY-DASH-07** | Calls left | **CONFIRMED** (FM15) | Shown only when the purchase includes a fixed number of calls a month, counted exactly as booking counts them (`my_call_allowance`, 0053, mirroring `claim_call_allowance`). Flexible coaching shows no quota. | FM15 | M15, M09 |
+| **TY-DASH-08** | Two roles, two dashboards | **CONFIRMED** (FM15) | Someone who is both a coach and a client gets an explicit switch between "My coaching" (client) and "My clients" (coach). Each dashboard reads only its own role's data; relationships, plans, sessions and messages are each labelled with their coach (and plan, when one client has two relationships with the same coach) and never blended. | FM15 | M15 |
+
+### V1 · Status changes
+
+| Entry | Was | Now |
+|---|---|---|
+| AAF-PROG-07 (progress for client and coach) | Built in M12 | **Summarised on both dashboards** (last 4 weeks), weight only where the client records it or the coach asked; no verdicts (AAF-PROG-11) |
+| AAF-PROG-08 (form review) | Unbuilt, clip on a check-in only | **Unchanged**; clips on check-ins now appear as form-check tasks (TY-DASH-04) |
+| OPEN-06 | Check-ins not a per-plan inclusion | **Unchanged** |
+

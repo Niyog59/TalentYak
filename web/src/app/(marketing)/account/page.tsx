@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { requireOnboarded } from "@/lib/auth";
+import { Suspense } from "react";
+import { requireOnboarded, type SessionContext } from "@/lib/auth";
 import { isSupabaseConfigured } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import { Button, ButtonLink } from "@/components/button";
@@ -12,8 +13,13 @@ import { PURCHASE_STATE_LABEL, formatDate, formatMinor } from "@/lib/format";
 import { PAUSED_FOR_PAYMENT_NOTICE } from "@/lib/policy";
 import { requestCoachChangeAction } from "./customer-actions";
 import { SignOutForm } from "@/components/tracking/sign-out-form";
+import { LiveRefresh } from "@/components/dashboard/live";
+import { RoleSwitch } from "@/components/dashboard/role-switch";
+import { EarlierCoaching, GettingStarted, OneOffSessions, RelationshipCard, SupportBlock, TodayWorkouts, TodoList, Updates } from "@/components/dashboard/client-home";
+import { clientDashboard } from "@/lib/dashboard/client";
+import { clockTime } from "@/lib/calls/window";
 
-export const metadata: Metadata = { title: "Your account" };
+export const metadata: Metadata = { title: "Today" };
 export const dynamic = "force-dynamic";
 
 export default async function AccountPage() {
@@ -30,9 +36,102 @@ export default async function AccountPage() {
   const session = await requireOnboarded("/account");
   const { profile } = session;
   const tz = profile.timezone;
+  const isCoach = Boolean(session.provider && session.provider.status !== "retired");
+
+  return (
+    <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 md:py-14">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-ink-muted">{profile.preferred_name || profile.full_name || session.email}</p>
+          <h1 className="font-display text-4xl sm:text-5xl">Today</h1>
+          <p className="mt-1 text-ink-muted">
+            {new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: tz ?? "UTC" }).format(new Date())} · times in your time zone ({tz ?? "UTC"})
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          {isCoach ? <RoleSwitch current="client" /> : null}
+          <SignOutForm>
+            <Button variant="secondary" size="sm" type="submit" className="min-h-11">Log out</Button>
+          </SignOutForm>
+        </div>
+      </div>
+
+      <Suspense fallback={<p role="status" aria-busy="true" className="mt-8 rounded-2xl border border-line bg-surface p-6">Loading your day…</p>}>
+        <ClientHome session={session} />
+      </Suspense>
+
+      <Suspense fallback={null}>
+        <ManageCoaching session={session} isCoach={isCoach} />
+      </Suspense>
+
+      <InstallHelp className="mt-12" />
+    </div>
+  );
+}
+
+async function ClientHome({ session }: { session: SessionContext }) {
+  const tz = session.profile.timezone;
+  const d = await clientDashboard(session);
+  const nowMs = Date.parse(d.now);
+  const unreadMessages = d.messages.ok ? d.messages.data.reduce((n, c) => n + c.unread, 0) : null;
+  const hasCoaching = d.current.length + d.ended.length + d.pending.length > 0;
+  const inbox = (
+    <nav aria-label="Inbox" className="mt-6 flex flex-wrap gap-3">
+      <ButtonLink href="/account/messages" variant="secondary" size="sm" className="min-h-11">
+        Messages{unreadMessages ? <span className="ml-1.5 rounded-full bg-brand px-1.5 text-sm text-white">{unreadMessages}<span className="sr-only"> unread</span></span> : null}
+      </ButtonLink>
+      <ButtonLink href="/account/notifications" variant="secondary" size="sm" className="min-h-11">
+        Notifications{d.unreadNotifications ? <span className="ml-1.5 rounded-full bg-brand px-1.5 text-sm text-white">{d.unreadNotifications}<span className="sr-only"> unread</span></span> : null}
+      </ButtonLink>
+      <ButtonLink href="/account/appointments" variant="secondary" size="sm" className="min-h-11">Sessions</ButtonLink>
+    </nav>
+  );
+  return (
+    <>
+      <LiveRefresh loadedAt={clockTime(d.now, tz)} />
+      {hasCoaching ? (
+        <>
+          <TodayWorkouts d={d} />
+          {inbox}
+          {d.current.length ? <TodoList d={d} nowMs={nowMs} tz={tz} /> : null}
+          <GettingStarted d={d} />
+          {d.current.map((r) => <RelationshipCard key={r.e.id} r={r} d={d} tz={tz} />)}
+          <OneOffSessions d={d} tz={tz} />
+          <Updates d={d} tz={tz} />
+          <EarlierCoaching d={d} />
+        </>
+      ) : (
+        <>
+          <EmptyState
+            className="mt-8"
+            headingLevel="h2"
+            icon="coaches"
+            title="No coaching yet"
+            actions={
+              <>
+                <ButtonLink href="/coaches">Find a coach</ButtonLink>
+                <ButtonLink href="/account/training-profile" variant="secondary">Tell coaches about your training</ButtonLink>
+              </>
+            }
+          >
+            When you start coaching, today&rsquo;s workout, your sessions, check-ins and messages from your coach appear here.
+          </EmptyState>
+          {inbox}
+          <OneOffSessions d={d} tz={tz} />
+        </>
+      )}
+      {hasCoaching ? <SupportBlock /> : null}
+    </>
+  );
+}
+
+/** The coaching you've bought: billing state, and asking to change coach. */
+async function ManageCoaching({ session, isCoach }: { session: SessionContext; isCoach: boolean }) {
+  const { profile } = session;
+  const tz = profile.timezone;
   const supabase = (await createClient())!;
 
-  const [{ data: purchases }, { data: enrollments }, { data: requests }, { data: bookings }, { count: unread }, { data: conversations }] =
+  const [{ data: purchases }, { data: enrollments }, { data: requests }, { data: bookings }] =
     await Promise.all([
       supabase
         .from("purchases")
@@ -40,62 +139,29 @@ export default async function AccountPage() {
         .eq("customer_id", session.userId)
         .neq("state", "pending_payment")
         .order("created_at", { ascending: false }),
-      supabase.from("enrollments").select("id, purchase_id, state").eq("customer_id", session.userId),
+      supabase.from("enrollments").select("id, purchase_id, state, provider_id").eq("customer_id", session.userId),
       supabase.from("coach_change_requests").select("enrollment_id, state, created_at").eq("customer_id", session.userId).eq("state", "requested"),
       supabase.from("bookings").select("id, status, created_at, services(name)").eq("customer_id", session.userId).order("created_at", { ascending: false }),
-      // Row-level security scopes this to the signed-in person.
-      supabase.from("notifications").select("id", { count: "exact", head: true }).is("read_at", null),
-      supabase.rpc("my_conversations"),
     ]);
-  const unreadMessages = ((conversations ?? []) as { role: string; unread_count: number }[])
-    .filter((c) => c.role === "customer")
-    .reduce((n, c) => n + Number(c.unread_count), 0);
 
   // A customer can read the profile of any coach they bought from, even one who
   // is no longer public (migration 0025).
-  const providerIds = [...new Set((purchases ?? []).map((p) => p.provider_id))];
+  const providerIds = [...new Set([...(purchases ?? []).map((p) => p.provider_id), ...(enrollments ?? []).map((e) => e.provider_id)])];
   const { data: coaches } = providerIds.length
     ? await supabase.from("provider_public_profiles").select("provider_id, display_name").in("provider_id", providerIds)
     : { data: [] };
-  const coachName = (p: { provider_id: string }) => coaches?.find((c) => c.provider_id === p.provider_id)?.display_name ?? "Your coach";
+  // The coach delivering it now: after a coach change that is not the coach the plan was bought from.
+  const coachName = (p: { id: string; provider_id: string }) => {
+    const current = (enrollments ?? []).find((e) => e.purchase_id === p.id)?.provider_id ?? p.provider_id;
+    return coaches?.find((c) => c.provider_id === current)?.display_name ?? "Your coach";
+  };
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6 md:py-20">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="font-display text-4xl sm:text-5xl">{profile.preferred_name || profile.full_name || "Your account"}</h1>
-          <p className="mt-2 break-all text-ink-muted">{session.email}</p>
-        </div>
-        <SignOutForm>
-          <Button variant="secondary" type="submit">Log out</Button>
-        </SignOutForm>
-      </div>
-
-      <nav aria-label="Account" className="mt-6 flex flex-wrap gap-3">
-        <ButtonLink href="/account/notifications" variant="secondary" size="sm">
-          Notifications{unread ? <span className="ml-1.5 rounded-full bg-brand px-1.5 text-sm text-white">{unread}</span> : null}
-        </ButtonLink>
-        <ButtonLink href="/account/messages" variant="secondary" size="sm">
-          Messages{unreadMessages ? <span className="ml-1.5 rounded-full bg-brand px-1.5 text-sm text-white">{unreadMessages}</span> : null}
-        </ButtonLink>
-        <ButtonLink href="/account/plan" variant="secondary" size="sm">Your plan</ButtonLink>
-        <ButtonLink href="/account/progress" variant="secondary" size="sm">Progress &amp; logs</ButtonLink>
-        <ButtonLink href="/account/appointments" variant="secondary" size="sm">Sessions</ButtonLink>
-        <ButtonLink href="/account/media" variant="secondary" size="sm">Photos and clips</ButtonLink>
-        <ButtonLink href="/account/billing" variant="secondary" size="sm">Billing</ButtonLink>
-        <ButtonLink href="/account/security" variant="secondary" size="sm">Sign-in security</ButtonLink>
-        <ButtonLink href="/account/support" variant="secondary" size="sm">Report a problem</ButtonLink>
-        {session.provider ? <ButtonLink href="/coach" variant="secondary" size="sm">Coach area</ButtonLink> : null}
-        {profile.role === "admin" ? <ButtonLink href="/admin" variant="secondary" size="sm">Founder console</ButtonLink> : null}
-      </nav>
-
-      <section aria-labelledby="plans-heading" className="mt-12">
-        <h2 id="plans-heading" className="text-2xl font-semibold">Your coaching</h2>
-        {(purchases ?? []).length === 0 ? (
-          <EmptyState className="mt-5" headingLevel="h3" icon="coaches" title="No plans yet" actions={<ButtonLink href="/coaches">Find a coach</ButtonLink>}>
-            When you sign up with a coach, your plan appears here.
-          </EmptyState>
-        ) : (
+    <>
+      {/* Nothing bought yet: the welcome above already says how to start. */}
+      <section aria-labelledby="plans-heading" className="mt-12" hidden={(purchases ?? []).length === 0}>
+        <h2 id="plans-heading" className="text-2xl font-semibold">Your coaching and billing</h2>
+        {(purchases ?? []).length === 0 ? null : (
           <ul className="mt-5 space-y-4">
             {(purchases ?? []).map((p) => {
               const enrollment = (enrollments ?? []).find((e) => e.purchase_id === p.id);
@@ -169,7 +235,17 @@ export default async function AccountPage() {
         </section>
       ) : null}
 
-      <InstallHelp className="mt-12" />
-    </div>
+      <nav aria-label="Account" className="mt-12 flex flex-wrap gap-3">
+        <ButtonLink href="/account/plan" variant="secondary" size="sm" className="min-h-11">Your plan</ButtonLink>
+        <ButtonLink href="/account/progress" variant="secondary" size="sm" className="min-h-11">Progress &amp; logs</ButtonLink>
+        <ButtonLink href="/account/media" variant="secondary" size="sm" className="min-h-11">Photos and clips</ButtonLink>
+        <ButtonLink href="/account/training-profile" variant="secondary" size="sm" className="min-h-11">Training &amp; food profile</ButtonLink>
+        <ButtonLink href="/account/billing" variant="secondary" size="sm" className="min-h-11">Billing</ButtonLink>
+        <ButtonLink href="/account/security" variant="secondary" size="sm" className="min-h-11">Sign-in security</ButtonLink>
+        <ButtonLink href="/account/support" variant="secondary" size="sm" className="min-h-11">Report a problem</ButtonLink>
+        {isCoach ? <ButtonLink href="/coach" variant="secondary" size="sm" className="min-h-11">Coach area</ButtonLink> : null}
+        {profile.role === "admin" ? <ButtonLink href="/admin" variant="secondary" size="sm" className="min-h-11">Founder console</ButtonLink> : null}
+      </nav>
+    </>
   );
 }
