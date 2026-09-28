@@ -37,3 +37,7 @@ Scope: the full founder brief (FM12, 2026-09-27). Migrations `0047_media_food_ph
 - The evening reminder by a live send (logic reviewed; not run against real accounts).
 - Real phones, real offline (simulated by dropping responses), and screen readers (labels, headings, 44 px controls checked).
 - HEIC food/progress photos in this flow (the M08 processor is unchanged and already tested for HEIC).
+
+## Deployed — `5109a00`, www.talentyak.com
+
+Vercel production deployment: **success**. Signed out, the new client and coach pages redirect to sign-in; the home page answers 200; the save route refuses an unauthenticated request (401). Migrations `0047`–`0049` were applied before the push. Not checked on the live domain: a signed-in client or coach journey (done locally against the same database).
