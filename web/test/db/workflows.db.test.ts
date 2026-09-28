@@ -862,7 +862,12 @@ describe("workflows", { skip }, () => {
 
     test("a coach change moves future service, holds the unfinished period, and revokes old access", async () => {
       // A health record logged under the original coach.
-      const log = await customerA.client.from("bodyweight_logs").insert({ enrollment_id: enrollmentId, logged_on: new Date().toISOString().slice(0, 10), weight_kg: 70 }).select("id").single();
+      const saved = await customerA.client.rpc("save_body_entry", {
+        p_enrollment: enrollmentId, p_date: new Date().toISOString().slice(0, 10), p_weight: 70, p_weight_unit: "kg",
+        p_waist: null, p_hips: null, p_chest: null, p_arm: null, p_length_unit: "cm", p_base: null,
+      });
+      assert.equal(saved.error, null, saved.error?.message);
+      const log = await customerA.client.from("bodyweight_logs").select("id").eq("enrollment_id", enrollmentId).single();
       assert.equal(log.error, null, log.error?.message);
       const before = await coach.user.client.from("bodyweight_logs").select("id").eq("id", log.data!.id);
       assert.equal(before.data?.length, 1, "the current coach sees it");

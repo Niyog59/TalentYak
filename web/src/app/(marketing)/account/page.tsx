@@ -11,6 +11,7 @@ import { SubmitButton, TextArea } from "@/components/form/fields";
 import { PURCHASE_STATE_LABEL, formatDate, formatMinor } from "@/lib/format";
 import { PAUSED_FOR_PAYMENT_NOTICE } from "@/lib/policy";
 import { requestCoachChangeAction } from "./customer-actions";
+import { SignOutForm } from "@/components/tracking/sign-out-form";
 
 export const metadata: Metadata = { title: "Your account" };
 export const dynamic = "force-dynamic";
@@ -65,9 +66,9 @@ export default async function AccountPage() {
           <h1 className="font-display text-4xl sm:text-5xl">{profile.preferred_name || profile.full_name || "Your account"}</h1>
           <p className="mt-2 break-all text-ink-muted">{session.email}</p>
         </div>
-        <form action="/auth/signout" method="post">
+        <SignOutForm>
           <Button variant="secondary" type="submit">Log out</Button>
-        </form>
+        </SignOutForm>
       </div>
 
       <nav aria-label="Account" className="mt-6 flex flex-wrap gap-3">
@@ -78,6 +79,7 @@ export default async function AccountPage() {
           Messages{unreadMessages ? <span className="ml-1.5 rounded-full bg-brand px-1.5 text-sm text-white">{unreadMessages}</span> : null}
         </ButtonLink>
         <ButtonLink href="/account/plan" variant="secondary" size="sm">Your plan</ButtonLink>
+        <ButtonLink href="/account/progress" variant="secondary" size="sm">Progress &amp; logs</ButtonLink>
         <ButtonLink href="/account/appointments" variant="secondary" size="sm">Sessions</ButtonLink>
         <ButtonLink href="/account/media" variant="secondary" size="sm">Photos and clips</ButtonLink>
         <ButtonLink href="/account/billing" variant="secondary" size="sm">Billing</ButtonLink>

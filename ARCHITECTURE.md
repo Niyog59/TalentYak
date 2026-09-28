@@ -439,6 +439,27 @@ set_logs      + exercise_key, alternative_key     (M12 seam; trigger-checked)
 
 Content is one JSON document per version (sessions → exercises → alternatives; guidance, targets, meals → foods), validated in the application and shape-checked by `plan_content_ok()`. Every item carries a stable key. All writes go through security-definer functions (`save_plan_draft`, `start_plan_draft_from`, `publish_plan_draft`, `withdraw_scheduled_plan_version`, `move_plan_session`) gated by `plan_writable_by_me()` → `coaches_enrollment_now()`; reads by `plan_access()` → `coach_may_read_record()` / `enrollment_belongs_to_me()`. Publishing and cancelling queue `email.plan_updated` (category `coaching`). A published version can be removed only when its whole plan is, which happens only with the relationship.
 
+### 3.7g Client logging and progress (M12) — `0047`–`0049`
+
+```
+workout_logs          + status (in_progress|completed|partial|skipped), title (unplanned),
+                        revision, last_save_id, started_at, finished_at, timezone
+                        unique (enrollment, session_key, performed_at) for planned sessions
+workout_exercise_logs one exercise in a workout: exercise_key | alternative_key |
+                        performed_name (own substitute / added), skipped, load_kind
+                        (weight|bodyweight|assisted|none), load_basis (per_hand|total), notes
+set_logs              + exercise_log_id, load_value + load_unit as entered, duration_seconds, extra
+bodyweight_logs       + entered_value, entered_unit; one per (enrollment, date)
+measurements          + entered_unit; one per (enrollment, date)
+progress_photos       + media_id (M08 asset), pose
+food_entries          dated photo (M08, purpose food_photo) and/or text, optional kcal/protein, revision
+food_diary_days       complete flag per day — partial until marked
+tracking_preferences  kg/lb, cm/in, log_reminders (client; current coach reads)
+tracking_focus        per assignment: fields the coach finds useful + note (advice only)
+```
+
+Every client write goes through a security-definer function — `save_workout_log`, `delete_workout_log`, `save_body_entry`, `save_progress_photo`, `remove_progress_photo`, `save_food_entry`, `delete_food_entry`, `set_food_day` — and direct inserts/updates/deletes on these tables are revoked from `authenticated`. Each checks ownership and `tracking_write_state()` (built on `coaching_is_live()`): only `live` may write; `paused`/`ended`/`suspended`/`unavailable` are refused with `tracking_<state>`, and the device holds the entry. Dates are checked against the client's own day (`client_local_today`). Workouts and food entries carry a `revision` (stale save → conflict returned as data, not an error); a workout save also carries a `save_id`, so a re-sent save whose answer was lost is recognised. Body entries use a change token (`body_entry_token`, microseconds since 1970). Coaches read through the existing `coach_may_read_record()` policies; `set_tracking_focus` is the only coach write. The browser talks to one route, `POST /api/tracking`, which maps outcomes to 200 / 409 conflict / 423 held / 422 refused; the device store is `lib/tracking/device.ts` (keys `talentyak:track:<user>:…`, cleared with all `talentyak:` keys on sign-out). Evening reminders run in the worker sweep (`lib/tracking/reminders.ts`, in-app only, deduped per day, capped per week).
+
 ### 3.8 How the database defends itself
 
 Three mechanisms, all exercised by the test suite:
@@ -459,11 +480,11 @@ Tables, columns, and stubs that exist without a caller. **Each is listed with th
 |---|---|---|---|
 | `ceremonies` | Table, zero references | Reserved | Pandit vertical gains per-ceremony tracking beyond the booking record |
 | `intake_schemas` | Table, never read (schemas come from the registry) | Reserved | Intake forms need versioning independent of a code deploy |
-| `workout_logs`, `set_logs` | Tables, **zero write paths in the app**; since `0046` they carry checked references to plan versions, sessions and exercise keys | **Activating now** | M12 — client workout logging is confirmed first-product scope |
+| `workout_logs`, `set_logs` | **Active** (M12): written only through `save_workout_log()`; checked references to plan versions, sessions and exercise keys (`0046`) | Active | See §3.7g |
 | `programs`, `program_days`, `exercises` | Tables (`0007`), superseded for new work by `client_plans` (`0046`); still read and written by the legacy booking page `/coach/clients/[bookingId]` | Reserved | Retire with the legacy booking path, by written decision |
-| `bodyweight_logs` | Table, zero writes; read by the coach 7-day average | **Activating now** | M12 — confirmed first-product scope. Needs a unit-preference column |
-| `measurements` | Table, zero writes | **Activating now** | M12 — confirmed first-product scope |
-| `progress_photos` | Table, zero writes | **Activating now** | M08 + M12 — needs the quarantine pipeline in §6 first |
+| `bodyweight_logs` | **Active** (M12): written only through `save_body_entry()`; unit as entered + `tracking_preferences` | Active | See §3.7g |
+| `measurements` | **Active** (M12): written only through `save_body_entry()` | Active | See §3.7g |
+| `progress_photos` | **Active** (M12): a date and pose on an M08 asset; `save_progress_photo()` / `remove_progress_photo()` | Active | See §3.7g |
 | `services.stripe_price_id` | Column, never set (checkout uses inline `price_data`) | Reserved | Moving to Stripe Price objects for per-product reporting |
 | `services.capacity_limit` | Column, never read | **Activating now** | M05 — coach acceptance must be confirmed **before** payment |
 | `bookings.video_link` | Column, never written | **Activating now** | M10 — video and audio calls are confirmed scope |

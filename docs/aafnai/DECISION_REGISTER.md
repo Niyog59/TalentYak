@@ -2,6 +2,8 @@
 
 > ### Amended 2026-09-25 (sixth pass) — read §L, then §M, then §N, then §O.
 >
+> **§T (2026-09-27)** records M12 client logging and progress. The founder decided that while coaching is paused for payment, **new tracking entries wait on the client's device** and save after renewal (TY-TRACK-06) — this amends TY-ACCESS-06.
+>
 > **§O (2026-09-25)** sets how agents report to the founder: short, plain language; what happened, how it affects users, a recommendation, and whether the founder must act. It simplifies the explanation, never the scope or the engineering.
 >
 > **§N (2026-09-22)** approves the paid-access rules: cancelling keeps access until the paid period ends; once it has run out and a renewal has failed, new service pauses and nothing is deleted; paying restores what was paused, never a suspension or a coach change. It **confirms** `cancellation.v2`, `payment_failure.v2` and `messaging.v2`, replacing the sandbox defaults they conflict with.
@@ -502,7 +504,7 @@ FM03 §5 distinguishes rules the founder has **confirmed** from working defaults
 | **TY-ACCESS-03** | The words the customer sees | **CONFIRMED** | Exactly: *"Your payment didn't go through. Renew to continue coaching. Your progress is saved."* Stored once (`PAUSED_FOR_PAYMENT_NOTICE` in the policy register, mirrored into `messaging_settings.paused_notice`) and shown, not paraphrased, wherever a customer meets the pause. | FM-ACCESS | M06, M14 |
 | **TY-ACCESS-04** | Nothing is lost | **CONFIRMED** | Progress, plans, logs and message history are preserved and stay readable under the permissions that already apply. **A payment failure never triggers deletion** — it is not connected to retention, whose destructive execution remains off and unapproved (`OPEN-10`). | FM-ACCESS | M08, M11–M14 |
 | **TY-ACCESS-05** | Restoring access | **CONFIRMED** | A successful payment restores the paused access with no loss of history, and **only** that: it never lifts a suspension, and never undoes or reverses a coach reassignment. A payment arriving for a relationship with no open coach assignment leaves it paused and raises an exception for a human to resolve. | FM-ACCESS | M06, M17 |
-| **TY-ACCESS-06** | Who is paused | **CONFIRMED** (engineering reading of FM-ACCESS) | "Coaching activity" is what the **coach** delivers: while paused, the coach cannot add new programming, and neither side can send messages. The **customer keeps writing their own records** (their weight log, their own data) — a pause is a stop on service, not a lockout from one's own account. Flagged here because FM-ACCESS did not say so explicitly; correct it if this reading is wrong. | FM-ACCESS + engineering | M11–M14 |
+| **TY-ACCESS-06** | Who is paused | **CONFIRMED** (engineering reading of FM-ACCESS) — **amended 2026-09-27 by TY-TRACK-06**: new tracking entries are held on the device while paused | "Coaching activity" is what the **coach** delivers: while paused, the coach cannot add new programming, and neither side can send messages. The **customer keeps writing their own records** (their weight log, their own data) — a pause is a stop on service, not a lockout from one's own account. Flagged here because FM-ACCESS did not say so explicitly; correct it if this reading is wrong. | FM-ACCESS + engineering | M11–M14 |
 
 ### N1 · Enforcement
 
@@ -623,3 +625,30 @@ The project instructions file that every agent reads first is founder-owned. Wit
 | AAF-PROG-04 | CONFIRMED, unbuilt | **Delivered** (M11) |
 | AAF-PROG-06, AAF-PROG-10 | CONFIRMED, unbuilt | **Delivered for prescriptions** (immutable published versions, full history). The logging half is M12 |
 | `FULFILLMENT.programme` | not ready | **Ready.** Live sales remain refused: legal drafts, unapproved policies, calls and tracking (M12) still block them |
+
+---
+
+## T. Eleventh-pass decisions — 2026-09-27 (M12 client logging and progress)
+
+**Source key added:** **FM12** — Founder prompt, *Implement M12: client logging and progress*, 2026-09-27. Founder-supplied. One decision (TY-TRACK-06) was taken by the founder in answer to a question asked before implementation began.
+
+| ID | Topic | Status | Rule | Source | Modules |
+|---|---|---|---|---|---|
+| **TY-TRACK-01** | Prescribed vs actual | **CONFIRMED** (FM12) | The coach's targets and the client's last results are shown beside the entry and can be copied in with one tap, but a set is recorded **only when the client confirms it**. A workout records the published version and session it was started against; a later plan update never rewrites it, and a record can't be moved onto another version. Alternatives are recorded as the exercise actually performed; the client's own substitutes and added exercises are recorded by name and never compared with the planned exercise. | FM12 | M12 |
+| **TY-TRACK-02** | What a load means | **CONFIRMED** (FM12) | Each exercise entry records whether its number is a weight, bodyweight (plus any added weight), an assisted movement (the assistance) or no load, and whether a dumbbell weight is per hand or both together; the unit (kg/lb) is kept per set as entered. History and charts only ever put records sharing exercise **and** load meaning on one line, converting units exactly (1 lb = 0.45359237 kg). | FM12 | M12, M15 |
+| **TY-TRACK-03** | Saving and conflicts | **CONFIRMED** (FM12 + engineering) | Entries are kept on the device first, per account, and cleared on sign-out (with a warning if any are unsaved). Records carry ids chosen on the device so a retry never duplicates; a planned session is recorded at most once per day; a save based on an older version of a workout, food entry or day's body readings is refused and the client chooses which version to keep. Save states are shown honestly; "Saved" appears only after the server confirms. | FM12 | M12 |
+| **TY-TRACK-04** | Completeness is never inferred | **CONFIRMED** (FM12) | Workouts are completed, partly done, skipped or not logged; the app suggests, the client decides. A food day with entries is a partial record until the client marks it complete; a day without entries is unrecorded — never zero. Calories and protein are only what the client typed; nothing is estimated from photos, looked up, or calculated (no body-fat estimates). Missing readings are never drawn as zero. | FM12 | M12 |
+| **TY-TRACK-05** | Consistency | **CONFIRMED** (FM12 + engineering) | Planned sessions come from the client's weekly schedule as it sat each day (after moves; rest days excluded; the version in force that day). A session counts as done if recorded any day that week; days not yet over are not counted unless recorded; an unfinished record counts as partly done; unplanned workouts never change the figure. Plans done "in order" have no weekly target and say so. The method is shown on the page. | FM12 | M12, M15 |
+| **TY-TRACK-06** | Tracking while paused | **CONFIRMED** — founder decision, 2026-09-27 | While a relationship is paused for a failed renewal (and when ended, suspended or without an open coach assignment), **new tracking entries of every kind are held on the device** and saved automatically once coaching is live again; nothing already recorded becomes unreadable or is deleted. Removing a mistaken photo through M08's deletion stays available. This **corrects TY-ACCESS-06** for tracking (it had read "the customer keeps writing their own records" during a pause). | Founder decision, 2026-09-27 | M12 |
+| **TY-TRACK-07** | Coaches and tracking | **CONFIRMED** (FM12) | Coaches review and never write a client's results. Access is the existing rule (`coach_may_read_record`): the current coach only, earlier history only within the client's sharing choice, photos by the stricter media test; admin none. The current coach may mark fields they find useful ("useful to track"); every field stays optional for the client. Structured check-ins and written feedback are M13. | FM12 | M12, M13 |
+| **TY-TRACK-08** | Reminders | **CONFIRMED** (FM12 + engineering) | One gentle in-app notice in the client's evening on a day their plan has a session and nothing is logged; at most one a day and three a week; never email; the client can switch it off. It never names the workout or anything recorded. | FM12, AAF-PROG-09 | M12 |
+
+### T1 · Status changes
+
+| Entry | Was | Now |
+|---|---|---|
+| TY-ACCESS-06 | Customer keeps writing own records while paused | **Amended by TY-TRACK-06** for tracking entries (held on the device until coaching is live). Moving a session in the plan (TY-PROG-05) is unchanged |
+| AAF-PROG-01, -02, -03, -05 | CONFIRMED, unbuilt | **Delivered** (M12) |
+| AAF-PROG-06, AAF-PROG-10 | Delivered for prescriptions | **Delivered** (logs record their version; plan changes never rewrite them) |
+| AAF-PROG-08 | CONFIRMED, unbuilt | Unchanged — form-review clips with coach feedback are not part of FM12 |
+| `FULFILLMENT.progressTracking` | not ready | **Ready.** Live sales remain refused: legal drafts, unapproved policies, calls, form review |

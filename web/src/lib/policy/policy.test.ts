@@ -378,16 +378,18 @@ describe("selling a specific offer for real money", () => {
       assert.ok(readiness.blockers.some((b) => b.includes("drafts")), "legal drafts block live sales");
       assert.ok(readiness.blockers.some((b) => b.includes("Scheduled video and audio calls")), "an offer with calls is blocked until calls exist");
       assert.ok(!readiness.blockers.some((b) => b.includes("training programmes")), "programmes are built (M11) and no longer block a sale");
-      assert.ok(readiness.blockers.some((b) => b.includes("tracking")), "tracking (M12) still does");
+      assert.ok(!readiness.blockers.some((b) => b.includes("tracking")), "tracking is built (M12) and no longer blocks a sale");
     } finally {
       if (saved === undefined) delete process.env.LIVE_BILLING;
       else process.env.LIVE_BILLING = saved;
     }
   });
 
-  test("even an offer promising nothing extra is blocked while tracking is unbuilt", async () => {
+  test("an offer promising nothing extra is no longer blocked by tracking — but still by the legal drafts", async () => {
     const { evaluateSaleReadiness } = await import("@/lib/policy");
     const readiness = evaluateSaleReadiness({});
-    assert.ok(readiness.blockers.some((b) => b.includes("tracking")));
+    assert.equal(readiness.ready, false);
+    assert.ok(!readiness.blockers.some((b) => b.includes("tracking")));
+    assert.ok(readiness.blockers.some((b) => b.includes("drafts")), "legal drafts still block live sales");
   });
 });

@@ -24,7 +24,7 @@ export const FULFILLMENT = {
   checkIns: { ready: false, module: "M13", label: "Structured check-ins" },
   messaging: { ready: true, module: "M14", label: "In-app messaging" },
   formReview: { ready: false, module: "M12", label: "Exercise form review" },
-  progressTracking: { ready: false, module: "M12", label: "Workout, weight and measurement tracking" },
+  progressTracking: { ready: true, module: "M12", label: "Workout, weight and measurement tracking" },
 } as const satisfies Record<string, FulfillmentCapability>;
 
 export interface OfferInclusions {

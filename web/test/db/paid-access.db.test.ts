@@ -23,6 +23,7 @@ import {
   dbAvailability,
   deleteTestUsers,
   makeCoach,
+  errorCode,
   wasDenied,
   type CoachFixture,
   type TestUser,
@@ -129,12 +130,14 @@ describe("paid access: pause, preserve, restore", { skip }, () => {
       assert.equal(asCustomer.data![0].title, "Week 1");
     });
 
-    test("the customer keeps writing their own records — a pause is not a lockout", async () => {
-      const log = await customer.client.from("bodyweight_logs")
-        .insert({ enrollment_id: enrollmentId, logged_on: new Date().toISOString().slice(0, 10), weight_kg: 70 })
-        .select("id");
-      assert.equal(log.error, null, log.error?.message);
-      await adminClient().from("bodyweight_logs").delete().eq("enrollment_id", enrollmentId);
+    test("the customer's new entries wait for payment (founder decision 2026-09-27, M12) — and nothing they can read is taken away", async () => {
+      const log = await customer.client.rpc("save_body_entry", {
+        p_enrollment: enrollmentId, p_date: new Date().toISOString().slice(0, 10), p_weight: 70, p_weight_unit: "kg",
+        p_waist: null, p_hips: null, p_chest: null, p_arm: null, p_length_unit: "cm", p_base: null,
+      });
+      assert.equal(errorCode(log.error), "tracking_paused", "a new entry was accepted as coaching activity while payment had lapsed");
+      const { data: state } = await customer.client.rpc("tracking_write_state", { p_enrollment: enrollmentId });
+      assert.equal(state, "paused", "the customer's screens are told why, so entries are kept on the device");
     });
 
     test("the customer is shown the approved words, and can still read the conversation", async () => {
@@ -164,6 +167,14 @@ describe("paid access: pause, preserve, restore", { skip }, () => {
       const { data: all } = await customer.client.from("programs").select("title").eq("enrollment_id", enrollmentId).order("title");
       assert.deepEqual((all ?? []).map((r) => r.title), ["Week 1", "Week 2"], "history was lost across the pause");
       await adminClient().from("programs").delete().eq("id", written.data![0].id);
+
+      // Entries held on the customer's device while paused now save.
+      const log = await customer.client.rpc("save_body_entry", {
+        p_enrollment: enrollmentId, p_date: new Date().toISOString().slice(0, 10), p_weight: 70, p_weight_unit: "kg",
+        p_waist: null, p_hips: null, p_chest: null, p_arm: null, p_length_unit: "cm", p_base: null,
+      });
+      assert.equal(log.error, null, log.error?.message);
+      await adminClient().from("bodyweight_logs").delete().eq("enrollment_id", enrollmentId);
     });
 
     test("a person cannot resume their own coaching without paying", async () => {

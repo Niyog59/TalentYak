@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { AuthPage } from "@/components/auth/auth-page";
 import { Button } from "@/components/button";
 import { env } from "@/lib/env";
+import { SignOutForm } from "@/components/tracking/sign-out-form";
 
 export const metadata: Metadata = { title: "Account paused" };
 
@@ -20,11 +21,11 @@ export default function SuspendedPage() {
           if you have questions.
         </p>
       ) : null}
-      <form action="/auth/signout" method="post" className="mt-8">
+      <SignOutForm className="mt-8">
         <Button type="submit" variant="secondary">
           Sign out
         </Button>
-      </form>
+      </SignOutForm>
     </AuthPage>
   );
 }

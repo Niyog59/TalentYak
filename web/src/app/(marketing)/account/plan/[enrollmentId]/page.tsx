@@ -29,6 +29,8 @@ import {
 } from "@/lib/programmes/content";
 import { formatDate, formatDay } from "@/lib/format";
 import { PAUSED_FOR_PAYMENT_NOTICE } from "@/lib/policy";
+import { createClient } from "@/lib/supabase/server";
+import { STATUS_LABEL, type WorkoutStatus } from "@/lib/tracking/workout";
 
 export const metadata: Metadata = { title: "Your plan" };
 export const dynamic = "force-dynamic";
@@ -86,6 +88,28 @@ function PutBack({ plan, placed, weekStart, enrollmentId }: { plan: ClientPlan; 
   );
 }
 
+/** Records already started for sessions in this week, by date and session. */
+async function loggedThisWeek(enrollmentId: string, from: string, to: string): Promise<Map<string, { id: string; status: WorkoutStatus }>> {
+  const supabase = await createClient();
+  const out = new Map<string, { id: string; status: WorkoutStatus }>();
+  if (!supabase) return out;
+  const { data } = await supabase.from("workout_logs").select("id, session_key, performed_at, status")
+    .eq("enrollment_id", enrollmentId).not("session_key", "is", null).gte("performed_at", from).lte("performed_at", to);
+  for (const r of data ?? []) out.set(`${r.performed_at}:${r.session_key}`, { id: r.id as string, status: r.status as WorkoutStatus });
+  return out;
+}
+
+function LogLink({ enrollmentId, placed, date, logged, primary }: { enrollmentId: string; placed: PlacedSession; date: string; logged: { id: string; status: WorkoutStatus } | undefined; primary?: boolean }) {
+  const base = `/account/progress/${enrollmentId}/workouts`;
+  const href = logged ? `${base}/${logged.id}` : `${base}/new?${new URLSearchParams({ version: placed.versionId, session: placed.session.key, date }).toString()}`;
+  const label = logged ? (logged.status === "in_progress" ? "Continue logging" : `Logged: ${STATUS_LABEL[logged.status].toLowerCase()} — view or correct`) : primary ? "Start logging this workout" : "Log it";
+  return (
+    <ButtonLink href={href} variant={primary && !logged ? "primary" : "secondary"} size={primary ? "md" : "sm"} className="mt-3">
+      {label}<span className="sr-only">: {placed.session.title}</span>
+    </ButtonLink>
+  );
+}
+
 function Badges({ placed, versions }: { placed: PlacedSession; versions: PlanVersion[] }) {
   const v = versions.find((x) => x.id === placed.versionId);
   return (
@@ -135,6 +159,7 @@ export default async function ClientPlanPage({
     ...(nutrition ? scheduledVersions(nutrition.versions, now).map((v) => ({ v, kind: "nutrition plan" })) : []),
   ];
   const canMove = enrollment.state !== "ended" && shownWeek >= thisWeek;
+  const logged = workout && weekly ? await loggedThisWeek(enrollmentId, shownWeek < thisWeek ? shownWeek : thisWeek, addDays(shownWeek > thisWeek ? shownWeek : thisWeek, 6)) : new Map();
   const base = `/account/plan/${enrollmentId}`;
 
   return (
@@ -153,6 +178,7 @@ export default async function ClientPlanPage({
       ) : null}
 
       <nav aria-label="Plan" className="mt-6 flex flex-wrap gap-3">
+        <ButtonLink href={`/account/progress/${enrollmentId}`} variant="secondary" size="sm">Your progress &amp; logs</ButtonLink>
         <ButtonLink href={`${base}/history`} variant="secondary" size="sm">History of your plans</ButtonLink>
         <ButtonLink href="/account/training-profile" variant="secondary" size="sm">Your training &amp; food profile</ButtonLink>
         <ButtonLink href="/account/messages" variant="secondary" size="sm">Message your coach</ButtonLink>
@@ -186,12 +212,15 @@ export default async function ClientPlanPage({
                 session={p.session}
                 badge={<Badges placed={p} versions={workout!.versions} />}
                 footer={
-                  canMove && !p.fromStartedRecord ? (
-                    <>
-                      {p.movedFrom !== null ? <PutBack plan={workout!} placed={p} weekStart={thisWeek} enrollmentId={enrollmentId} /> : null}
-                      <MoveForm plan={workout!} placed={p} weekStart={thisWeek} enrollmentId={enrollmentId} day={todayPlan.day} />
-                    </>
-                  ) : null
+                  <>
+                    <LogLink enrollmentId={enrollmentId} placed={p} date={today} logged={logged.get(`${today}:${p.session.key}`)} primary />
+                    {canMove && !p.fromStartedRecord && !logged.get(`${today}:${p.session.key}`) ? (
+                      <>
+                        {p.movedFrom !== null ? <PutBack plan={workout!} placed={p} weekStart={thisWeek} enrollmentId={enrollmentId} /> : null}
+                        <MoveForm plan={workout!} placed={p} weekStart={thisWeek} enrollmentId={enrollmentId} day={todayPlan.day} />
+                      </>
+                    ) : null}
+                  </>
                 }
               />
             ))}
@@ -243,12 +272,15 @@ export default async function ClientPlanPage({
                               heading="h4"
                               badge={<Badges placed={p} versions={workout!.versions} />}
                               footer={
-                                canMove && !p.fromStartedRecord ? (
-                                  <>
-                                    {p.movedFrom !== null ? <PutBack plan={workout!} placed={p} weekStart={shownWeek} enrollmentId={enrollmentId} /> : null}
-                                    <MoveForm plan={workout!} placed={p} weekStart={shownWeek} enrollmentId={enrollmentId} day={d.day} />
-                                  </>
-                                ) : null
+                                <>
+                                  {d.date <= today ? <LogLink enrollmentId={enrollmentId} placed={p} date={d.date} logged={logged.get(`${d.date}:${p.session.key}`)} /> : null}
+                                  {canMove && !p.fromStartedRecord ? (
+                                    <>
+                                      {p.movedFrom !== null ? <PutBack plan={workout!} placed={p} weekStart={shownWeek} enrollmentId={enrollmentId} /> : null}
+                                      <MoveForm plan={workout!} placed={p} weekStart={shownWeek} enrollmentId={enrollmentId} day={d.day} />
+                                    </>
+                                  ) : null}
+                                </>
                               }
                             />
                           </div>
@@ -281,7 +313,8 @@ export default async function ClientPlanPage({
       </section>
 
       <p className="mt-12 text-sm text-ink-muted">
-        Recording your sets, reps and weights isn’t available yet. Every version of your plan is kept, so when it is, each record will match the instructions you followed.
+        Every version of your plan is kept. Each workout you log records the version you followed, so a later update never changes it.{" "}
+        <Link href={`/account/progress/${enrollmentId}/workouts`} className="text-brand underline underline-offset-4">Log an unplanned workout or catch up on a missed day</Link>.
       </p>
     </div>
   );

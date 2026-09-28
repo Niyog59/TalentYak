@@ -25,6 +25,8 @@ export interface SweepSummary {
   appointments: Record<string, number>;
   /** Session call rooms whose window ended, queued to be emptied and deleted. */
   callRoomsClosed: number;
+  /** Gentle in-app "a workout is planned today" notices. */
+  logReminders: number;
   errors: string[];
 }
 
@@ -42,6 +44,7 @@ export async function runSweeps(): Promise<SweepSummary> {
     retentionCancelled: 0,
     appointments: {},
     callRoomsClosed: 0,
+    logReminders: 0,
     errors: [],
   };
   const admin = createAdminClient();
@@ -152,6 +155,15 @@ export async function runSweeps(): Promise<SweepSummary> {
   const rooms = await admin.rpc("close_due_call_rooms");
   if (rooms.error) summary.errors.push(`call rooms: ${rooms.error.message}`);
   else summary.callRoomsClosed = Number(rooms.data) || 0;
+
+  // Logging reminders: one gentle in-app notice on a planned day with nothing
+  // logged, in the client's evening. Idempotent by a per-day dedupe key.
+  try {
+    const { sendLogReminders } = await import("@/lib/tracking/reminders");
+    summary.logReminders = await sendLogReminders();
+  } catch (err) {
+    summary.errors.push(`log reminders: ${err instanceof Error ? err.message : String(err)}`);
+  }
 
   return summary;
 }
