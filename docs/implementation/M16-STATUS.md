@@ -48,6 +48,6 @@ Scope: the founder brief (FM16, 2026-09-28). Migrations `0054_public_launch.sql`
 4. **Support email**: confirm `SUPPORT_EMAIL` is set in production and someone reads it.
 5. Optional: `TEST_CHECKOUT_EMAILS` for named testers.
 
-## Deployed
+## Deployed — `beba73a`, www.talentyak.com
 
-See below once pushed.
+Vercel production deployment: **success**. Signed out: the home, Start coaching, How it works, About and waitlist pages answer 200 with "Join the waitlist" as the action and "founding coaches are being confirmed" (no test coaches listed); the founder waitlist page redirects to sign-in; `robots.txt` blocks the coach area exactly and no longer `/coaches`; the sitemap answers; the counting endpoint answers 204. Migrations `0054`–`0055` were applied before the push. Not checked on the live domain: a waitlist sign-up (it would email a real address) and a signed-in journey (done locally against the same database).
