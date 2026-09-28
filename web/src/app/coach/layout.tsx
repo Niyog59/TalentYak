@@ -5,6 +5,7 @@ import { Logo } from "@/components/brand/logo";
 import { AppShell } from "@/components/shell/app-shell";
 import { coachNav } from "@/components/shell/nav";
 import { PROVIDER_STATUS_LABEL } from "@/lib/format";
+import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -28,10 +29,12 @@ export default async function CoachLayout({ children }: { children: React.ReactN
   const session = await requireCoach("/coach");
   const { provider } = session;
   const suspended = provider.status === "suspended" || Boolean(provider.suspended_at);
+  const supabase = (await createClient())!;
+  const { count: ownCoaching } = await supabase.from("enrollments").select("id", { count: "exact", head: true }).eq("customer_id", session.userId);
 
   return (
     <AppShell
-      nav={coachNav("/coach", { clientsIndex: true, extras: true })}
+      nav={coachNav("/coach", { clientsIndex: true, extras: true }, Boolean(ownCoaching))}
       identity={{ name: provider.display_name, detail: PROVIDER_STATUS_LABEL[provider.status] ?? "Coach" }}
       banner={
         suspended ? (

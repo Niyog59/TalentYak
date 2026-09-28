@@ -10,12 +10,22 @@ import { openSupportCaseAction } from "@/lib/support/actions";
  * client and coach areas. Only the reporter and TalentYak see a case — never
  * the other person in the conversation.
  */
+/** Starting points from the dashboards' "Need help?" links. */
+const ABOUT_HINT: Record<string, string> = {
+  coach_unavailable: "Tell us which coach, since when, and what you've tried. Your coach isn't told unless we need to contact them.",
+  call_failed: "Say which session and what happened. You can also report it from that session's page, so we see which one straight away.",
+};
+
 export async function SupportContent({
   conversationId,
   timeZone,
+  category = "",
+  about: topic = null,
 }: {
   conversationId: string | null;
   timeZone: string;
+  category?: string;
+  about?: string | null;
 }) {
   const supabase = (await createClient())!;
   const [{ data: cases }, conversation] = await Promise.all([
@@ -47,10 +57,12 @@ export async function SupportContent({
               </p>
             </>
           ) : null}
+          {topic && ABOUT_HINT[topic] ? <p className="rounded-lg bg-paper-raised px-3 py-2 text-sm">{ABOUT_HINT[topic]}</p> : null}
           <SelectField
             name="category"
             label="What is it about?"
             required
+            defaultValue={SUPPORT_CATEGORIES.some((c) => c.value === category) ? category : ""}
             options={[{ value: "", label: "Choose one" }, ...SUPPORT_CATEGORIES.map((c) => ({ value: c.value, label: c.label }))]}
           />
           <TextArea name="description" label="What happened?" required rows={5} maxLength={2000} help="Include what you need from us. Don't include card numbers or passwords." />

@@ -3,7 +3,11 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   isKey,
+  layOutWeek,
   normalize,
+  startOfLocalDay,
+  versionInForce,
+  type WeekDay,
   type NutritionContent,
   type PlanContent,
   type PlanKind,
@@ -245,6 +249,46 @@ export async function weekRecords(plan: ClientPlan, fromDate: string, toDate: st
     moves: (moves ?? []) as SessionMove[],
     started: (logs ?? []).map((l) => ({ performed_on: l.performed_at as string, session_key: l.session_key as string, version_id: l.plan_version_id as string })),
   };
+}
+
+/**
+ * The current coach's plan of one kind. An earlier coach's plans stay
+ * readable in the history but are never shown as what to do now.
+ */
+export function currentPlanOf(plans: ClientPlan[], kind: PlanKind, openAssignmentId: string | null): ClientPlan | undefined {
+  return (
+    plans.find((p) => p.kind === kind && p.assignment_id === openAssignmentId && p.versions.length) ??
+    (openAssignmentId ? undefined : plans.find((p) => p.kind === kind && p.versions.length))
+  );
+}
+
+/** One week of a workout plan as the client sees it: moves applied, started records kept. */
+export async function weekLayout(plan: ClientPlan, weekStart: string, today: string, tz: string | null, now: Date): Promise<WeekDay[]> {
+  const addDay = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+  const records = await weekRecords(plan, weekStart, addDay(weekStart, 6));
+  const byId = new Map(plan.versions.map((v) => [v.id, v]));
+  const toWorkout = (v: PlanVersion | null | undefined) => (v ? { id: v.id, content: v.content as WorkoutContent } : null);
+  return layOutWeek({
+    weekStart,
+    // Today follows what is in force right now; other days, what is in force when they start.
+    versionForDay: (date) => toWorkout(versionInForce(plan.versions, date === today ? now : startOfLocalDay(date, tz))),
+    versionById: (id) => toWorkout(byId.get(id)),
+    moves: records.moves,
+    started: records.started,
+  });
+}
+
+export type LoggedStatus = "in_progress" | "completed" | "partial" | "skipped";
+
+/** Records already started for planned sessions between two dates, by `date:session`. */
+export async function loggedSessions(enrollmentId: string, from: string, to: string): Promise<Map<string, { id: string; status: LoggedStatus }>> {
+  const supabase = await createClient();
+  const out = new Map<string, { id: string; status: LoggedStatus }>();
+  if (!supabase) return out;
+  const { data } = await supabase.from("workout_logs").select("id, session_key, performed_at, status")
+    .eq("enrollment_id", enrollmentId).not("session_key", "is", null).gte("performed_at", from).lte("performed_at", to);
+  for (const r of data ?? []) out.set(`${r.performed_at}:${r.session_key}`, { id: r.id as string, status: r.status as LoggedStatus });
+  return out;
 }
 
 export function asWorkout(v: PlanVersion): { id: string; content: WorkoutContent } {

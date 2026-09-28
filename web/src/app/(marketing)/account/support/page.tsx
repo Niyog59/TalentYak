@@ -9,9 +9,9 @@ export const dynamic = "force-dynamic";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export default async function CustomerSupportPage({ searchParams }: { searchParams: Promise<{ conversation?: string }> }) {
+export default async function CustomerSupportPage({ searchParams }: { searchParams: Promise<{ conversation?: string; category?: string; about?: string }> }) {
   const session = await requireOnboarded("/account/support");
-  const { conversation } = await searchParams;
+  const { conversation, category, about } = await searchParams;
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6 md:py-20">
@@ -22,7 +22,12 @@ export default async function CustomerSupportPage({ searchParams }: { searchPara
         <ButtonLink href="/account" variant="secondary" size="sm">Your account</ButtonLink>
         <ButtonLink href="/account/messages" variant="secondary" size="sm">Messages</ButtonLink>
       </nav>
-      <SupportContent conversationId={conversation && UUID.test(conversation) ? conversation : null} timeZone={session.profile.timezone ?? "UTC"} />
+      <SupportContent
+        conversationId={conversation && UUID.test(conversation) ? conversation : null}
+        timeZone={session.profile.timezone ?? "UTC"}
+        category={category ?? ""}
+        about={about ?? null}
+      />
     </div>
   );
 }
