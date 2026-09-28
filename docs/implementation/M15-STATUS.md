@@ -34,6 +34,6 @@ Scope: the founder brief (FM15, 2026-09-28). Migration `0053_dashboards.sql`, ap
 - A payment pause through the real Stripe path (states were changed directly; the real path also puts booked sessions on hold).
 - The plan page after its week helpers moved into the shared library: typecheck and build only, plus the same helpers exercised on the dashboard.
 
-## Deployed
+## Deployed — `78b1686`, www.talentyak.com
 
-See below once pushed.
+Vercel production deployment: **success**. Signed out, the home page answers 200 and the client dashboard, coach dashboard (with a filter) and support page redirect to sign-in. Migration `0053` was applied before the push. Not checked on the live domain: a signed-in client or coach journey (done locally against the same database).
