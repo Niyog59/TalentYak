@@ -465,3 +465,29 @@ export async function resolveCheckinFlagAction(_: ActionState, form: FormData): 
           : "Nothing to resolve any more.",
   );
 }
+
+/**
+ * Record what TalentYak checked about a coach's qualification (M16). "Checked"
+ * needs a note saying what was seen — it is shown publicly next to the badge.
+ */
+export async function reviewCredentialAction(_: ActionState, form: FormData): Promise<ActionState> {
+  const session = await requireAdmin("/admin/coaches");
+  const id = uuidField(form, "credential_id");
+  const providerId = uuidField(form, "provider_id");
+  const outcome = field(form, "outcome", 20);
+  const detail = field(form, "detail", 300);
+  if (!id || !providerId || !["verified", "rejected", "in_review", "unverified"].includes(outcome)) return fail(GENERIC);
+  if (outcome === "verified" && detail.length < 5) {
+    return fail("Say what was checked — it's shown next to the badge.", { fieldErrors: { detail: "For example: certificate seen, registration confirmed with the issuer." } });
+  }
+  const supabase = await adminDb();
+  const { error } = await supabase.from("provider_credentials").update({
+    verification_state: outcome,
+    verified_detail: outcome === "verified" ? detail : detail || null,
+    verified_by: outcome === "verified" || outcome === "rejected" ? session.userId : null,
+    verified_at: outcome === "verified" || outcome === "rejected" ? new Date().toISOString() : null,
+  }).eq("id", id).eq("provider_id", providerId);
+  if (error) return fail(friendlyError(error, GENERIC));
+  revalidatePath(`/admin/coaches/${providerId}`);
+  return succeed(outcome === "verified" ? "Marked as checked. It now appears on the public profile." : "Saved.");
+}

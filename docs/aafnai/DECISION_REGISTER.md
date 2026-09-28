@@ -700,3 +700,26 @@ The project instructions file that every agent reads first is founder-owned. Wit
 | AAF-PROG-08 (form review) | Unbuilt, clip on a check-in only | **Unchanged**; clips on check-ins now appear as form-check tasks (TY-DASH-04) |
 | OPEN-06 | Check-ins not a per-plan inclusion | **Unchanged** |
 
+## W. Fourteenth-pass decisions — 2026-09-28 (M16 public launch website)
+
+**Source key added:** **FM16** — Founder prompt, *Implement M16: TalentYak's public launch website*, 2026-09-28. Founder-supplied. Directory search, filters, empty categories and comparison tools are deferred; site-wide reporting is M17.
+
+| ID | Topic | Status | Rule | Source | Modules |
+|---|---|---|---|---|---|
+| **TY-LAUNCH-01** | Two launch states | **CONFIRMED** (FM16) | Public information and the waitlist are always available; buying is separate. Buying is open only with live payments switched on and every sale lock open (TY-ACCESS, legal, policies, fulfilment); in test mode only protected testers (local development, an administrator with a second factor, `TEST_CHECKOUT_EMAILS`) reach checkout, and a test checkout is labelled and never presented as a sale. Everyone else meets "join the waitlist". Enforced on the server in the checkout page and action. | FM16 | M16, M06 |
+| **TY-LAUNCH-02** | No test coaches on the live site | **CONFIRMED** (invariant 9) | The hosted database is shared with automated tests, which publish synthetic coaches while they run. The production deployment never lists, shows or sells a coach whose account uses a reserved test address. 195 leftover synthetic coaches were hidden on 2026-09-28 (published_at cleared; nothing deleted). **A separate production database remains a launch blocker.** | FM16 + engineering | M16 |
+| **TY-LAUNCH-03** | Qualifications | **CONFIRMED** (FM16 + engineering) | A coach states a qualification; only TalentYak can mark it checked, with a note of what was checked. Only checked, unexpired qualifications appear publicly, marked "Checked by TalentYak". A coach can't create a claim already marked checked. | FM16 | M16, M03 |
+| **TY-LAUNCH-04** | Availability shown publicly | **CONFIRMED** (FM16) | Each public coach shows Taking new clients / Full right now / Away (until a date) / Not taking new clients — never a client count. "Full" uses the checkout's own capacity rule; a coach who is not available shows the waitlist instead of Choose, and checkout refuses on the server if that changes mid-way. Another coach is never substituted. | FM16 | M16, M05 |
+| **TY-LAUNCH-05** | Waitlist | **CONFIRMED** (FM16) | Email, optional first name, optional coach/plan interest — nothing about health. Double opt-in by a button press. One email to confirm; afterwards only availability notices a founder sends by hand, only while the public can buy. No marketing, no automatic campaign, no start-date promise, no reservation. Every email has a link that deletes the entry. The form never reveals whether an address was already on the list. Consent wording versioned (`waitlist.v1`). | FM16 | M16, M08, M17 |
+| **TY-LAUNCH-06** | Public counts | **CONFIRMED** (FM16) + engineering | No analytics service is configured and none was added. TalentYak keeps daily counts of page views, coach-profile views, package choices, checkout starts and waitlist registrations — event, page kind or public slug/id, and whether it was real production activity. No cookies, identifiers, IP addresses, emails or health data; staff, bots, test and non-production activity excluded. Purchases are counted from payment records. Reporting is M17. | FM16 | M16, M17 |
+| **TY-LAUNCH-07** | Pre-purchase questions | **CONFIRMED** (FM16; TY-MSG) | Before buying, questions go to TalentYak's support email; coaches can't be messaged until coaching is bought. | FM16 | M16, M14 |
+
+### W1 · Status changes
+
+| Entry | Was | Now |
+|---|---|---|
+| OPEN-10 (market scope, vetting evidence, testimonial truth) | Open | **Unchanged.** The site names no countries and shows no testimonials; the selection steps described are only those the product enforces |
+| AAF-OPS-04 (truthful supervision) | Confirmed | Applied: the About page says TalentYak doesn't review training advice |
+| About page | Said the name means "our own" (the old name Aafnai's meaning) | Removed |
+| `robots.txt` | `/coach` also blocked `/coaches` | Coach area matched exactly; public profiles crawlable |
+

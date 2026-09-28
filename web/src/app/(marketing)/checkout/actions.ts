@@ -5,6 +5,8 @@ import { requireOnboarded } from "@/lib/auth";
 import { type ActionState, fail, field } from "@/lib/actions";
 import { rateLimit, tooMany } from "@/lib/rate-limit";
 import { CheckoutError, startCheckout } from "@/lib/checkout/service";
+import { planPurchasable, purchaseMode } from "@/lib/launch";
+import { getPublicPlan } from "@/lib/offers/public";
 
 export async function startCheckoutAction(_: ActionState, form: FormData): Promise<ActionState> {
   const versionId = field(form, "version_id", 40);
@@ -17,6 +19,16 @@ export async function startCheckoutAction(_: ActionState, form: FormData): Promi
 
   const limit = await rateLimit("checkout_start", session.userId, 10, 600);
   if (!limit.allowed) return fail(tooMany(limit));
+
+  // Re-checked here, not trusted from the page: may this person buy at all,
+  // is it still on sale, and does the coach still have room. The database
+  // re-checks price, capacity and eligibility again when it records it.
+  const found = await getPublicPlan(versionId);
+  if (!found) return fail("This package is no longer on sale. Nothing was charged.");
+  if (!planPurchasable(purchaseMode(session), found.plan)) return fail("TalentYak isn't taking payments yet. Nothing was charged — you can join the waitlist instead.");
+  if (found.plan.service_type === "recurring_coaching" && found.coach.availability !== "available") {
+    return fail(`${found.coach.display_name} isn't taking new clients right now. Nothing was charged — you can join the waitlist instead.`);
+  }
 
   let url: string;
   try {

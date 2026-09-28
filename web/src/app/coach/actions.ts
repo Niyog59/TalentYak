@@ -487,3 +487,37 @@ export async function setPayoutDestinationAction(_: ActionState, form: FormData)
   revalidatePath("/coach/payouts");
   return succeed("Saved. The new details are checked before any payout uses them; until then, payouts stay on hold.");
 }
+
+// ---------------------------------------------------------------------------
+// Qualifications (M16). A coach states what they hold; only TalentYak can mark
+// it checked (the database forces every new claim to start unchecked), and
+// only checked ones appear on the public profile.
+// ---------------------------------------------------------------------------
+
+export async function addCredentialAction(_: ActionState, form: FormData): Promise<ActionState> {
+  const session = await requireCoach("/coach/profile");
+  const limit = await rateLimit("credential_add", session.userId, 20, 3600);
+  if (!limit.allowed) return fail(tooMany(limit));
+  const title = field(form, "title", 160);
+  const issuer = field(form, "issuing_body", 160);
+  const year = field(form, "year", 4);
+  const reference = field(form, "reference", 120);
+  const values = { title, issuing_body: issuer, year, reference };
+  if (title.length < 2) return fail("Name the qualification.", { fieldErrors: { title: "Name the qualification." }, values });
+  const thisYear = new Date().getUTCFullYear();
+  if (year && (!/^\d{4}$/.test(year) || Number(year) < 1950 || Number(year) > thisYear)) {
+    return fail("Enter the year as four digits.", { fieldErrors: { year: "Enter a year like 2021." }, values });
+  }
+  const supabase = await db();
+  const { error } = await supabase.from("provider_credentials").insert({
+    provider_id: session.provider.id,
+    kind: "qualification",
+    claimed_title: title,
+    issuing_body: issuer || null,
+    claimed_reference: reference || null,
+    issued_on: year ? `${year}-01-01` : null,
+  });
+  if (error) return fail(friendlyError(error, GENERIC_SAVE), { values });
+  revalidatePath("/coach/profile");
+  return succeed("Added. TalentYak will ask you for the certificate and check it before it appears on your profile.");
+}

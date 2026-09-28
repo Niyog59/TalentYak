@@ -404,6 +404,25 @@ export const HANDLERS: Record<string, Handler> = {
       T.coachInvitationEmail(tctx(), { inviteUrl: str(job.payload.invite_url), expiresAt: str(job.payload.expires_at) }));
   },
 
+  // Waitlist (M16). The address and state come from the table at send time,
+  // so a withdrawn person is never emailed and no address lingers in a job
+  // that outlives the entry.
+  "email.waitlist_confirm": async (job, ctx) => {
+    const { data: w } = await ctx.admin.from("waitlist_entries").select("email, first_name, state").eq("id", str(job.payload.entry_id)).maybeSingle();
+    if (!w) return { kind: "done", result: { sent: false, reason: "skipped", detail: "withdrawn", template: "waitlist_confirm" } };
+    return send(job, ctx, "waitlist_confirm", { id: null, email: w.email as string },
+      T.waitlistConfirmEmail(tctx(), { firstName: w.first_name as string | null, confirmUrl: str(job.payload.confirm_url), withdrawUrl: str(job.payload.withdraw_url), coachName: str(job.payload.coach_name) || null }),
+      { recheck: async () => (w.state === "pending" ? { proceed: true } : { proceed: false, reason: "already_confirmed" }) });
+  },
+
+  "email.waitlist_notice": async (job, ctx) => {
+    const { data: w } = await ctx.admin.from("waitlist_entries").select("email, first_name, state").eq("id", str(job.payload.entry_id)).maybeSingle();
+    if (!w) return { kind: "done", result: { sent: false, reason: "skipped", detail: "withdrawn", template: "waitlist_notice" } };
+    return send(job, ctx, "waitlist_notice", { id: null, email: w.email as string },
+      T.waitlistNoticeEmail(tctx(), { firstName: w.first_name as string | null, coachName: str(job.payload.coach_name) || null, url: str(job.payload.url), withdrawUrl: str(job.payload.withdraw_url) }),
+      { recheck: async () => (w.state === "confirmed" ? { proceed: true } : { proceed: false, reason: "not_confirmed" }) });
+  },
+
   "email.purchase_confirmed": async (job, ctx) => {
     const pu = await purchaseContext(ctx, job.payload.purchase_id);
     if (!pu) return { kind: "fail", error: "purchase not found" };

@@ -11,7 +11,10 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/admin", "/coach", "/account", "/book", "/checkout", "/invite", "/preview", "/api", "/auth"],
+      // "/coach" alone would also match "/coaches" (rules are prefixes), which
+      // hid every public coach profile from search. The coach area is matched
+      // exactly and by its sub-paths instead.
+      disallow: ["/admin", "/coach$", "/coach/", "/account", "/book", "/checkout", "/invite", "/preview", "/api", "/auth", "/waitlist/confirm", "/waitlist/leave"],
     },
     sitemap: `${env.siteUrl}/sitemap.xml`,
   };

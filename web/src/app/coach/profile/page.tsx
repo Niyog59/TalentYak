@@ -8,7 +8,7 @@ import { Notice, PageHeader, Panel, StatusPill } from "@/components/ui/panel";
 import { PROVIDER_STATUS_LABEL, formatDate } from "@/lib/format";
 import { canonicalTimezone, timezoneOptions } from "@/lib/preferences";
 import { coachPhotoUrl } from "@/lib/storage/photos";
-import { saveProfileAction, setProfilePublishedAction, submitProfileAction, uploadPhotoAction } from "../actions";
+import { addCredentialAction, saveProfileAction, setProfilePublishedAction, submitProfileAction, uploadPhotoAction } from "../actions";
 
 export const metadata = { title: "Profile" };
 
@@ -22,6 +22,12 @@ export default async function CoachProfilePage() {
     .select("display_name, headline, bio, approach, specialties, languages, experience_since, photo_path, photo_pending_path, photo_pending_at, photo_review_note, row_version")
     .eq("provider_id", provider.id)
     .maybeSingle();
+
+  const { data: credentials } = await supabase
+    .from("provider_credentials")
+    .select("id, claimed_title, issuing_body, issued_on, verification_state, verified_detail")
+    .eq("provider_id", provider.id)
+    .order("created_at");
 
   if (!profile) {
     return (
@@ -143,6 +149,36 @@ export default async function CoachProfilePage() {
           </ActionForm>
         ) : null}
         {provider.status === "suspended" ? <p>Your account is suspended, so your profile can&rsquo;t be made public.</p> : null}
+      </Panel>
+
+      <Panel
+        title="Qualifications"
+        id="qualifications"
+        description="Add the certificates and qualifications you hold. TalentYak checks the evidence; only checked ones appear on your public profile, marked “Checked by TalentYak”."
+      >
+        {(credentials ?? []).length ? (
+          <ul className="mb-5 divide-y divide-line">
+            {(credentials ?? []).map((c) => (
+              <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                <span>
+                  <span className="font-semibold">{c.claimed_title}</span>
+                  {c.issuing_body ? <span className="text-ink-muted"> — {c.issuing_body}</span> : null}
+                  {c.issued_on ? <span className="text-ink-muted"> ({String(c.issued_on).slice(0, 4)})</span> : null}
+                </span>
+                <StatusPill tone={c.verification_state === "verified" ? "good" : c.verification_state === "rejected" ? "bad" : "neutral"}>
+                  {{ unverified: "Not checked yet", in_review: "Being checked", verified: "Checked — shown publicly", rejected: "Couldn't be checked", expired: "Expired" }[c.verification_state as string] ?? c.verification_state}
+                </StatusPill>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        <ActionForm action={addCredentialAction} className="grid gap-4 sm:max-w-lg" resetOnSuccess>
+          <TextField name="title" label="Qualification" required help="For example: Level 3 Personal Trainer." />
+          <TextField name="issuing_body" label="Issued by" required={false} />
+          <TextField name="year" label="Year" required={false} inputMode="numeric" maxLength={4} />
+          <TextField name="reference" label="Certificate or registration number" required={false} help="Helps TalentYak check it. Never shown publicly." />
+          <div><SubmitButton pendingLabel="Adding…" variant="secondary">Add qualification</SubmitButton></div>
+        </ActionForm>
       </Panel>
     </div>
   );

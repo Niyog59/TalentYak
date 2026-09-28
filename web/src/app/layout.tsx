@@ -40,7 +40,15 @@ export const metadata: Metadata = {
     template: "%s · TalentYak",
   },
   description:
-    "TalentYak is preparing online fitness coaching with independent Nepali coaches. Your coach builds your training plan; you follow it and track your progress.",
+    "Online fitness coaching for Nepalis living abroad, with independent coaches based in Nepal. Your coach writes your plan around your life and food; you train on your own schedule.",
+  // Shared previews use the real logo. Pages set their own canonical address.
+  openGraph: {
+    type: "website",
+    siteName: "TalentYak",
+    locale: "en_GB",
+    images: [{ url: "/brand/talentyak/website/talentyak-horizontal-light.png", width: 1200, height: 400, alt: "TalentYak" }],
+  },
+  twitter: { card: "summary_large_image" },
   appleWebApp: {
     capable: true,
     title: "TalentYak",

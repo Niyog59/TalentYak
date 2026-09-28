@@ -617,3 +617,38 @@ export function deliveryCheckEmail(ctx: TemplateContext, d: { name?: string | nu
   );
 }
 
+
+// ---------------------------------------------------------------------------
+// Waitlist (M16). Sent to an address, not an account. Each email says exactly
+// what the person signed up for and carries a withdraw link.
+// ---------------------------------------------------------------------------
+
+export function waitlistConfirmEmail(
+  ctx: TemplateContext,
+  d: { firstName?: string | null; confirmUrl: string; withdrawUrl: string; coachName?: string | null },
+): RenderedEmail {
+  return build(
+    "Confirm you'd like to hear when TalentYak coaching opens",
+    `${greet(d.firstName)}
+<p>Someone — we hope you — asked to be told when coaching ${d.coachName ? `with ${escapeHtml(d.coachName)} ` : ""}can be booked on TalentYak.</p>
+${button(d.confirmUrl, "Confirm my email")}
+<p>Once confirmed, we'll email you only when coaching${d.coachName ? ` with ${escapeHtml(d.coachName)}` : ""} becomes available to buy. No newsletters, no other marketing. A notice doesn't hold a place for you, and there's no set start date yet.</p>
+<p style="color:${MUTED}">Didn't ask for this? Ignore this email and nothing happens — or <a href="${safeUrl(d.withdrawUrl)}" style="color:${BRAND}">remove this address</a> now.</p>`,
+    ctx.supportEmail,
+  );
+}
+
+export function waitlistNoticeEmail(
+  ctx: TemplateContext,
+  d: { firstName?: string | null; coachName?: string | null; url: string; withdrawUrl: string },
+): RenderedEmail {
+  return build(
+    d.coachName ? `${d.coachName} is taking new clients on TalentYak` : "TalentYak coaching is open",
+    `${greet(d.firstName)}
+<p>You asked us to tell you when coaching ${d.coachName ? `with ${escapeHtml(d.coachName)} ` : ""}could be bought. It can now.</p>
+${button(d.url, d.coachName ? `See ${d.coachName}'s plans` : "See the coaches")}
+<p>This email doesn't reserve a place. Places are limited and go to whoever completes checkout first; the page shows whether a coach still has room.</p>
+<p style="color:${MUTED}">You're getting this because you joined the TalentYak waitlist. <a href="${safeUrl(d.withdrawUrl)}" style="color:${BRAND}">Remove me from the list</a>.</p>`,
+    ctx.supportEmail,
+  );
+}

@@ -4,7 +4,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireOnboarded } from "@/lib/auth";
 import { getPublicPlan } from "@/lib/offers/public";
-import { stripeMode } from "@/lib/payments/stripe";
 import { ActionForm } from "@/components/form/action-form";
 import { CheckboxField, SubmitButton } from "@/components/form/fields";
 import { PlanInclusions, planCadence } from "@/components/marketing/plan-details";
@@ -16,6 +15,9 @@ import { SlotList } from "@/components/scheduling/slot-picker";
 import { freeSlots } from "@/lib/scheduling/server";
 import { durationLabel } from "@/lib/scheduling/types";
 import { startCheckoutAction } from "../actions";
+import { purchaseMode } from "@/lib/launch";
+import { packageAction, renewalText } from "@/components/marketing/package-card";
+import { NextSteps } from "@/components/marketing/next-steps";
 
 export const metadata: Metadata = { title: "Confirm your plan", robots: { index: false } };
 export const dynamic = "force-dynamic";
@@ -35,14 +37,15 @@ export default async function CheckoutConfirmPage({
   const { coach, plan } = found;
   const price = plan.prices.find((p) => p.currency === requested?.toUpperCase()) ?? plan.prices[0];
   const recurring = plan.service_type === "recurring_coaching";
-  const mode = stripeMode();
   // Read on every render: what is shown here is exactly what the form names,
   // and the database refuses the purchase if either version has moved on.
   const expectations = await getLiveExpectations(coach.provider_id);
   const oneOffMinutes = !recurring ? plan.call_duration_minutes : null;
   // A one-off session states its length and has its time chosen before paying.
   const slots = !recurring && oneOffMinutes ? await freeSlots(coach.provider_id, oneOffMinutes, 28) : [];
-  const sellable = Boolean(expectations.coach && expectations.platform) && (recurring || Boolean(oneOffMinutes));
+  const mode = purchaseMode(session);
+  const action = packageAction({ coach, plan, mode, expectationsPublished: Boolean(expectations.coach && expectations.platform) });
+  const sellable = action.kind === "choose";
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6 md:py-14">
@@ -51,10 +54,19 @@ export default async function CheckoutConfirmPage({
       </Link>
       <h1 className="mt-4 font-display text-4xl">Confirm your plan</h1>
 
-      {mode !== "live" ? (
+      {mode === "test" ? (
         <p role="note" className="mt-4 rounded-lg border border-line-strong bg-paper-raised p-4">
-          <strong>Test mode.</strong> TalentYak isn&rsquo;t taking real payments yet. No real card will be charged; use a Stripe test card.
+          <strong>Test checkout.</strong> TalentYak isn&rsquo;t taking real payments yet. No real card will be charged — use a Stripe test card. A test checkout is not a sale.
         </p>
+      ) : null}
+      {action.kind === "waitlist" ? (
+        <div role="alert" className="mt-4 rounded-lg border border-line-strong bg-paper-raised p-4">
+          <p className="font-medium">{action.reason} Nothing has been charged.</p>
+          <p className="mt-2">
+            <Link href={`/waitlist?coach=${coach.provider_id}&plan=${plan.offer_id}`} className="font-semibold text-brand underline underline-offset-4">Join the waitlist</Link>{" "}
+            and we&rsquo;ll email you when it can be bought.
+          </p>
+        </div>
       ) : null}
 
       <section className="mt-6 rounded-2xl border border-line bg-surface p-5" aria-labelledby="summary">
@@ -66,8 +78,9 @@ export default async function CheckoutConfirmPage({
         <p className="mt-3 text-2xl">
           <strong>{formatMinor(price.amount_minor, price.currency)}</strong> <span className="text-base text-ink-muted">{planCadence(plan)}</span>
         </p>
+        <p className="mt-1 text-sm">{renewalText(plan)}</p>
         <p className="mt-1 text-sm text-ink-muted">
-          Charged in {price.currency}.
+          Total today: {formatMinor(price.amount_minor, price.currency)}, charged in {price.currency}. That is exactly what&rsquo;s charged — nothing is added at payment.
           {session.profile.display_currency && session.profile.display_currency !== price.currency
             ? ` Your card may be charged a conversion by your bank if it isn't in ${price.currency}.`
             : ""}
@@ -144,6 +157,8 @@ export default async function CheckoutConfirmPage({
           </p>
         ) : null}
       </section>
+
+      <NextSteps coachName={coach.display_name} programme={plan.programme_included} coachExpectations={expectations.coach} />
 
       {sellable ? (
       <ActionForm action={startCheckoutAction} className="mt-6 grid gap-4" noticeFirst>

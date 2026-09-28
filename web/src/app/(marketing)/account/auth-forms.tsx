@@ -48,11 +48,13 @@ export function EmailLinkForm({ next }: { next: string }) {
   );
 }
 
-export function SignUpForm() {
+export function SignUpForm({ next = "/account" }: { next?: string }) {
   const [state, action] = useActionState(signUpAction, initialActionState);
   if (state.ok) return <FormNotice state={state} />;
   return (
     <form action={action} className="space-y-5" noValidate>
+      {/* Where to go after confirming the email and the first details — e.g. the package they chose. */}
+      <input type="hidden" name="next" value={next} />
       <TextField name="email" label="Email address" type="email" autoComplete="email" inputMode="email" required
         defaultValue={state.values?.email} error={state.fieldErrors?.email} />
       <TextField name="password" label="Password" type="password" autoComplete="new-password" required
