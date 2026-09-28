@@ -251,3 +251,13 @@ Status of record: `docs/implementation/M03-M07-STATUS.md`.
 - [ ] **Not verified live:** a signed-in journey on the deployed site, real phones and screen readers, and a payment pause through the real Stripe path (the walkthrough changed states directly; the real path also puts sessions on hold).
 - [ ] **Test hygiene:** three synthetic walkthrough profiles remain on TEST, held by their append-only payment records (retired coaches, nothing public) — same as the scheduling suite's fixtures.
 
+## M16 — Public launch website (2026-09-28) — complete (not publicly launchable yet)
+
+- [x] Homepage (value → founding coaches → how coaching works → package benefits → questions → next action), "Start coaching" coach & package choices, coach profiles (availability, checked qualifications, experience, languages, approach, packages with renewal, cancellation and refund terms, coach's own published commitments), waitlist with double opt-in, withdraw and a founder page to send availability notices, checkout gating and revalidation, next steps after payment, package choice kept through sign-up and email confirmation, About with how coaches are selected and support contact, canonical URLs, social previews, sitemap with profiles, structured data without ratings, privacy-minimal page counts. Decision register §W.
+- [ ] **Founder — launch blockers for the public site:** real founding coaches (see M16-STATUS "What's needed"), and a **separate production database** (the hosted project is shared with tests; the live-site guard hides test coaches but a shared database is not a launch setup).
+- [ ] **Founder — blockers for purchases:** final reviewed terms and privacy notice; approve or change `discount.v1`, `billing_terms.v1`, `recognition.v1`, `payout.v1`, `eligibility.v1`; live Stripe keys and `LIVE_BILLING=true`; a payment method on the Daily account before packages with calls can be sold (calls are still marked not ready in `lib/fulfillment.ts`).
+- [ ] **Founder:** confirm `SUPPORT_EMAIL` is set on the production deployment and monitored — the About page shows it as the pre-purchase contact.
+- [ ] **Optional:** set `TEST_CHECKOUT_EMAILS` on production for named testers; administrators with a second factor can already test.
+- [ ] **Test hygiene:** DB suites leave published fixture coaches; they are hidden on production by the guard, but suites should retire their coaches in `after()`.
+- [ ] **Waitlist entries aren't expired automatically** (automatic deletion stays off). Unconfirmed entries stay until withdrawn; decide a retention rule in M17.
+

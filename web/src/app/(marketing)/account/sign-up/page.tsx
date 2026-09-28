@@ -20,7 +20,7 @@ export default async function SignUpPage({ searchParams }: { searchParams: Promi
   return (
     <AuthPage
       title="Create an account"
-      intro="You'll confirm your email, then choose your coach and plan before paying anything."
+      intro={next.startsWith("/checkout/") ? "You'll confirm your email, add a few details, then come straight back to the package you chose. Nothing is charged until you confirm at checkout." : "You'll confirm your email, then choose your coach and package before paying anything."}
       footer={
         <p>
           Already have an account?{" "}
@@ -39,7 +39,7 @@ export default async function SignUpPage({ searchParams }: { searchParams: Promi
           {settings.google ? (
             <>
               <form action={googleSignInAction}>
-                <input type="hidden" name="next" value="/account/onboarding" />
+                <input type="hidden" name="next" value={next === "/account" ? "/account/onboarding" : `/account/onboarding?next=${encodeURIComponent(next)}`} />
                 <Button type="submit" variant="secondary" className="w-full">
                   Continue with Google
                 </Button>
@@ -47,7 +47,7 @@ export default async function SignUpPage({ searchParams }: { searchParams: Promi
               <p className="my-6 text-center text-sm text-ink-muted">or use your email</p>
             </>
           ) : null}
-          <SignUpForm />
+          <SignUpForm next={next} />
         </>
       )}
     </AuthPage>

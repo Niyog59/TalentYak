@@ -1,5 +1,6 @@
 import type { PublicPlan } from "@/lib/offers/public";
 import { formatMinor } from "@/lib/format";
+import { planCadence } from "@/lib/offers/presentation";
 
 /**
  * What a plan includes, in the same order for every coach, with "Not included"
@@ -16,7 +17,8 @@ export function PlanInclusions({ plan }: { plan: InclusionFacts }) {
     ["Training programme", plan.programme_included ? `Included${plan.programme_review_cadence ? `, reviewed ${plan.programme_review_cadence}` : ""}` : "Not included"],
     ["Video or audio calls", plan.calls_included_per_month ? `${plan.calls_included_per_month} a month, ${plan.call_duration_minutes} min each` : "Not included"],
     ["Check-ins", plan.check_in_cadence ?? "Not included"],
-    ["Messaging", plan.messaging_channel ?? "Not included"],
+    // Free text from the coach; the one internal code the product uses reads as words.
+    ["Messaging", plan.messaging_channel === "in_app" ? "In-app messages" : plan.messaging_channel ?? "Not included"],
     ["Replies within", plan.response_time_hours ? `${plan.response_time_hours} hours` : "Not stated"],
     ["Exercise form review", plan.form_review_included ? "Included" : "Not included"],
   ];
@@ -38,12 +40,7 @@ export function PlanInclusions({ plan }: { plan: InclusionFacts }) {
   );
 }
 
-export function planCadence(plan: PublicPlan): string {
-  if (plan.service_type !== "recurring_coaching") return "one payment";
-  const n = plan.billing_interval_count ?? 1;
-  const unit = plan.billing_interval ?? "month";
-  return n === 1 ? `a ${unit}` : `every ${n} ${unit}s`;
-}
+export { planCadence } from "@/lib/offers/presentation";
 
 export function PriceList({ plan }: { plan: PublicPlan }) {
   return (

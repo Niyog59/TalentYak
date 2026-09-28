@@ -1,5 +1,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { isReservedTestAddress } from "@/lib/email";
 import { isPublicVertical } from "@/verticals/registry";
 
 /**
@@ -39,6 +41,16 @@ export interface PublicPlan {
   prices: PublicPrice[];
 }
 
+export type CoachAvailability = "available" | "full" | "away" | "not_accepting";
+
+export interface PublicCredential {
+  title: string;
+  issuing_body: string | null;
+  issued_year: number | null;
+  verified_detail: string | null;
+  verified_on: string;
+}
+
 export interface PublicCoach {
   provider_id: string;
   slug: string;
@@ -53,6 +65,11 @@ export interface PublicCoach {
   languages: string[];
   experience_since: string | null;
   photo_path: string | null;
+  /** Whether a new client could start now — a state, never a client count. */
+  availability: CoachAvailability;
+  awayUntil: string | null;
+  /** Only qualifications TalentYak has checked. */
+  credentials: PublicCredential[];
 }
 
 const PLAN_COLUMNS =
@@ -77,15 +94,64 @@ function livePlans(offers: OfferRow[]): PublicPlan[] {
   return plans.sort((a, b) => (a.service_type === b.service_type ? a.title.localeCompare(b.title) : a.service_type === "recurring_coaching" ? -1 : 1));
 }
 
+type Supabase = NonNullable<Awaited<ReturnType<typeof createClient>>>;
+type DirectoryRow = Omit<PublicCoach, "availability" | "awayUntil" | "credentials">;
+
+/**
+ * The production site never shows a test account as a coach (invariant 9).
+ * The hosted project doubles as the test environment, so automated tests
+ * create real, published coach rows while they run; here, on the production
+ * deployment only, any coach whose account uses a reserved test address (or
+ * has no account at all) is left out. Emails are read server-side for this
+ * check and never leave this function. Locally and on previews they show,
+ * so walkthroughs can use them.
+ */
+async function withoutTestAccounts(rows: DirectoryRow[]): Promise<DirectoryRow[]> {
+  if (process.env.VERCEL_ENV !== "production" || rows.length === 0) return rows;
+  const admin = createAdminClient();
+  if (!admin) return [];
+  const { data, error } = await admin.from("providers").select("id, profiles(email)").in("id", rows.map((r) => r.provider_id));
+  if (error) return [];
+  const real = new Set(
+    ((data ?? []) as unknown as { id: string; profiles: { email: string | null } | { email: string | null }[] | null }[])
+      .filter((p) => {
+        const email = (Array.isArray(p.profiles) ? p.profiles[0] : p.profiles)?.email;
+        return Boolean(email) && !isReservedTestAddress(email!);
+      })
+      .map((p) => p.id),
+  );
+  return rows.filter((r) => real.has(r.provider_id));
+}
+
+/** Availability and checked qualifications for directory rows. Unknown availability reads as not accepting. */
+async function enrich(supabase: Supabase, input: DirectoryRow[]): Promise<PublicCoach[]> {
+  const rows = await withoutTestAccounts(input);
+  if (!rows.length) return [];
+  const [{ data: avail }, { data: creds }] = await Promise.all([
+    supabase.rpc("coach_public_availability"),
+    supabase.rpc("public_coach_credentials"),
+  ]);
+  const a = new Map(((avail ?? []) as { provider_id: string; state: CoachAvailability; away_until: string | null }[]).map((r) => [r.provider_id, r]));
+  const c = (creds ?? []) as (PublicCredential & { provider_id: string })[];
+  return rows.map((r) => ({
+    ...r,
+    // If availability can't be read, nobody is invited to buy.
+    availability: a.get(r.provider_id)?.state ?? "not_accepting",
+    awayUntil: a.get(r.provider_id)?.away_until ?? null,
+    credentials: c.filter((x) => x.provider_id === r.provider_id).map(({ provider_id: _p, ...rest }) => rest),
+  }));
+}
+
 export async function listPublicCoaches(): Promise<{ coach: PublicCoach; plans: PublicPlan[] }[] | null> {
   const supabase = await createClient();
   if (!supabase) return null;
-  const { data: coaches, error } = await supabase.from("public_coach_directory").select("*").order("display_name").limit(200);
+  const { data: coaches, error } = await supabase.from("public_coach_directory").select("*").order("display_name").limit(50);
   if (error) return null;
-  const visible = ((coaches ?? []) as PublicCoach[]).filter((c) => isPublicVertical(c.vertical_slug) && c.slug);
+  const visible = await enrich(supabase, ((coaches ?? []) as DirectoryRow[]).filter((c) => isPublicVertical(c.vertical_slug) && c.slug));
   if (visible.length === 0) return [];
 
-  const { data: offers } = await supabase.from("offers").select(PLAN_COLUMNS).in("provider_id", visible.map((c) => c.provider_id));
+  const { data: offers, error: offersError } = await supabase.from("offers").select(PLAN_COLUMNS).in("provider_id", visible.map((c) => c.provider_id));
+  if (offersError) return null;
   return visible.map((coach) => ({
     coach,
     plans: livePlans(((offers ?? []) as unknown as OfferRow[]).filter((o) => o.provider_id === coach.provider_id)),
@@ -96,10 +162,12 @@ export async function getPublicCoach(slug: string): Promise<{ coach: PublicCoach
   if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug)) return null;
   const supabase = await createClient();
   if (!supabase) return null;
-  const { data: coach } = await supabase.from("public_coach_directory").select("*").eq("slug", slug).maybeSingle();
-  if (!coach || !isPublicVertical((coach as PublicCoach).vertical_slug)) return null;
-  const { data: offers } = await supabase.from("offers").select(PLAN_COLUMNS).eq("provider_id", (coach as PublicCoach).provider_id);
-  return { coach: coach as PublicCoach, plans: livePlans((offers ?? []) as unknown as OfferRow[]) };
+  const { data: row } = await supabase.from("public_coach_directory").select("*").eq("slug", slug).maybeSingle();
+  if (!row || !isPublicVertical((row as DirectoryRow).vertical_slug)) return null;
+  const [coach] = await enrich(supabase, [row as DirectoryRow]);
+  if (!coach) return null;
+  const { data: offers } = await supabase.from("offers").select(PLAN_COLUMNS).eq("provider_id", coach.provider_id);
+  return { coach, plans: livePlans((offers ?? []) as unknown as OfferRow[]) };
 }
 
 /** A plan by its live version id, with its coach — for checkout. */
@@ -110,9 +178,11 @@ export async function getPublicPlan(versionId: string): Promise<{ coach: PublicC
   const { data: version } = await supabase.from("offer_versions").select("offer_id, offers(provider_id)").eq("id", versionId).maybeSingle();
   const providerId = (Array.isArray(version?.offers) ? version?.offers[0] : version?.offers) as { provider_id: string } | undefined;
   if (!version || !providerId) return null;
-  const { data: coach } = await supabase.from("public_coach_directory").select("*").eq("provider_id", providerId.provider_id).maybeSingle();
-  if (!coach || !isPublicVertical((coach as PublicCoach).vertical_slug)) return null;
+  const { data: row } = await supabase.from("public_coach_directory").select("*").eq("provider_id", providerId.provider_id).maybeSingle();
+  if (!row || !isPublicVertical((row as DirectoryRow).vertical_slug)) return null;
+  const [coach] = await enrich(supabase, [row as DirectoryRow]);
+  if (!coach) return null;
   const { data: offers } = await supabase.from("offers").select(PLAN_COLUMNS).eq("id", version.offer_id);
   const plan = livePlans((offers ?? []) as unknown as OfferRow[]).find((p) => p.version_id === versionId);
-  return plan ? { coach: coach as PublicCoach, plan } : null;
+  return plan ? { coach, plan } : null;
 }

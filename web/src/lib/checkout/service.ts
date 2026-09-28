@@ -7,6 +7,8 @@ import { isPublicVertical } from "@/verticals/registry";
 import { evaluateSaleReadiness } from "@/lib/policy/live-gate";
 import { friendlyError } from "@/lib/errors";
 import type { SessionContext } from "@/lib/auth";
+import { countEvent } from "@/lib/site-events";
+import { isProductionSite } from "@/lib/launch";
 
 /**
  * Starting a checkout.
@@ -213,6 +215,9 @@ export async function startCheckout(args: {
 
     if (!session.url) throw new Error("Stripe returned no checkout URL");
     await admin.rpc("attach_checkout_session", { p_attempt_id: records.attempt_id, p_session_id: session.id });
+    // Once per new checkout (a retry reuses the attempt and returns above).
+    // Real only for live payments on the production site.
+    await countEvent("checkout_started", version.id, stripeMode() === "live" && isProductionSite());
     return { url: session.url, attemptId: String(records.attempt_id) };
   } catch (err) {
     // Starting the payment failed: give the place back immediately rather than

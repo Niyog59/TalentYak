@@ -13,6 +13,7 @@ import {
   capacityCeilingAction,
   providerStatusAction,
   reviewDestinationAction,
+  reviewCredentialAction,
   reviewPhotoAction,
 } from "../../actions";
 
@@ -56,7 +57,7 @@ export default async function AdminCoachPage({ params }: { params: Promise<{ id:
     supabase.from("provider_status_events").select("action, from_status, to_status, reason, created_at").eq("provider_id", id).order("created_at", { ascending: false }).limit(30),
     supabase.rpc("admin_payout_destinations", { p_provider_id: id }),
     supabase.from("offers").select("id, status, offer_versions(version, title, published_at, superseded_at, offer_prices(currency, amount_minor))").eq("provider_id", id),
-    supabase.from("provider_credentials").select("id, kind, claimed_title, issuing_body, verification_state, created_at").eq("provider_id", id),
+    supabase.from("provider_credentials").select("id, kind, claimed_title, issuing_body, claimed_reference, issued_on, verification_state, verified_detail, created_at").eq("provider_id", id),
     supabase.from("coach_balances").select("*").eq("provider_id", id),
   ]);
 
@@ -205,13 +206,43 @@ export default async function AdminCoachPage({ params }: { params: Promise<{ id:
         />
       </Panel>
 
-      <Panel title="Credentials" id="credentials" description="What the coach says they hold, and what has been checked.">
-        <DataTable
-          caption="Credentials"
-          head={["Credential", "Issued by", "Checked"]}
-          empty="None added."
-          rows={(credentials ?? []).map((c) => [c.claimed_title, c.issuing_body ?? "—", c.verification_state])}
-        />
+      <Panel title="Credentials" id="credentials" description="What the coach says they hold, and what has been checked. Only checked ones appear on the public profile, with your note next to the “Checked by TalentYak” badge.">
+        {(credentials ?? []).length === 0 ? (
+          <p className="text-ink-muted">None added.</p>
+        ) : (
+          <ul className="divide-y divide-line">
+            {(credentials ?? []).map((c) => (
+              <li key={c.id} className="py-4">
+                <p className="font-semibold">
+                  {c.claimed_title}
+                  {c.issuing_body ? <span className="font-normal text-ink-muted"> — {c.issuing_body}</span> : null}
+                  {c.issued_on ? <span className="font-normal text-ink-muted"> ({String(c.issued_on).slice(0, 4)})</span> : null}
+                </p>
+                <p className="text-sm text-ink-muted">
+                  Reference: {c.claimed_reference ?? "—"} · now: {c.verification_state}{c.verified_detail ? ` · “${c.verified_detail}”` : ""}
+                </p>
+                <ActionForm action={reviewCredentialAction} className="mt-2 grid gap-3 sm:grid-cols-[12rem_1fr_auto] sm:items-end">
+                  <input type="hidden" name="credential_id" value={c.id} />
+                  <input type="hidden" name="provider_id" value={id} />
+                  <SelectField
+                    name="outcome"
+                    label="Outcome"
+                    required
+                    defaultValue={c.verification_state === "unverified" ? "in_review" : c.verification_state}
+                    options={[
+                      { value: "in_review", label: "Being checked" },
+                      { value: "verified", label: "Checked — show it" },
+                      { value: "rejected", label: "Couldn't be checked" },
+                      { value: "unverified", label: "Not checked" },
+                    ]}
+                  />
+                  <TextField name="detail" label="What was checked" required={false} defaultValue={c.verified_detail ?? ""} />
+                  <SubmitButton pendingLabel="Saving…" variant="secondary">Save</SubmitButton>
+                </ActionForm>
+              </li>
+            ))}
+          </ul>
+        )}
       </Panel>
 
       <Panel title="Earnings and adjustments" id="money">

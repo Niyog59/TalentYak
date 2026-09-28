@@ -26,6 +26,14 @@ import { type ActionState, echo, fail, field, succeed } from "@/lib/actions";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** Onboarding first, then wherever they were going. */
+function onboardingThen(next: string): string {
+  const target = safeNextPath(next);
+  return target === "/account" || target.startsWith("/account/onboarding")
+    ? "/account/onboarding"
+    : `/account/onboarding?next=${encodeURIComponent(target)}`;
+}
+
 function callbackUrl(next: string) {
   return `${env.siteUrl}/auth/callback?next=${encodeURIComponent(safeNextPath(next))}`;
 }
@@ -65,7 +73,9 @@ export async function signUpAction(_prev: ActionState, form: FormData): Promise<
   const { error } = await supabase.auth.signUp({
     email,
     password,
-    options: { emailRedirectTo: callbackUrl("/account/onboarding") },
+    // The confirmation link carries the person's choice (a package they picked)
+    // through onboarding and back to it — in any browser they open it in.
+    options: { emailRedirectTo: callbackUrl(onboardingThen(field(form, "next", 512))) },
   });
 
   // A weak or breached password is the one error worth reporting precisely:

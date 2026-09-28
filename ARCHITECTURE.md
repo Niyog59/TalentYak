@@ -493,6 +493,19 @@ my_call_allowance(e)       calls left in the current paid cycle, fixed-allowance
 
 Both dashboards are server-rendered summaries of the existing modules, read with the person's own session (`web/src/lib/dashboard/client.ts`, `coach.ts`). Each section loads through `attempt()` and fails on its own with a retry (`SectionFailed`); a failed source makes the coach's affected counts read "N+" instead of pretending to be complete. The coach queue is derived by the pure `buildQueue()` (`web/src/lib/dashboard/tasks.ts`): check-ins awaiting feedback (`coach_checkin_queue`, including the M13 paid-time exception), re-reviews (`reopened`), form-check clips (a video in the latest submission that the media policy lets the coach read), unanswered messages, client booking requests (`loadSchedule`), and plans not yet written or drafts. Marks never change the underlying record; a snooze never hides an item that is due, and "handled" covers messages up to the seq the database recorded. Nothing on either dashboard writes a read marker. Today's workout reuses `currentPlanOf` / `weekLayout` / `loggedSessions` (moved from the plan page into `web/src/lib/programmes/server.ts`). Join is offered only for a booked session whose room is open (`appointment_call_info` + `callClock`) and whose coaching is live. `LiveRefresh` re-reads on reconnect, on return to the tab and every two minutes while visible.
 
+### 3.7j Public launch website (M16) — `0054`–`0055`
+
+```
+coach_public_availability()   available / full / away / not_accepting per public coach (anon); same capacity rule as checkout
+public_coach_credentials()    qualifications with verification_state = 'verified', not expired (anon)
+guard_credential_insert       a coach's new claim always starts 'unverified'
+waitlist_entries / _links / _notices   email + optional first name + optional coach/plan; double opt-in; admin read only
+waitlist_register / _confirm / _withdraw   service role only; withdraw deletes the entry
+site_event_counts, bump_site_event    daily counts: event, page kind or public slug/id, live flag — no identifiers
+```
+
+Launch state lives in `web/src/lib/launch.ts`: `purchaseMode(session)` is `live` only with live Stripe keys **and** `LIVE_BILLING`, `test` only for a local dev server, an administrator with a second factor, or `TEST_CHECKOUT_EMAILS`, otherwise `closed`. Public pages decide their calls to action from `purchaseMode(null)`; the checkout page and `startCheckoutAction` re-check it on the server with the coach's availability, and `create_checkout_records` still owns price, capacity and eligibility. Package wording and the Choose/waitlist decision are in `web/src/lib/offers/presentation.ts`. On the production deployment `lib/offers/public.ts` leaves out any coach whose account uses a reserved test address, because the hosted project is shared with automated tests. Sign-up carries `next` through the confirmation email and onboarding (`onboardingThen`). Waitlist emails go through the outbox (`email.waitlist_confirm`, `email.waitlist_notice`) to an address read from the table at send time; confirming is a button press. Page counts come from `/api/events` (browser: page views, profile views, package choices; staff, bots and non-production excluded) and from the server (checkout starts once per new attempt, waitlist registrations once per new entry); purchases are counted from payment records, not here.
+
 ### 3.8 How the database defends itself
 
 Three mechanisms, all exercised by the test suite:

@@ -4,6 +4,8 @@ import { requireSession } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { ButtonLink } from "@/components/button";
 import { AutoRefresh } from "@/components/ui/auto-refresh";
+import { NextSteps } from "@/components/marketing/next-steps";
+import { getLiveExpectations } from "@/lib/expectations/server";
 
 export const metadata: Metadata = { title: "Payment status", robots: { index: false } };
 export const dynamic = "force-dynamic";
@@ -24,13 +26,24 @@ export default async function CheckoutReturnPage({ searchParams }: { searchParam
   const valid = attempt && /^[0-9a-f-]{36}$/i.test(attempt);
   // Row-level security: a customer can only read their own attempts.
   const { data: row } = valid
-    ? await supabase.from("checkout_attempts").select("state, purchases(id, state)").eq("id", attempt).maybeSingle()
+    ? await supabase.from("checkout_attempts").select("state, purchases(id, state, provider_id, inclusions_snapshot)").eq("id", attempt).maybeSingle()
     : { data: null };
-  const purchase = (Array.isArray(row?.purchases) ? row?.purchases[0] : row?.purchases) as { id: string; state: string } | undefined;
+  const purchase = (Array.isArray(row?.purchases) ? row?.purchases[0] : row?.purchases) as
+    | { id: string; state: string; provider_id: string; inclusions_snapshot: { programme_included?: boolean } | null }
+    | undefined;
 
   const confirmed = purchase && ["active", "cancelling"].includes(purchase.state);
   const failed = row && ["expired", "abandoned", "failed"].includes(row.state) && !confirmed;
   const late = purchase?.state === "pending_payment" && row?.state === "expired";
+
+  // After confirmation: the coach's own published commitments, and where to go next.
+  const [coachRow, enrollment, expectations] = confirmed && purchase
+    ? await Promise.all([
+        supabase.from("provider_public_profiles").select("display_name").eq("provider_id", purchase.provider_id).maybeSingle(),
+        supabase.from("enrollments").select("id").eq("purchase_id", purchase.id).maybeSingle(),
+        getLiveExpectations(purchase.provider_id).catch(() => ({ coach: null, platform: null })),
+      ])
+    : [null, null, null];
 
   return (
     <div className="mx-auto max-w-xl px-4 py-16 text-center sm:px-6">
@@ -44,7 +57,13 @@ export default async function CheckoutReturnPage({ searchParams }: { searchParam
         <>
           <h1 className="font-display text-4xl">You&rsquo;re in</h1>
           <p className="mt-3">Your payment is confirmed. We&rsquo;ve emailed you a receipt, and your coach has been told.</p>
-          <ButtonLink href="/account" className="mt-6">See your plan</ButtonLink>
+          <NextSteps
+            paid
+            coachName={(coachRow?.data?.display_name as string) ?? "Your coach"}
+            programme={Boolean(purchase?.inclusions_snapshot?.programme_included)}
+            coachExpectations={expectations?.coach ?? null}
+            enrollmentId={(enrollment?.data?.id as string) ?? null}
+          />
         </>
       ) : failed && !late ? (
         <>

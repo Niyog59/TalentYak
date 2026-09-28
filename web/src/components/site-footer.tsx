@@ -2,13 +2,18 @@ import Link from "next/link";
 import { BrandLogo } from "@/components/brand/logo";
 
 const coaching = [
-  { href: "/coaches", label: "Find a coach" },
+  { href: "/coaches", label: "Coaches and packages" },
   { href: "/how-it-works", label: "How it works" },
+  { href: "/waitlist", label: "Join the waitlist" },
   { href: "/become-a-coach", label: "Become a coach" },
 ];
 
 const company = [
   { href: "/about", label: "About TalentYak" },
+  { href: "/about#selection-heading", label: "How coaches are selected" },
+  { href: "/about#support-heading", label: "Contact" },
+  { href: "/legal/terms", label: "Terms (draft)" },
+  { href: "/legal/privacy", label: "Privacy (draft)" },
   { href: "/account/sign-in", label: "Log in" },
 ];
 

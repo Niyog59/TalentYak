@@ -1,18 +1,22 @@
 import Link from "next/link";
 import { BrandLogoLink } from "@/components/brand/logo";
 import { MobileMenu } from "@/components/shell/mobile-menu";
+import { purchaseMode } from "@/lib/launch";
 
 /*
  * Public header. Fitness coaching is the only public service, so there is
  * no service chooser here — see docs/aafnai/M02_UI_BOUNDARIES.md.
  */
 const links = [
-  { href: "/coaches", label: "Find a coach" },
+  { href: "/coaches", label: "Coaches" },
   { href: "/how-it-works", label: "How it works" },
-  { href: "/become-a-coach", label: "Become a coach" },
+  { href: "/about", label: "About" },
 ];
 
 export function SiteNav() {
+  // What the public can do right now: buy, or register interest.
+  const open = purchaseMode(null) === "live";
+  const primary = open ? { href: "/coaches", label: "Start coaching" } : { href: "/waitlist", label: "Join the waitlist" };
   return (
     // White, not --paper: the horizontal logo file has an opaque white
     // background, and on the warm ground it would show as a rectangle.
@@ -35,16 +39,19 @@ export function SiteNav() {
           </ul>
         </nav>
 
-        <div className="hidden md:block">
+        <div className="hidden items-center gap-2 md:flex">
           <Link
             href="/account/sign-in"
             className="inline-flex min-h-11 items-center rounded-lg px-3 font-semibold text-brand hover:bg-brand-tint"
           >
             Log in
           </Link>
+          <Link href={primary.href} className="inline-flex min-h-11 items-center rounded-lg bg-brand px-4 font-semibold text-white hover:bg-brand-strong">
+            {primary.label}
+          </Link>
         </div>
 
-        <MobileMenu links={[...links, { href: "/account/sign-in", label: "Log in" }]} />
+        <MobileMenu links={[primary, ...links, { href: "/account/sign-in", label: "Log in" }]} />
       </div>
     </header>
   );

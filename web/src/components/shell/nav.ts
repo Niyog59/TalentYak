@@ -113,6 +113,7 @@ export function founderNav(
       { label: "Payouts", href: at("/payouts"), icon: "earnings", available: opts.real },
       { label: "Coach changes", href: at("/coach-changes"), icon: "clients", available: opts.real },
       { label: "Check-ins", href: at("/check-ins"), icon: "check", available: opts.real },
+      { label: "Waitlist", href: at("/waitlist"), icon: "clients", available: opts.real },
       { label: "Support cases", shortLabel: "Support", href: at("/support"), icon: "messages", available: opts.real },
       { label: "Scheduling", href: at("/scheduling"), icon: "calendar", available: opts.real },
       { label: "Welcome & expectations", shortLabel: "Expectations", href: at("/expectations"), icon: "check", available: opts.real },

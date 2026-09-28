@@ -1,21 +1,24 @@
 import type { Metadata } from "next";
-import { ButtonLink } from "@/components/button";
-import { CommonQuestions, HowItWorks } from "@/components/marketing/homepage";
+import { Faqs, HowCoachingWorks, NextAction, PackageBenefits } from "@/components/marketing/launch-home";
+import { TrackView } from "@/components/marketing/track";
+import { purchaseMode } from "@/lib/launch";
 
 export const metadata: Metadata = {
   title: "How it works",
-  description:
-    "You work with a coach. TalentYak keeps your plan, progress and conversations in one place.",
+  description: "Your coach writes your plan; you train on your own schedule and log it. Check-ins, messaging and calls follow your package.",
+  alternates: { canonical: "/how-it-works" },
 };
+export const dynamic = "force-dynamic";
 
 export default function HowItWorksPage() {
+  const mode = purchaseMode(null) === "live" ? "live" : "closed";
   return (
     <>
-      <HowItWorks mode="live" headingLevel="h1" />
-      <CommonQuestions mode="live" />
-      <div className="mx-auto max-w-3xl px-4 pb-20 sm:px-6">
-        <ButtonLink href="/coaches">Find your coach</ButtonLink>
-      </div>
+      <TrackView subject="how-it-works" />
+      <HowCoachingWorks headingLevel="h1" />
+      <PackageBenefits />
+      <Faqs mode={mode} />
+      <NextAction mode={mode} />
     </>
   );
 }
