@@ -35,3 +35,7 @@ Scope: the full founder brief (FM11, 2026-09-27). Migration `0046_programmes.sql
 - Real email delivery of the plan notice (fixture addresses are reserved and never mailed; the in-app notice was verified).
 - Physical phones and screen readers (built-in browser only; labels, headings and 44 px controls checked).
 - The coach-change screens in the browser (proven in the database suite only).
+
+## Deployed — `fa288ea`, www.talentyak.com
+
+Vercel production deployment: **success**. Signed out, the four new pages redirect to sign-in (`/account/plan`, `/account/training-profile`, `/coach/programmes`, a template page); the home page answers 200; the worker still refuses an unauthenticated call (401). Migration `0046` was applied before the push. Not checked on the live domain: a signed-in coach or client journey (done locally against the same database).
