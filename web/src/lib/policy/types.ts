@@ -304,7 +304,56 @@ export interface CallsPolicy extends PolicyMeta {
   readonly automaticNoShow: false;
 }
 
+/**
+ * Check-ins and paid access (M13). Founder-approved, 2026-09-27. Enforced in
+ * the database (0051); this record states it so a reader can check it.
+ */
+export interface CheckinAccessPolicy extends PolicyMeta {
+  readonly kind: "checkin_access";
+  /** Cancelling keeps check-ins running until the paid period ends. */
+  readonly continuesThroughPaidPeriod: true;
+  /** Once access ends (paused or ended), no new check-in requests are made. */
+  readonly newCheckinsWhenAccessEnds: false;
+  /** Past submissions and feedback stay readable under current privacy permissions. */
+  readonly historyReadableAfterAccessEnds: true;
+  /**
+   * THE APPROVED EXCEPTION: the coach responsible for a check-in submitted
+   * during paid time may finish that review after the paid time runs out,
+   * and the client may read it and is told.
+   */
+  readonly reviewSubmittedInPaidTimeMayBeFinished: true;
+  /** The exception does not reopen new check-ins, client revisions, messaging, bookings or plan changes. */
+  readonly exceptionReopensOtherActivity: false;
+  /** Nor does it survive a suspension, a coach reassignment or a refund. */
+  readonly exceptionOverridesSuspensionOrReassignment: false;
+  /** Unfinished drafts are kept through a payment pause and can be sent after renewal. */
+  readonly draftsKeptWhilePaused: true;
+  /** A failed payment never deletes anything; retention is a separate policy. */
+  readonly paymentFailureDeletes: false;
+  /** Missing a check-in never blocks paid coaching. */
+  readonly missedCheckinBlocksCoaching: false;
+}
+
+/**
+ * When check-in notices go out (M13). Working defaults this codebase chose,
+ * not approved rules. Coaches set their own review time; these only decide
+ * when TalentYak nudges.
+ */
+export interface CheckinRemindersPolicy extends PolicyMeta {
+  readonly kind: "checkin_reminders";
+  /** "Due soon" to the client, this long before the due time. */
+  readonly dueSoonHours: number;
+  /** One "still open, late is fine" notice, from this long after the due time… */
+  readonly lateAfterHours: number;
+  /** …and never after this long. */
+  readonly lateWindowHours: number;
+  /** For a coach who stated no review time: nudge them after this long. */
+  readonly reviewWithoutStatedTimeHours: number;
+}
+
 export type Policy =
+  | CheckinAccessPolicy
+  | CheckinRemindersPolicy
   | CallsPolicy
   | SchedulingPolicy
   | MessagingPolicy

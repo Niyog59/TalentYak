@@ -460,6 +460,28 @@ tracking_focus        per assignment: fields the coach finds useful + note (advi
 
 Every client write goes through a security-definer function — `save_workout_log`, `delete_workout_log`, `save_body_entry`, `save_progress_photo`, `remove_progress_photo`, `save_food_entry`, `delete_food_entry`, `set_food_day` — and direct inserts/updates/deletes on these tables are revoked from `authenticated`. Each checks ownership and `tracking_write_state()` (built on `coaching_is_live()`): only `live` may write; `paused`/`ended`/`suspended`/`unavailable` are refused with `tracking_<state>`, and the device holds the entry. Dates are checked against the client's own day (`client_local_today`). Workouts and food entries carry a `revision` (stale save → conflict returned as data, not an error); a workout save also carries a `save_id`, so a re-sent save whose answer was lost is recognised. Body entries use a change token (`body_entry_token`, microseconds since 1970). Coaches read through the existing `coach_may_read_record()` policies; `set_tracking_focus` is the only coach write. The browser talks to one route, `POST /api/tracking`, which maps outcomes to 200 / 409 conflict / 423 held / 422 refused; the device store is `lib/tracking/device.ts` (keys `talentyak:track:<user>:…`, cleared with all `talentyak:` keys on sign-out). Evening reminders run in the worker sweep (`lib/tracking/reminders.ts`, in-app only, deduped per day, capped per week).
 
+### 3.7h Check-ins and coach feedback (M13) — `0050`–`0052`
+
+```
+checkin_templates / _versions   coach question sets; a version is frozen (trigger)
+checkin_schedules / _versions   one per assignment; cadence 1/2/4 weeks, ISO due weekday + time,
+                                explicit client timezone, anchor date, optional response_days
+checkin_breaks                  planned breaks (coach or client)
+checkins                        one per (schedule, period_start); period, due_at and questions fixed
+                                at creation; responsible assignment/provider; status open|submitted|
+                                reviewed|reopened|missed|cancelled; needs_resolution after a coach change
+checkin_drafts                  client only; revision + save_id
+checkin_submissions             append-only versions: answers, media_ids, substantive, progress_snapshot,
+                                submit_id (unique), in_paid_time
+checkin_feedback                coach drafts, then frozen published versions; next_steps, plan_id,
+                                conversation_id, refers_to_revision
+checkin_step_links              promised plan change → an M11 version published after the check-in
+checkin_events                  what happened, never content
+media_purpose                   + checkin_attachment (coach sees it only once sent)
+```
+
+Requests are made by `materialize_checkins_for()` (worker sweep, and `refresh_checkins()` on page load) only for the period running now, only while `coaching_is_live()`, never inside a break or pause, never overlapping an earlier request — so no backlog. Clients save drafts with `save_checkin_draft` (live only; paused → held on the device, draft kept). Sending goes through `POST /api/checkins`, which builds the M12 progress summary with the client's own session and calls the service-only `submit_checkin(p_actor, …)` — a device can never write the summary; `submit_id` makes a retry one submission. Coaches read by `coach_may_read_record()` with attachments judged as media, write only feedback (`save_/publish_checkin_feedback`, `complete_checkin_review`, `link_checkin_step`) under `checkin_coach_may_review()`, which includes the approved paid-time exception `checkin_review_exception()`. A trigger on `enrollment_assignments` hands unanswered reviews to the new coach within `history_scope` or flags them; `admin_checkin_attention()` gives TalentYak metadata only. Notices: `email.checkin_notice` through the outbox with per-event dedupe keys, re-checked by `checkin_notice_still_true()` before sending; category `checkins` (optional). Policy: `checkin_access.v1` (confirmed), `checkin_reminders.v1` (sandbox default).
+
 ### 3.8 How the database defends itself
 
 Three mechanisms, all exercised by the test suite:

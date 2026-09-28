@@ -62,7 +62,7 @@ export function MediaUploader({
   imagesOnly = false,
   disabled = false,
 }: {
-  purpose: "progress_photo" | "form_review_clip" | "chat_attachment" | "food_photo";
+  purpose: "progress_photo" | "form_review_clip" | "chat_attachment" | "food_photo" | "checkin_attachment";
   enrollmentId?: string | null;
   label?: string;
   help?: string;

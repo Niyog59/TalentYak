@@ -652,3 +652,27 @@ The project instructions file that every agent reads first is founder-owned. Wit
 | AAF-PROG-06, AAF-PROG-10 | Delivered for prescriptions | **Delivered** (logs record their version; plan changes never rewrite them) |
 | AAF-PROG-08 | CONFIRMED, unbuilt | Unchanged — form-review clips with coach feedback are not part of FM12 |
 | `FULFILLMENT.progressTracking` | not ready | **Ready.** Live sales remain refused: legal drafts, unapproved policies, calls, form review |
+
+---
+
+## U. Twelfth-pass decisions — 2026-09-28 (M13 check-ins and coach feedback)
+
+**Source key added:** **FM13** — Founder prompt, *Implement M13: client check-ins and coach feedback*, 2026-09-27. Founder-supplied. It states the paid-access policy for check-ins and one **approved exception**, recorded here as confirmed.
+
+| ID | Topic | Status | Rule | Source | Modules |
+|---|---|---|---|---|---|
+| **TY-CHECKIN-01** | Paid access and check-ins | **CONFIRMED** (FM13) | Cancelling keeps check-ins running through the paid period. Once access ends (paused for a failed renewal, or ended), **no new check-in requests are made**, client drafts and corrections are not saved (unfinished answers stay on the device and the saved draft is kept, to send after an eligible renewal), and past submissions and feedback stay readable under the privacy permissions that already apply. A payment failure never deletes anything; retention stays a separate policy. Missing a check-in never blocks paid coaching. Recorded as `checkin_access.v1` in the policy register. | FM13 | M13 |
+| **TY-CHECKIN-02** | **Approved exception — finishing a review after paid time** | **CONFIRMED** (FM13) | The coach responsible for a check-in **submitted during the paid period** may finish that review (publish feedback and mark it complete) after the paid period expires, and the client can read the feedback and receives its notice. It covers a relationship paused for a failed renewal and one ended by a cancelled renewal running out. It **does not** reopen new check-ins, client revisions, messaging, bookings or programme changes, and it **never** survives a suspension (either side), a coach reassignment, a refund, or a review flagged after a coach change. It ends once the review is complete. **Narrows TY-ACCESS-02** ("no new coaching activity") for this one case. Enforced in the database (`checkin_review_exception`, 0051). | FM13 | M13, M06 |
+| **TY-CHECKIN-03** | Check-ins after a coach change | **CONFIRMED** (FM13 + engineering) | Responsibility for an unanswered check-in moves to the new coach only when the client's sharing choice covers it: `full`, or `programme_and_logs` when it has no attachments. Otherwise it is **flagged** for TalentYak to resolve (close it and tell the client, or look again after the client changes what they share) and nobody new sees it; TalentYak sees only that it needs attention, never its content. A feedback link to the previous coach's conversation never opens it (TY-MSG-03). Unsent requests are closed and the client's draft kept for them. | FM13 | M13, M17 |
+| **TY-CHECKIN-04** | Review timing | **CONFIRMED** (FM13) | A reply time is shown only when the coach set one, counted in the working days they publish (M14 availability), in their timezone, starting after any away period. With none set, nothing is promised and the coach's own words are shown. The client always sees a support route; reviews waiting on an away coach are listed for TalentYak. No platform-wide response guarantee exists. | FM13 | M13, M14 |
+| **TY-CHECKIN-05** | Reviews and corrections | **CONFIRMED** (FM13 + engineering) | Opening never completes a review: the coach publishes feedback, then marks it complete; completion needs published feedback covering the latest substantive answers. Submissions and published feedback are never edited; a correction is a new version. The server (never the client) judges a correction substantive — a changed rating or attachment, an answer added or removed, or wording changed beyond a typo — and a substantive one reopens the review. A promised plan change shows as delivered only when the coach links a plan version actually published after the check-in; no step is marked done automatically. No automatic AI assessment. | FM13 | M13, M11 |
+| **TY-CHECKIN-06** | Reminder timings | **SANDBOX DEFAULT — awaiting approval** | `checkin_reminders.v1`: due-soon notice 24 hours before; one "still open, late is fine" notice between 24 and 72 hours after; a coach with no stated reply time is nudged after 72 hours. Once each, re-checked before sending, switchable off (new optional category "Check-ins"). Operational, so it does not block live billing. | Engineering | M13 |
+
+### U1 · Status changes
+
+| Entry | Was | Now |
+|---|---|---|
+| TY-ACCESS-02 | No new coaching activity while paused | **Narrowed by TY-CHECKIN-02** for finishing a review submitted in paid time |
+| OPEN-06 | Partly resolved; check-ins not first-class | **Unchanged.** Check-ins are available in every paid relationship where the coach sets a schedule; no per-plan entitlement gate was added |
+| `FULFILLMENT.checkIns` | not ready | **Ready.** Live sales remain refused for the reasons already listed (legal drafts, unapproved policies, calls, form review) |
+| AAF-PROG-08 (form review) | unbuilt | **Unchanged.** A check-in can carry an optional form-check clip; per-set form review with feedback is still separate |

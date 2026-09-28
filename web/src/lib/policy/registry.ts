@@ -19,6 +19,8 @@ import type {
   MessagingPolicy,
   SchedulingPolicy,
   CallsPolicy,
+  CheckinAccessPolicy,
+  CheckinRemindersPolicy,
   PaymentFailurePolicy,
   PayoutPolicy,
   Policy,
@@ -352,6 +354,39 @@ const CALLS_V1: CallsPolicy = {
   automaticNoShow: false,
 };
 
+const CHECKIN_ACCESS_V1: CheckinAccessPolicy = {
+  kind: "checkin_access",
+  id: "checkin_access.v1",
+  version: 1,
+  status: "confirmed",
+  effectiveFrom: "2026-09-27",
+  source: "Founder M13 prompt, 2026-09-27 — approved policy and approved exception (DECISION_REGISTER §U)",
+  note: "Applies the approved paid-access rules to check-ins: cancellation keeps them running through the paid period; after access ends, new check-ins pause and past submissions and feedback stay readable. Approved exception: the responsible coach may finish a review submitted during paid time after it runs out, and the client reads it and is told. The exception reopens nothing else and never overrides a suspension, a reassignment or a refund.",
+  continuesThroughPaidPeriod: true,
+  newCheckinsWhenAccessEnds: false,
+  historyReadableAfterAccessEnds: true,
+  reviewSubmittedInPaidTimeMayBeFinished: true,
+  exceptionReopensOtherActivity: false,
+  exceptionOverridesSuspensionOrReassignment: false,
+  draftsKeptWhilePaused: true,
+  paymentFailureDeletes: false,
+  missedCheckinBlocksCoaching: false,
+};
+
+const CHECKIN_REMINDERS_V1: CheckinRemindersPolicy = {
+  kind: "checkin_reminders",
+  id: "checkin_reminders.v1",
+  version: 1,
+  status: "sandbox_default",
+  effectiveFrom: "2026-09-27",
+  source: "M13 engineering default — timings chosen by the codebase, not approved",
+  note: "A due-soon notice 24 hours before the due time; one 'still open, late is fine' notice between 24 and 72 hours after it; a coach with no stated review time is nudged after 72 hours. Each notice once only, re-checked before it is sent, and switchable off in email settings.",
+  dueSoonHours: 24,
+  lateAfterHours: 24,
+  lateWindowHours: 72,
+  reviewWithoutStatedTimeHours: 72,
+};
+
 // --- Register -----------------------------------------------------------------
 
 const ALL_POLICIES: readonly Policy[] = [
@@ -373,6 +408,8 @@ const ALL_POLICIES: readonly Policy[] = [
   MESSAGING_V2,
   SCHEDULING_V1,
   CALLS_V1,
+  CHECKIN_ACCESS_V1,
+  CHECKIN_REMINDERS_V1,
 ];
 
 const BY_ID = new Map(ALL_POLICIES.map((policy) => [policy.id, policy]));
@@ -428,6 +465,22 @@ export const CURRENT_CALLS_POLICY_ID = CALLS_V1.id;
 export function currentCallsPolicy(): CallsPolicy {
   const policy = getPolicy(CURRENT_CALLS_POLICY_ID);
   if (policy.kind !== "calls") throw new UnknownPolicyError(CURRENT_CALLS_POLICY_ID);
+  return policy;
+}
+
+export const CURRENT_CHECKIN_ACCESS_POLICY_ID = CHECKIN_ACCESS_V1.id;
+
+export function currentCheckinAccessPolicy(): CheckinAccessPolicy {
+  const policy = getPolicy(CURRENT_CHECKIN_ACCESS_POLICY_ID);
+  if (policy.kind !== "checkin_access") throw new UnknownPolicyError(CURRENT_CHECKIN_ACCESS_POLICY_ID);
+  return policy;
+}
+
+export const CURRENT_CHECKIN_REMINDERS_POLICY_ID = CHECKIN_REMINDERS_V1.id;
+
+export function currentCheckinReminderPolicy(): CheckinRemindersPolicy {
+  const policy = getPolicy(CURRENT_CHECKIN_REMINDERS_POLICY_ID);
+  if (policy.kind !== "checkin_reminders") throw new UnknownPolicyError(CURRENT_CHECKIN_REMINDERS_POLICY_ID);
   return policy;
 }
 

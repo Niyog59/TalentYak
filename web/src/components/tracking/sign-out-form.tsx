@@ -2,10 +2,11 @@
 
 import type { FormEvent, ReactNode } from "react";
 import { clearDevice, countUnsavedOnDevice } from "@/lib/tracking/device";
+import { unsavedCheckinsOnDevice } from "@/lib/checkins/device";
 
 /*
  * Signing out clears everything TalentYak kept in this browser — tracking
- * drafts and unsent messages — so the next person to use the device finds
+ * drafts, check-in answers and unsent messages — so the next person to use the device finds
  * none of it. If some of it never reached the server, the person is told
  * first and can stay signed in to save it.
  */
@@ -19,7 +20,7 @@ export function SignOutForm({
   className?: string;
 }) {
   function onSubmit(event: FormEvent<HTMLFormElement>) {
-    const unsaved = countUnsavedOnDevice();
+    const unsaved = countUnsavedOnDevice() + unsavedCheckinsOnDevice();
     if (
       unsaved > 0 &&
       !window.confirm(
