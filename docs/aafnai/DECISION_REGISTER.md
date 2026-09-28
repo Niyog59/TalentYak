@@ -600,3 +600,26 @@ The project instructions file that every agent reads first is founder-owned. Wit
 | AAF-CAL-07 | PROPOSED — "Daily is a candidate… not integrated, not contracted, not verified" | **Integrated for the test project** (TY-CALL-01). Still not contracted; calls cannot run until the Daily account has a payment method |
 | AAF-CAL-03 | CONFIRMED — video and audio calls | **Delivered** as private video calls with an audio-only choice |
 | OPEN-05 | OPEN | **Narrowed:** technical failure is recorded, never counted against anyone, and never counts as delivered (TY-CALL-06, -07). Notice periods, make-ups and entitlement effects are still open |
+
+---
+
+## S. Tenth-pass decisions — 2026-09-27 (M11 programmes)
+
+**Source key added:** **FM11** — Founder prompt, *Implement M11: coach-created workout and nutrition programmes*, 2026-09-27. Founder-supplied. Two decisions (TY-PROG-01, -02) were taken by the founder in answer to questions asked before implementation began.
+
+| ID | Topic | Status | Rule | Source | Modules |
+|---|---|---|---|---|---|
+| **TY-PROG-01** | Plans after a coach change | **CONFIRMED** | The incoming coach may **read** the previous coach's published plan versions only within the client's existing sharing choice (`history_scope`), and may **start their own plan for that client from a copy**. The previous coach's versions stay credited to them and unchanged. Nobody may copy a client's plan into a personal template library, and a former coach keeps only their own templates. Private chat stays excluded (TY-MSG-03). | Founder decision, 2026-09-27 | M11, M17 |
+| **TY-PROG-02** | Planning information | **CONFIRMED** | Plan purchases collect no questionnaire, so clients fill in and update a short **training & food profile**: experience, equipment, session length, days a week, food preferences, local affordable foods — and, in a separate private table, injuries/limitations and allergies. Readable by the client and their **current** coach only; never admin, never a former coach. | Founder decision, 2026-09-27 | M11 |
+| **TY-PROG-03** | Versions and timing | **CONFIRMED** (FM11) | A published version never changes. The coach publishes **now or from a chosen day** (the start of that day in the client's timezone). Updates apply forward; a workout already started keeps the instructions it was started under. A newer publication withdraws any older update scheduled at or after its own start. A planned update can be cancelled only before it starts. A meaningful change needs a short note for the client; a minor correction may be published without a notice; the first version is always announced. Drafts tell nobody. | FM11 | M11, M12 |
+| **TY-PROG-04** | Nutrition | **CONFIRMED** (FM11) | Three optional modes — written guidance, coach-entered daily targets, a structured meal plan (foods, amounts, units including *mana* and *pau*, cooked/raw, swaps, notes); any one is enough. Every number is shown as **the coach's estimate**; TalentYak has no food database, scanner or calculation, and says so. General wellness only (AAF scope: no medical nutrition). | FM11 | M11 |
+| **TY-PROG-05** | Moving a session | **CONFIRMED** (FM11) | The client (or the current coach) may move a session to another day **for one week**; the prescription is untouched and every move is kept. A client may do this while coaching is paused (TY-ACCESS-06: a pause never locks a client out of their own records). | FM11 | M11 |
+| **TY-PROG-06** | M12 references | **CONFIRMED** (engineering) | Workout records point at the exact published version and session; set records at the exercise or chosen alternative by a stable key that survives from version to version while the coach keeps the exercise. The database refuses a reference to another relationship's plan or to a session or exercise the version does not contain. No logging screens exist yet. | FM11 + engineering | M11, M12 |
+
+### S1 · Status changes
+
+| Entry | Was | Now |
+|---|---|---|
+| AAF-PROG-04 | CONFIRMED, unbuilt | **Delivered** (M11) |
+| AAF-PROG-06, AAF-PROG-10 | CONFIRMED, unbuilt | **Delivered for prescriptions** (immutable published versions, full history). The logging half is M12 |
+| `FULFILLMENT.programme` | not ready | **Ready.** Live sales remain refused: legal drafts, unapproved policies, calls and tracking (M12) still block them |

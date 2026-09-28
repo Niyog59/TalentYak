@@ -423,6 +423,22 @@ purchase `consultation_slot_expired` for an admin (`admin_resolve_consultation`)
 **Calendar availability is not selling capacity.** `max_active_clients` and
 `reserve_capacity` are untouched by scheduling.
 
+### 3.7f Programmes (M11) — `0046`
+
+```
+plan_templates           coach-owned; kind workout|nutrition; archived_at, never deleted
+client_plans             one per (assignment, kind) — each coaching stint has its own
+client_plan_versions     draft → published (frozen); effective_from; withdrawn_at;
+                         change_summary; notified; source_template_id / source_version_id
+plan_session_moves       one session, one week, to another day; append-only
+client_training_profiles experience, equipment, session length, days, food prefs, local foods
+client_health_profiles   limitations, allergies — client + current coach only
+workout_logs  + plan_version_id, session_key      (M12 seam; trigger-checked)
+set_logs      + exercise_key, alternative_key     (M12 seam; trigger-checked)
+```
+
+Content is one JSON document per version (sessions → exercises → alternatives; guidance, targets, meals → foods), validated in the application and shape-checked by `plan_content_ok()`. Every item carries a stable key. All writes go through security-definer functions (`save_plan_draft`, `start_plan_draft_from`, `publish_plan_draft`, `withdraw_scheduled_plan_version`, `move_plan_session`) gated by `plan_writable_by_me()` → `coaches_enrollment_now()`; reads by `plan_access()` → `coach_may_read_record()` / `enrollment_belongs_to_me()`. Publishing and cancelling queue `email.plan_updated` (category `coaching`). A published version can be removed only when its whole plan is, which happens only with the relationship.
+
 ### 3.8 How the database defends itself
 
 Three mechanisms, all exercised by the test suite:
@@ -443,7 +459,8 @@ Tables, columns, and stubs that exist without a caller. **Each is listed with th
 |---|---|---|---|
 | `ceremonies` | Table, zero references | Reserved | Pandit vertical gains per-ceremony tracking beyond the booking record |
 | `intake_schemas` | Table, never read (schemas come from the registry) | Reserved | Intake forms need versioning independent of a code deploy |
-| `workout_logs`, `set_logs` | Tables, **zero write paths** | **Activating now** | M12 — client workout logging is confirmed first-product scope |
+| `workout_logs`, `set_logs` | Tables, **zero write paths in the app**; since `0046` they carry checked references to plan versions, sessions and exercise keys | **Activating now** | M12 — client workout logging is confirmed first-product scope |
+| `programs`, `program_days`, `exercises` | Tables (`0007`), superseded for new work by `client_plans` (`0046`); still read and written by the legacy booking page `/coach/clients/[bookingId]` | Reserved | Retire with the legacy booking path, by written decision |
 | `bodyweight_logs` | Table, zero writes; read by the coach 7-day average | **Activating now** | M12 — confirmed first-product scope. Needs a unit-preference column |
 | `measurements` | Table, zero writes | **Activating now** | M12 — confirmed first-product scope |
 | `progress_photos` | Table, zero writes | **Activating now** | M08 + M12 — needs the quarantine pipeline in §6 first |

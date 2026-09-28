@@ -77,6 +77,7 @@ export default async function AccountPage() {
         <ButtonLink href="/account/messages" variant="secondary" size="sm">
           Messages{unreadMessages ? <span className="ml-1.5 rounded-full bg-brand px-1.5 text-sm text-white">{unreadMessages}</span> : null}
         </ButtonLink>
+        <ButtonLink href="/account/plan" variant="secondary" size="sm">Your plan</ButtonLink>
         <ButtonLink href="/account/appointments" variant="secondary" size="sm">Sessions</ButtonLink>
         <ButtonLink href="/account/media" variant="secondary" size="sm">Photos and clips</ButtonLink>
         <ButtonLink href="/account/billing" variant="secondary" size="sm">Billing</ButtonLink>
@@ -110,7 +111,8 @@ export default async function AccountPage() {
                   </p>
                   {p.paid_through_at ? <p className="mt-1 text-sm">Paid until {formatDate(p.paid_through_at, tz)}</p> : null}
                   {enrollment ? (
-                    <p className="mt-2">
+                    <p className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
+                      <Link href={`/account/plan/${enrollment.id}`} className="text-brand underline underline-offset-4">Workout &amp; nutrition plan</Link>
                       <Link href={`/account/expectations/${enrollment.id}`} className="text-brand underline underline-offset-4">Welcome &amp; expectations</Link>
                     </p>
                   ) : null}
