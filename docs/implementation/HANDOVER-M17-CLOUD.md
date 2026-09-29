@@ -13,8 +13,8 @@
 
 ## 1. Where things stand
 
-- **Everything from M17 is committed and pushed to `main`** in the commit that added this file. Pushing to `main` deploys to production (Vercel project `talentyak`, `www.talentyak.com`) automatically.
-- **Database:** migrations `0056`–`0061` are **already applied** to the hosted Supabase project, which is the **shared TEST project**. It's also what the production site currently uses; a separate production database is a known launch blocker. The code on `main` and that database match.
+- **Everything from M17 is committed on the branch `m17-cloud-handoff`** and pushed to GitHub. **It is not merged into `main` and not deployed yet.** Merging or pushing to `main` deploys to production automatically (Vercel project `talentyak`, `www.talentyak.com`). The database side is already in place (next bullet), so merging is safe once the checks in "Not finished at hand-off" pass. Merge to `main` only with the founder's go-ahead.
+- **Database:** migrations `0056`–`0061` are **already applied** to the hosted Supabase project, which is the **shared TEST project**. It's also what the production site currently uses; a separate production database is a known launch blocker. The M17 changes only add to the database, and the M16 code now running in production keeps working with them (verified locally throughout M17). One side effect until M17 is deployed: "Ask to change coach" is still visible on the live site, and a request made there would be refused (the switch is off).
 - **No real customers, no live payments.** Stripe is in test mode, and live billing is refused by the policy gate.
 - **Switch defaults** (checked after the tests): everything `on` except `coach_changing = off`.
 
@@ -24,7 +24,7 @@
    - `cd web && npm ci && npm run verify` — typecheck, lint, migration structure, and **371 unit tests**. Needs no credentials.
    - `npm run build`.
    - If you have database credentials (see §3): `TALENTYAK_DB_TESTS=confirmed node ../scripts/lib/with-idle-timeout.mjs 240 node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./test/register.mjs --test --test-concurrency=1 test/db/founder-admin.db.test.ts` (expect 9/9).
-2. **Smoke-check the deployment** once Vercel finishes (read-only; never write in prod):
+2. **After the founder approves merging to `main`, smoke-check the deployment** once Vercel finishes (read-only; never write in prod):
    - signed out, `/admin` redirects to `/account/sign-in?next=%2Fadmin`;
    - `/`, `/coaches`, `/waitlist`, `/how-it-works`, `/sitemap.xml` answer 200;
    - `/api/events` POST answers 204.
