@@ -97,7 +97,7 @@ export async function signUpAction(_prev: ActionState, form: FormData): Promise<
   }
 
   return succeed(
-    `If ${email} can be registered, we've sent a confirmation link to it. Open it on this device to finish creating your account.`,
+    `If ${email} can be registered, we've sent a confirmation link to it. Open the link and press Continue to finish creating your account.`,
   );
 }
 
@@ -121,7 +121,7 @@ export async function signInAction(_prev: ActionState, form: FormData): Promise<
 
   if (error) {
     if (error.code === "email_not_confirmed") {
-      return fail("Confirm your email address first — check your inbox for the link we sent.", { values });
+      return fail("Confirm your email address first — use the link we sent, or ask for a new one below.", { values });
     }
     return fail("That email and password don't match an account.", { values });
   }
@@ -198,14 +198,38 @@ export async function forgotPasswordAction(_prev: ActionState, form: FormData): 
   await supabase.auth.resetPasswordForEmail(email, { redirectTo: callbackUrl("/account/reset-password") });
 
   return succeed(
-    `If ${email} has an account, we've sent a link to reset the password. Open it on this device; it expires after one use.`,
+    `If ${email} has an account, we've sent a link to reset the password. It works once, for a limited time.`,
+  );
+}
+
+/**
+ * Sends a fresh sign-up confirmation link. Answers the same way whether or not
+ * the address has an account, or is already confirmed.
+ */
+export async function resendConfirmationAction(_prev: ActionState, form: FormData): Promise<ActionState> {
+  const email = field(form, "email", 254).toLowerCase();
+  if (!EMAIL_RE.test(email)) return fail("Enter a valid email address.", { values: { email } });
+
+  const limited = await limitBoth("resend_confirmation", email, 5, 3, 3600);
+  if (limited) return fail(tooMany(limited), { values: { email } });
+
+  const supabase = await createClient();
+  if (!supabase) return fail("Accounts are not available right now.", { values: { email } });
+
+  await supabase.auth.resend({ type: "signup", email, options: { emailRedirectTo: callbackUrl(onboardingThen("/account")) } });
+
+  return succeed(
+    `If ${email} has an account that still needs confirming, we've sent a new link to it. If you've already confirmed, just sign in.`,
   );
 }
 
 export async function resetPasswordAction(_prev: ActionState, form: FormData): Promise<ActionState> {
   const session = await getSession();
   if (!session) {
-    return fail("This reset link has expired or was opened on a different device. Request a new one.");
+    return fail("You're no longer signed in, so the password wasn't changed. Ask for a new reset link.");
+  }
+  if (session.hasVerifiedFactor && session.aal !== "aal2") {
+    return fail("Enter a code from your authenticator app first, then choose your new password.");
   }
 
   const password = String(form.get("password") ?? "");

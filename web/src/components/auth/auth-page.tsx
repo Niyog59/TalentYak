@@ -25,7 +25,7 @@ export function AuthPage({
 }
 
 const LINK_ERRORS: Record<string, string> = {
-  link: "That link has expired, was already used, or was opened in a different browser from the one that asked for it. If you were confirming your email, it is probably confirmed — try signing in.",
+  link: "That link didn't work. It may have been used already or be too old. If you were confirming your email, try signing in; otherwise ask for a new link.",
   cancelled: "Google sign-in was cancelled. Nothing was changed.",
   oauth: "Google sign-in didn't complete. Please try again.",
   google_unavailable: "Google sign-in isn't switched on yet. Use your email and password.",
