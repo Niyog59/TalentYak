@@ -10,6 +10,7 @@ import {
   emailLinkAction,
   forgotPasswordAction,
   onboardingAction,
+  resendConfirmationAction,
   resetPasswordAction,
   signInAction,
   signUpAction,
@@ -77,6 +78,19 @@ export function ForgotPasswordForm() {
         defaultValue={state.values?.email} />
       <FormNotice state={state} />
       <SubmitButton pendingLabel="Sending…" className="w-full">Send reset link</SubmitButton>
+    </form>
+  );
+}
+
+export function ResendConfirmationForm() {
+  const [state, action] = useActionState(resendConfirmationAction, initialActionState);
+  if (state.ok) return <FormNotice state={state} />;
+  return (
+    <form action={action} className="space-y-5" noValidate>
+      <TextField name="email" label="Email address" type="email" autoComplete="email" inputMode="email" required
+        defaultValue={state.values?.email} />
+      <FormNotice state={state} />
+      <SubmitButton pendingLabel="Sending…" className="w-full">Send a new link</SubmitButton>
     </form>
   );
 }

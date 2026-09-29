@@ -5,8 +5,8 @@ import { env } from "@/lib/env";
 import { safeNextPath } from "@/lib/redirects";
 
 /**
- * Where Supabase sends a person back after Google sign-in, an email
- * confirmation, a sign-in link, or a password-reset link.
+ * Where Supabase sends a person back after Google sign-in, and after an
+ * emailed link sent before links moved to /auth/confirm (lib/auth-links.ts).
  *
  * Redirects are built from NEXT_PUBLIC_SITE_URL rather than the request origin,
  * and `next` is checked by safeNextPath(), so this route cannot be used to
@@ -25,6 +25,11 @@ export async function GET(request: Request) {
   const providerError = url.searchParams.get("error");
 
   if (providerError) {
+    // An older emailed link that failed arrives here too, as "access_denied"
+    // with error_code "otp_expired" — not a cancelled Google sign-in.
+    if (url.searchParams.get("error_code") === "otp_expired") {
+      return to(`/account/sign-in?error=link&next=${encodeURIComponent(next)}`);
+    }
     // "access_denied" means the person cancelled at Google. Not an error to
     // alarm them about.
     const reason = providerError === "access_denied" ? "cancelled" : "oauth";

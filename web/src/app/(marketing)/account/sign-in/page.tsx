@@ -41,6 +41,11 @@ export default async function SignInPage({
           <Link href={`/account/sign-up?next=${encodeURIComponent(next)}`} className="font-semibold text-brand underline underline-offset-4">
             Create an account
           </Link>
+          <br />
+          Confirmation link not working?{" "}
+          <Link href="/account/confirm-email" className="font-semibold text-brand underline underline-offset-4">
+            Send a new one
+          </Link>
         </p>
       }
     >

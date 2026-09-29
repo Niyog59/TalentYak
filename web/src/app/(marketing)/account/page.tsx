@@ -23,7 +23,7 @@ import { clockTime } from "@/lib/calls/window";
 export const metadata: Metadata = { title: "Today" };
 export const dynamic = "force-dynamic";
 
-export default async function AccountPage() {
+export default async function AccountPage({ searchParams }: { searchParams: Promise<{ notice?: string }> }) {
   if (!isSupabaseConfigured()) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-14 sm:px-6 md:py-20">
@@ -56,6 +56,12 @@ export default async function AccountPage() {
           </SignOutForm>
         </div>
       </div>
+
+      {(await searchParams).notice === "password_updated" ? (
+        <p role="status" className="mt-6 rounded-lg border border-line bg-brand-tint p-3 font-medium">
+          Your new password is saved. Use it next time you sign in.
+        </p>
+      ) : null}
 
       <Suspense fallback={<p role="status" aria-busy="true" className="mt-8 rounded-2xl border border-line bg-surface p-6">Loading your day…</p>}>
         <ClientHome session={session} />
