@@ -31,6 +31,21 @@ async function adminDb() {
   return supabase;
 }
 
+/**
+ * Adds a line to the founder change history for actions whose workflow
+ * predates it. Only identifiers and outcomes — never private content. A
+ * failure to record never undoes the action that already succeeded.
+ */
+async function recordAudit(action: string, subjectType: string, subjectId: string | null, reason: string | null, after: Record<string, unknown> | null = null) {
+  try {
+    await (await adminDb()).rpc("admin_record_audit", {
+      p_action: action, p_subject_type: subjectType, p_subject_id: subjectId, p_reason: reason, p_before: null, p_after: after,
+    });
+  } catch {
+    /* the action itself stands */
+  }
+}
+
 function uuidField(form: FormData, name: string): string | null {
   const v = field(form, name, 40);
   return /^[0-9a-f-]{36}$/i.test(v) ? v : null;
@@ -70,6 +85,7 @@ export async function inviteCoachAction(_: ActionState, form: FormData): Promise
     expiresAt,
   });
   kickWorker();
+  await recordAudit("coach.invite", "coach_invitation", String(invitationId), null, { expires_in_days: days });
 
   revalidatePath("/admin/coaches");
   return succeed(`Invitation created for ${email}. The email is queued; its delivery status shows in the list below.`);
@@ -81,6 +97,7 @@ export async function revokeInvitationAction(_: ActionState, form: FormData): Pr
   if (!id) return fail(GENERIC);
   const { error } = await (await adminDb()).rpc("admin_revoke_coach_invitation", { p_invitation_id: id });
   if (error) return fail(friendlyError(error, GENERIC));
+  await recordAudit("coach.invitation_revoked", "coach_invitation", id, null);
   revalidatePath("/admin/coaches");
   return succeed("Invitation revoked. The link no longer works.");
 }
@@ -134,6 +151,7 @@ export async function capacityCeilingAction(_: ActionState, form: FormData): Pro
   }
   const { error } = await (await adminDb()).rpc("admin_set_capacity_ceiling", { p_provider_id: providerId, p_ceiling: ceiling, p_reason: reason });
   if (error) return fail(friendlyError(error, GENERIC));
+  await recordAudit("coach.capacity_ceiling", "coach", providerId, reason || null, { ceiling });
   revalidatePath(`/admin/coaches/${providerId}`);
   return succeed(ceiling === null ? "Limit removed. The coach controls their own capacity." : `Capacity limited to ${ceiling}.`);
 }
@@ -146,6 +164,7 @@ export async function reviewDestinationAction(_: ActionState, form: FormData): P
   if (!destinationId || !["approved", "rejected"].includes(decision)) return fail(GENERIC);
   const { error } = await (await adminDb()).rpc("admin_review_payout_destination", { p_destination_id: destinationId, p_decision: decision });
   if (error) return fail(friendlyError(error, GENERIC));
+  await recordAudit(`coach.payout_details_${decision}`, "coach", providerId, null);
   revalidatePath(`/admin/coaches/${providerId}`);
   return succeed(decision === "approved" ? "Payout details marked as checked." : "Payout details rejected. The coach will need to enter new ones.");
 }
@@ -164,6 +183,7 @@ export async function reviewPhotoAction(_: ActionState, form: FormData): Promise
   if (!approve) {
     const { error } = await supabase.rpc("admin_review_profile_photo", { p_provider_id: providerId, p_approve: false, p_public_path: null, p_note: note });
     if (error) return fail(friendlyError(error, GENERIC));
+    await recordAudit("coach.photo_rejected", "coach", providerId, note || null);
     revalidatePath(`/admin/coaches/${providerId}`);
     return succeed("Photo rejected. The coach sees your note.");
   }
@@ -188,6 +208,7 @@ export async function reviewPhotoAction(_: ActionState, form: FormData): Promise
   if (profile.photo_path && profile.photo_path !== publicPath) {
     await service.storage.from("coach-photos").remove([profile.photo_path]);
   }
+  await recordAudit("coach.photo_approved", "coach", providerId, null);
   revalidatePath(`/admin/coaches/${providerId}`);
   revalidatePath("/coaches", "layout");
   return succeed("Photo approved and now public.");
@@ -232,6 +253,7 @@ export async function resolveExceptionAction(_: ActionState, form: FormData): Pr
   if (!id) return fail(GENERIC);
   const { error } = await (await adminDb()).rpc("admin_resolve_exception", { p_id: id, p_state: state, p_note: note });
   if (error) return fail(friendlyError(error, GENERIC));
+  await recordAudit("finance.exception_updated", "reconciliation_exception", id, note || null, { state });
   revalidatePath("/admin/finance");
   return succeed("Updated.");
 }
@@ -242,6 +264,7 @@ export async function retryJobAction(_: ActionState, form: FormData): Promise<Ac
   if (!id) return fail(GENERIC);
   const { error } = await (await adminDb()).rpc("admin_retry_outbox_job", { p_id: id });
   if (error) return fail(friendlyError(error, GENERIC));
+  await recordAudit("operations.job_retried", "outbox_job", id, null);
   kickWorker();
   revalidatePath("/admin/finance");
   return succeed("Queued to run again.");
@@ -254,6 +277,7 @@ export async function releaseHoldAction(_: ActionState, form: FormData): Promise
   if (!id) return fail(GENERIC);
   const { error } = await (await adminDb()).rpc("admin_release_held_earning", { p_ledger_entry_id: id, p_note: note });
   if (error) return fail(friendlyError(error, GENERIC));
+  await recordAudit("finance.hold_released", "ledger_entry", id, note || null);
   revalidatePath("/admin/finance");
   return succeed("Hold released.");
 }
@@ -390,6 +414,7 @@ export async function applyCoachChangeAction(_: ActionState, form: FormData): Pr
   const note = field(form, "note", 1000);
   const effective = field(form, "effective_at", 16);
   if (!requestId || !newProviderId) return fail("Choose the new coach.", { fieldErrors: { new_provider_id: "Choose a coach." } });
+  if (form.get("confirm") !== "on") return fail("Tick the confirmation. The move happens all at once and is written to the history.", { fieldErrors: { confirm: "Required." } });
   const effectiveAt = effective ? new Date(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(effective) ? `${effective}:00Z` : "invalid") : new Date();
   if (Number.isNaN(effectiveAt.getTime())) return fail("Enter a valid date.");
   const { error } = await (await adminDb()).rpc("admin_apply_coach_change", {
@@ -488,6 +513,7 @@ export async function reviewCredentialAction(_: ActionState, form: FormData): Pr
     verified_at: outcome === "verified" || outcome === "rejected" ? new Date().toISOString() : null,
   }).eq("id", id).eq("provider_id", providerId);
   if (error) return fail(friendlyError(error, GENERIC));
+  await recordAudit(`coach.qualification_${outcome}`, "coach", providerId, detail || null, { credential_id: id });
   revalidatePath(`/admin/coaches/${providerId}`);
   return succeed(outcome === "verified" ? "Marked as checked. It now appears on the public profile." : "Saved.");
 }

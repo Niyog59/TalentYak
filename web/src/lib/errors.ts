@@ -31,6 +31,10 @@ const KNOWN_CODES = new Set([
   "invitation_used", "invitation_wrong_account", "policy_not_approved", "purchase_not_found",
   "expectations_changed", "expectations_missing",
   "slot_taken", "slot_required", "consultation_needs_duration",
+  // M17: switches, the founder panel and coach changes.
+  "feature_paused", "feature_policy_unresolved", "stale_setting", "invalid_mode", "no_change",
+  "history_scope_exceeds_consent", "coach_not_eligible", "invalid_owner", "use_trusted_process",
+  "use_coach_workflow", "invalid_range", "append_only", "not_applied",
 ]);
 
 const GENERIC = "Something went wrong and nothing was saved. Please try again.";

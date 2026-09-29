@@ -43,7 +43,7 @@ export default async function CheckoutConfirmPage({
   const oneOffMinutes = !recurring ? plan.call_duration_minutes : null;
   // A one-off session states its length and has its time chosen before paying.
   const slots = !recurring && oneOffMinutes ? await freeSlots(coach.provider_id, oneOffMinutes, 28) : [];
-  const mode = purchaseMode(session);
+  const mode = await purchaseMode(session);
   const action = packageAction({ coach, plan, mode, expectationsPublished: Boolean(expectations.coach && expectations.platform) });
   const sellable = action.kind === "choose";
 

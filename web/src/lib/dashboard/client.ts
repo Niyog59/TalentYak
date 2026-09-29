@@ -361,7 +361,7 @@ async function relationship(e: MyEnrollment, session: SessionContext, now: Date,
   const pkg = await attempt("package", () => packageSummary(e));
   const [today_, checkins, nutrition, progress, onboarding] = await Promise.all([
     withPlans("today", (p) => todayFor(e, p, today, tz, now)),
-    attempt("checkins", () => checkinSummary(e, writeState === "live", today)),
+    attempt("checkins", () => checkinSummary(e, writeState === "live" || writeState === "logging_paused", today)),
     withPlans("nutrition", (p) => nutritionSummary(e, p, today, now)),
     withPlans("progress", (p) => progressSummary(e, p, today, tz, session.userId)),
     attempt("onboarding", () => onboardingSteps(e, session.userId, pkg.ok ? pkg.data : null, doc)),

@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { env } from "@/lib/env";
@@ -11,6 +12,8 @@ import { authSettings } from "@/lib/auth-providers";
 import { CURRENT_LEGAL } from "@/lib/legal";
 import { MIN_PASSWORD_LENGTH, canonicalTimezone, isDisplayCurrency, isValidTimezone } from "@/lib/preferences";
 import { type ActionState, echo, fail, field, succeed } from "@/lib/actions";
+import { isReservedTestAddress } from "@/lib/email";
+import { captureProductEvent } from "@/lib/analytics/posthog";
 
 /*
  * Account actions.
@@ -70,7 +73,7 @@ export async function signUpAction(_prev: ActionState, form: FormData): Promise<
   const supabase = await createClient();
   if (!supabase) return fail("Accounts are not available right now.", { values });
 
-  const { error } = await supabase.auth.signUp({
+  const { data: created, error } = await supabase.auth.signUp({
     email,
     password,
     // The confirmation link carries the person's choice (a package they picked)
@@ -85,6 +88,12 @@ export async function signUpAction(_prev: ActionState, form: FormData): Promise<
   }
   if (error && error.status && error.status >= 500) {
     return fail("We couldn't create the account just now. Please try again.", { values });
+  }
+
+  // A new account (an existing address comes back with no identities). Sent
+  // to PostHog anonymously, for real production sign-ups only.
+  if (!error && (created?.user?.identities?.length ?? 0) > 0) {
+    await captureProductEvent("signed_up", {}, { live: process.env.VERCEL_ENV === "production" && !isReservedTestAddress(email) });
   }
 
   return succeed(
@@ -213,6 +222,43 @@ export async function resetPasswordAction(_prev: ActionState, form: FormData): P
   }
 
   redirect("/account?notice=password_updated");
+}
+
+/**
+ * Changing the password while signed in. The current password is checked on
+ * a separate, throwaway session (then signed out) so a stolen, unlocked
+ * device alone can't change it; an account with two-step verification must
+ * have completed it in this session first. Passwords are never logged.
+ */
+export async function changePasswordAction(_prev: ActionState, form: FormData): Promise<ActionState> {
+  const session = await requireSession("/account/security");
+  if (session.hasVerifiedFactor && session.aal !== "aal2") {
+    return fail("Enter a code from your authenticator app above first, then change your password.");
+  }
+  const limited = await limitBoth("password_change", session.email, 10, 5, 3600);
+  if (limited) return fail(tooMany(limited));
+
+  const current = String(form.get("current") ?? "");
+  const password = String(form.get("password") ?? "");
+  const confirm = String(form.get("confirm") ?? "");
+  if (!current) return fail("Enter your current password.", { fieldErrors: { current: "Required." } });
+  if (password.length < MIN_PASSWORD_LENGTH || password.length > 128) {
+    return fail(`Use between ${MIN_PASSWORD_LENGTH} and 128 characters.`, { fieldErrors: { password: "Too short or too long." } });
+  }
+  if (password !== confirm) return fail("The new passwords do not match.", { fieldErrors: { confirm: "Does not match." } });
+  if (password === current) return fail("Choose a password different from your current one.", { fieldErrors: { password: "Same as current." } });
+
+  const probe = createSupabaseClient(env.supabaseUrl, env.supabaseAnonKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const check = await probe.auth.signInWithPassword({ email: session.email, password: current });
+  if (check.error) {
+    return fail("That isn't your current password. If you signed up with Google or have forgotten it, use \"Forgot password\" to set one by email.", { fieldErrors: { current: "Not correct." } });
+  }
+  await probe.auth.signOut({ scope: "local" });
+
+  const supabase = await createClient();
+  const { error } = await supabase!.auth.updateUser({ password });
+  if (error) return fail(/password/i.test(error.message) ? "Choose a stronger password." : "Your password couldn't be changed. Nothing was changed; please try again.");
+  return succeed("Password changed. Other devices stay signed in until you use \"Sign out on all devices\" below.");
 }
 
 export async function onboardingAction(_prev: ActionState, form: FormData): Promise<ActionState> {

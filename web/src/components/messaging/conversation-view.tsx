@@ -101,6 +101,7 @@ export function ConversationView({
   backHref,
   supportHref,
   schedule,
+  attachmentsAllowed = true,
 }: {
   conversationId: string;
   viewerId: string;
@@ -113,6 +114,8 @@ export function ConversationView({
   supportHref: string;
   /** Session lengths the coach offers, and the other person's zone, for cards and suggestions. */
   schedule?: { durations: number[]; otherTz: string | null };
+  /** False while TalentYak has paused new photos and clips. */
+  attachmentsAllowed?: boolean;
 }) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [hasOlder, setHasOlder] = useState(initialHasOlder);
@@ -790,7 +793,9 @@ export function ConversationView({
             <p id="composer-help" className="text-xs text-ink-muted">
               {draft.length > 3500 ? `${4000 - draft.length} characters left. ` : ""}Ctrl or ⌘ + Enter to send.
             </p>
-            {!staged ? (
+            {!staged && !attachmentsAllowed ? (
+              <p className="text-xs text-ink-muted">Adding photos and clips is paused for now.</p>
+            ) : !staged ? (
               <Button type="button" size="sm" variant="quiet" onClick={() => setShowUploader((v) => !v)} aria-expanded={showUploader}>
                 {showUploader ? "Cancel attachment" : "Add photo or clip"}
               </Button>

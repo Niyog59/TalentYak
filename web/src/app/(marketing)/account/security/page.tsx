@@ -4,7 +4,10 @@ import { requireSession } from "@/lib/auth";
 import { safeNextPath } from "@/lib/redirects";
 import { MfaChallenge, MfaEnrol, RemoveFactorButton } from "@/components/auth/mfa";
 import { SubmitButton } from "@/components/form/fields";
-import { signOutEverywhereAction } from "../actions";
+import { changePasswordAction, signOutEverywhereAction } from "../actions";
+import { ActionForm } from "@/components/form/action-form";
+import { TextField } from "@/components/form/fields";
+import Link from "next/link";
 import { SignOutForm } from "@/components/tracking/sign-out-form";
 
 export const metadata: Metadata = { title: "Sign-in security" };
@@ -89,6 +92,22 @@ export default async function SecurityPage({
               : " If you lose every device, contact support to verify your identity."}
           </p>
         </div>
+      </section>
+
+      <section aria-labelledby="password-heading" className="mt-12">
+        <h2 id="password-heading" className="text-2xl font-semibold">
+          Password
+        </h2>
+        <p className="mt-2 text-ink-muted">
+          Change it here with your current password, or <Link href="/account/forgot-password" className="text-brand underline">set a new one by email</Link> if you&rsquo;ve forgotten it.
+          {verified.length > 0 && session.aal !== "aal2" ? " Enter a code from your authenticator app above first." : ""}
+        </p>
+        <ActionForm action={changePasswordAction} className="mt-4 grid max-w-md gap-4">
+          <TextField name="current" label="Current password" type="password" autoComplete="current-password" required />
+          <TextField name="password" label="New password" type="password" autoComplete="new-password" required help="At least 10 characters." />
+          <TextField name="confirm" label="New password again" type="password" autoComplete="new-password" required />
+          <div><SubmitButton pendingLabel="Changing…">Change password</SubmitButton></div>
+        </ActionForm>
       </section>
 
       <section aria-labelledby="sessions-heading" className="mt-12">

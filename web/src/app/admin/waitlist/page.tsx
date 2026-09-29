@@ -28,7 +28,7 @@ export default async function AdminWaitlistPage() {
   const available = ((avail ?? []) as { provider_id: string; state: string }[]).filter((a) => a.state === "available");
   const list = entries ?? [];
   const confirmed = list.filter((e) => e.state === "confirmed");
-  const open = purchaseMode(null) !== "closed";
+  const open = await purchaseMode(null) !== "closed";
 
   return (
     <div>

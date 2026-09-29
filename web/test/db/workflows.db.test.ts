@@ -877,10 +877,26 @@ describe("workflows", { skip }, () => {
       const other = await customerB.client.rpc("request_coach_change", { p_enrollment_id: enrollmentId, p_reason: "not mine", p_preferred_provider_id: null });
       assert.equal(errorCode(other.error), "not_found", "a customer cannot request a change on someone else's coaching");
 
-      const req = await customerA.client.rpc("request_coach_change", { p_enrollment_id: enrollmentId, p_reason: "schedule clash", p_preferred_provider_id: coachOther.providerId });
-      assert.equal(req.error, null, req.error?.message);
-      const dup = await customerA.client.rpc("request_coach_change", { p_enrollment_id: enrollmentId, p_reason: "again", p_preferred_provider_id: null });
-      assert.equal(errorCode(dup.error), "request_already_open");
+      // Changing coach is off at launch (M17): this runs it for a listed test
+      // account under "test accounts only", and puts the switch back.
+      const cc = (await admin.client.from("feature_settings").select("mode, version").eq("key", "coach_changing").single()).data!;
+      await admin.client.rpc("admin_set_test_account", { p_profile: customerA.id, p_member: true, p_reason: "automated test" });
+      if (cc.mode !== "test_only") {
+        await admin.client.rpc("admin_set_feature_mode", { p_key: "coach_changing", p_mode: "test_only", p_reason: "automated test", p_expected_version: cc.version, p_impact: null, p_restores: null });
+      }
+      let req: { data: unknown; error: { message: string } | null };
+      try {
+        req = await customerA.client.rpc("request_coach_change", { p_enrollment_id: enrollmentId, p_reason: "schedule clash", p_preferred_provider_id: null, p_history_scope: "none" });
+        assert.equal(req.error, null, req.error?.message);
+        const dup = await customerA.client.rpc("request_coach_change", { p_enrollment_id: enrollmentId, p_reason: "again", p_preferred_provider_id: null });
+        assert.equal(errorCode(dup.error), "request_already_open");
+      } finally {
+        if (cc.mode !== "test_only") {
+          const now = (await admin.client.from("feature_settings").select("version").eq("key", "coach_changing").single()).data!;
+          await admin.client.rpc("admin_set_feature_mode", { p_key: "coach_changing", p_mode: cc.mode, p_reason: "automated test", p_expected_version: now.version, p_impact: null, p_restores: null });
+        }
+        await admin.client.rpc("admin_set_test_account", { p_profile: customerA.id, p_member: false, p_reason: "automated test" });
+      }
 
       const applied = await admin.client.rpc("admin_apply_coach_change", {
         p_request_id: req.data, p_new_provider_id: coachOther.providerId, p_effective_at: new Date().toISOString(),

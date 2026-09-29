@@ -142,3 +142,14 @@ export async function unreadMessageCount(
   if (error) return null;
   return Number(data ?? 0);
 }
+
+/**
+ * A feature the founder has switched off in an emergency sends nothing about
+ * itself. Only an explicit "off" skips: a notice about something that already
+ * happened is still true while a feature is merely paused.
+ */
+export async function featureNotSwitchedOff(admin: SupabaseClient, key: string): Promise<Decision> {
+  const { data, error } = await admin.rpc("feature_mode", { p_key: key });
+  if (error) throw new Error(`feature recheck failed: ${error.message}`);
+  return data === "off" ? skip(`${key} is switched off`) : PROCEED;
+}

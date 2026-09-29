@@ -94,14 +94,18 @@ export function CoachCardPublic({ coach, plans }: { coach: PublicCoach; plans: P
   );
 }
 
-export function MeetCoaches({ listing, failed }: { listing: { coach: PublicCoach; plans: PublicPlan[] }[]; failed: boolean }) {
+export function MeetCoaches({ listing, failed, paused = false }: { listing: { coach: PublicCoach; plans: PublicPlan[] }[]; failed: boolean; paused?: boolean }) {
   return (
     <section aria-labelledby="coaches-heading" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-14 sm:px-6 md:py-20">
       <h2 id="coaches-heading" className="font-display text-4xl sm:text-5xl">Meet your coaches</h2>
       <p className="mt-3 max-w-2xl text-lg text-ink-muted">
         A small group of founding coaches, each approved by TalentYak. Each sets their own packages and prices.
       </p>
-      {failed ? (
+      {paused ? (
+        <p role="note" className="mt-8 rounded-lg border border-line-strong bg-paper-raised p-4">
+          Coach profiles are unavailable for a short while. They&rsquo;ll be back here soon.
+        </p>
+      ) : failed ? (
         <p role="alert" className="mt-8 rounded-lg border border-line-strong bg-paper-raised p-4">
           The coaches couldn&rsquo;t be loaded just now. Please refresh in a moment.
         </p>

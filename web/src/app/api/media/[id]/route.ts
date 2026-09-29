@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { linkFor } from "@/lib/media";
 import { mediaSession, UUID } from "@/lib/media/session";
+import { featureMode } from "@/lib/features/server";
 
 /**
  * Viewing a file: an authorisation check, then a redirect to a two-minute link.
@@ -26,7 +27,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const url = new URL(request.url);
   const which = url.searchParams.get("variant") === "preview" ? "preview" : "original";
   const supabase = (await createClient())!;
-  const link = await linkFor(supabase, id, which, { download: url.searchParams.get("download") === "1" });
+  const link = await linkFor(supabase, id, which, {
+    download: url.searchParams.get("download") === "1",
+    withholdAttachments: (await featureMode("attachments")) === "off",
+  });
   if (!link) return notFound();
 
   return NextResponse.redirect(link.url, { status: 302, headers: { "Cache-Control": "no-store, private" } });

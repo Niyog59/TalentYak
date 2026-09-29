@@ -8,6 +8,7 @@ import { type ActionState, fail, field, succeed } from "@/lib/actions";
 import { rateLimit, tooMany } from "@/lib/rate-limit";
 import { isDateOnly, isKey } from "@/lib/programmes/content";
 import { isUuid, normalizeQuestions, starterQuestions, STARTER_TITLE } from "@/lib/checkins/questions";
+import { featureRefusal } from "@/lib/features/server";
 
 /*
  * Coaches and clients act through their own sessions. The database functions
@@ -105,6 +106,8 @@ export async function saveCheckinScheduleAction(_: ActionState, form: FormData):
   if (!isKey(templateId)) return fail("Choose a template.", { fieldErrors: { template_id: "Choose a template." } });
   const limit = await rateLimit("checkin_schedule_save", session.userId, 30, 600);
   if (!limit.allowed) return fail(tooMany(limit));
+  const paused = await featureRefusal("check_ins");
+  if (paused) return fail(paused);
   const interval = Number(field(form, "interval_weeks", 2));
   const weekday = Number(field(form, "due_weekday", 2));
   const time = field(form, "due_time", 5);

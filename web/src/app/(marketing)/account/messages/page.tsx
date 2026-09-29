@@ -6,6 +6,8 @@ import { ButtonLink } from "@/components/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/panel";
 import { ConversationList } from "@/components/messaging/conversation-list";
+import { FeaturePausedNotice } from "@/components/ui/feature-notice";
+import { featureMode } from "@/lib/features/server";
 
 export const metadata: Metadata = { title: "Messages" };
 export const dynamic = "force-dynamic";
@@ -21,7 +23,8 @@ export default async function CustomerMessagesPage() {
   }
 
   const session = await requireOnboarded("/account/messages");
-  const conversations = await listConversations("customer");
+  const messagingOff = (await featureMode("messaging")) === "off";
+  const conversations = messagingOff ? [] : await listConversations("customer");
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6 md:py-20">
@@ -35,7 +38,11 @@ export default async function CustomerMessagesPage() {
       </nav>
 
       <div className="mt-8">
-        {conversations === null ? (
+        {messagingOff ? (
+          <FeaturePausedNotice title="Messaging is temporarily unavailable" supportHref="/account/support">
+            TalentYak has paused conversations for a short while. Nothing has been deleted, and they&rsquo;ll be back here as they were.
+          </FeaturePausedNotice>
+        ) : conversations === null ? (
           <p role="alert">Your messages couldn&rsquo;t be loaded. Refresh to try again.</p>
         ) : conversations.length === 0 ? (
           <EmptyState headingLevel="h2" icon="messages" title="No conversations yet" actions={<ButtonLink href="/coaches">Find a coach</ButtonLink>}>

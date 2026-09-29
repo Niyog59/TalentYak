@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { loadMessagesAction } from "@/lib/messaging/actions";
 import type { ConversationRole, ConversationStatus, ConversationSummary, Message } from "@/lib/messaging/types";
 import { UUID_RE } from "@/lib/messaging/types";
+import { gateConversationStatus } from "@/lib/messaging/gate";
 
 /** The conversations the signed-in person can read, in one role. */
 export async function listConversations(role: ConversationRole): Promise<ConversationSummary[] | null> {
@@ -49,5 +50,5 @@ export async function loadConversation(conversationId: string, role: Conversatio
     hasOlder = older.data.hasOlder;
   }
 
-  return { status: status as ConversationStatus, enrollmentId: conv.enrollment_id as string, providerId: conv.provider_id as string, messages, hasOlder };
+  return { status: await gateConversationStatus(status as ConversationStatus), enrollmentId: conv.enrollment_id as string, providerId: conv.provider_id as string, messages, hasOlder };
 }

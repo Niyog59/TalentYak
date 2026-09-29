@@ -60,7 +60,7 @@ export function FoodDiary({
   entries: FoodEntryView[];
   complete: boolean;
   live: boolean;
-  held: "paused" | "ended" | "suspended" | "unavailable" | null;
+  held: "paused" | "ended" | "suspended" | "unavailable" | "logging_paused" | null;
   pausedNotice: string;
 }) {
   const router = useRouter();
@@ -69,7 +69,7 @@ export function FoodDiary({
   const [busy, setBusy] = useState(false);
   const [waiting, setWaiting] = useState<StoredOp[]>([]);
   const [uploaderKey, setUploaderKey] = useState(0);
-  const canAdd = live || held === "paused";
+  const canAdd = live || held === "paused" || held === "logging_paused";
 
   const readWaiting = () =>
     setWaiting(

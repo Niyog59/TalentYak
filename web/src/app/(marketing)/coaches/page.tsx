@@ -7,6 +7,8 @@ import { TrackView } from "@/components/marketing/track";
 import { getSession } from "@/lib/auth";
 import { getLiveExpectations } from "@/lib/expectations/server";
 import { purchaseMode } from "@/lib/launch";
+import { featureOnForEveryone } from "@/lib/features/server";
+import { env } from "@/lib/env";
 import { listPublicCoaches } from "@/lib/offers/public";
 import { coachPhotoUrl } from "@/lib/storage/photos";
 
@@ -25,8 +27,9 @@ export const dynamic = "force-dynamic";
  * and then checkout, with the choice carried through.
  */
 export default async function StartCoachingPage() {
+  if (!(await featureOnForEveryone("public_profiles"))) return <ProfilesPaused waitlistOpen={await featureOnForEveryone("waitlist")} />;
   const [listing, session] = await Promise.all([listPublicCoaches(), getSession()]);
-  const mode = purchaseMode(session);
+  const mode = await purchaseMode(session);
   const expectations = new Map(
     await Promise.all((listing ?? []).map(async ({ coach }) => {
       const e = await getLiveExpectations(coach.provider_id).catch(() => ({ coach: null, platform: null }));
@@ -105,6 +108,22 @@ export default async function StartCoachingPage() {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+function ProfilesPaused({ waitlistOpen }: { waitlistOpen: boolean }) {
+  return (
+    <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
+      <h1 className="font-display text-4xl sm:text-5xl">Coaches</h1>
+      <p role="note" className="mt-6 rounded-lg border border-line-strong bg-paper-raised p-4">
+        Coach profiles are unavailable for a short while. Nothing has changed with anyone&rsquo;s coaching.{" "}
+        {waitlistOpen ? (
+          <><Link href="/waitlist" className="font-semibold underline">Join the waitlist</Link> to hear when you can start.</>
+        ) : env.supportEmail ? (
+          <>Questions? Email <a href={`mailto:${env.supportEmail}`} className="font-semibold underline">{env.supportEmail}</a>.</>
+        ) : null}
+      </p>
     </div>
   );
 }

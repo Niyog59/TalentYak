@@ -34,7 +34,7 @@ export default async function CheckinPage({
   const published = feedback.filter((f) => f.published_at).sort((a, b) => b.published_at!.localeCompare(a.published_at!));
   const covers = published.some((f) => f.refers_to_revision >= (c.review_revision ?? 1));
   const stage = clientStage(c, Boolean(detail.draft), covers, published.length > 0);
-  const live = ctx.writeState === "live";
+  const live = ctx.writeState === "live" || ctx.writeState === "logging_paused";
   const answering = c.status === "open" || (sp.correct === "1" && ["submitted", "reviewed", "reopened"].includes(c.status));
   const period = periodLabel(c.period_start, c.period_end);
 

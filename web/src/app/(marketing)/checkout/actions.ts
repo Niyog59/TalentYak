@@ -25,7 +25,7 @@ export async function startCheckoutAction(_: ActionState, form: FormData): Promi
   // re-checks price, capacity and eligibility again when it records it.
   const found = await getPublicPlan(versionId);
   if (!found) return fail("This package is no longer on sale. Nothing was charged.");
-  if (!planPurchasable(purchaseMode(session), found.plan)) return fail("TalentYak isn't taking payments yet. Nothing was charged — you can join the waitlist instead.");
+  if (!planPurchasable(await purchaseMode(session), found.plan)) return fail("TalentYak isn't taking payments yet. Nothing was charged — you can join the waitlist instead.");
   if (found.plan.service_type === "recurring_coaching" && found.coach.availability !== "available") {
     return fail(`${found.coach.display_name} isn't taking new clients right now. Nothing was charged — you can join the waitlist instead.`);
   }

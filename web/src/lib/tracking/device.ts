@@ -18,7 +18,7 @@ const PREFIX = "talentyak:track:";
 /** A draft nobody has touched for this long is dropped, unless it holds unsaved entries. */
 const STALE_MS = 30 * 24 * 3600 * 1000;
 
-export type HeldState = "paused" | "ended" | "suspended" | "unavailable";
+export type HeldState = "paused" | "ended" | "suspended" | "unavailable" | "logging_paused";
 
 export type SaveState =
   | { kind: "saved"; at: number }

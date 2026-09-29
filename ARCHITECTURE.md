@@ -506,6 +506,30 @@ site_event_counts, bump_site_event    daily counts: event, page kind or public s
 
 Launch state lives in `web/src/lib/launch.ts`: `purchaseMode(session)` is `live` only with live Stripe keys **and** `LIVE_BILLING`, `test` only for a local dev server, an administrator with a second factor, or `TEST_CHECKOUT_EMAILS`, otherwise `closed`. Public pages decide their calls to action from `purchaseMode(null)`; the checkout page and `startCheckoutAction` re-check it on the server with the coach's availability, and `create_checkout_records` still owns price, capacity and eligibility. Package wording and the Choose/waitlist decision are in `web/src/lib/offers/presentation.ts`. On the production deployment `lib/offers/public.ts` leaves out any coach whose account uses a reserved test address, because the hosted project is shared with automated tests. Sign-up carries `next` through the confirmation email and onboarding (`onboardingThen`). Waitlist emails go through the outbox (`email.waitlist_confirm`, `email.waitlist_notice`) to an address read from the table at send time; confirming is a button press. Page counts come from `/api/events` (browser: page views, profile views, package choices; staff, bots and non-production excluded) and from the server (checkout starts once per new attempt, waitlist registrations once per new entry); purchases are counted from payment records, not here.
 
+### 3.7k Founder administration (M17) — `0056`–`0061`
+
+```
+platform_environment            which database this is ('test' today); admin read
+admin_audit_log                 append-only founder change history (guard_append_only); written by functions only
+feature_settings                one row per switchable feature: mode, allowed_modes, version; admin read, written only by admin_set_feature_mode
+feature_setting_changes         append-only history of switch changes (reason, impact counts, restores)
+feature_test_accounts           the "test accounts only" allowlist
+feature_prerequisites           founder decisions a mode waits for (coach_change_money_policy blocks coach_changing = on)
+feature_mode() / feature_modes()   public read of modes; feature_allows(key, subject) internal; feature_allows_me(key)
+feature_guard_* triggers        BEFORE INSERT on messages, media_assets (attachments), appointment_proposals, call_join_passes,
+                                checkins (skip silently), checkin_schedules, client_plans, client_plan_versions (publish),
+                                plan_templates, checkout_attempts, coach_change_requests, waitlist_entries
+tracking_write_state()          + 'logging_paused' for an otherwise-live relationship
+coach_change_candidates / request_coach_change(+history scope) / withdraw_coach_change
+admin_apply_coach_change        consent cap, coach_can_take_over under lock, one transaction, audited
+support_cases.owner_id, support_case_notes, support_case_events   admin only
+sign_in_events, record_sign_in  distinct sign-ins, server-written
+admin_overview_metrics / admin_search / admin_accounts / admin_account_detail / admin_coaching_operations /
+admin_coach_change_preview / admin_coach_change_candidates / admin_support_case_links   is_admin() (aal2) checked first
+```
+
+The feature register is `web/src/lib/features/registry.ts` (modes, explanations, dependencies, readiness — pure) and `server.ts` (per-request modes read with no cookies, `featureAllowsMe`, plain refusal messages, readiness context). Readiness comes from code and configuration and is never stored; availability is the database setting. Pages hide entry points, actions and API routes recheck on every request, the triggers refuse underneath, and jobs skip (`featureNotSwitchedOff`, the log-reminder sweep). `purchaseMode()` is now async and also closes buying when `new_sales` is off or `public_profiles` isn't on. Analytics: `web/src/lib/analytics/posthog.ts`, server-side capture only, called from `countEvent` (so a public event is recorded once in both places), sign-up, `afterSignIn` and a once-per-purchase `analytics.purchase_confirmed` job. The panel lives under `web/src/app/admin/` with its own shell (`components/admin/`).
+
 ### 3.8 How the database defends itself
 
 Three mechanisms, all exercised by the test suite:

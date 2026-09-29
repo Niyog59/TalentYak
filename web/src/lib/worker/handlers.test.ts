@@ -167,6 +167,7 @@ interface World {
   suspended?: boolean;
   emailAllowed?: boolean;
   unread?: number | null;
+  features?: Record<string, string>;
 }
 
 function worldContext(transport: EmailTransport, world: World = {}) {
@@ -215,6 +216,9 @@ function worldContext(transport: EmailTransport, world: World = {}) {
     rpc: async (name: string, args: Record<string, unknown>) => {
       if (name === "notification_email_allowed") {
         return { data: world.emailAllowed ?? true, error: null };
+      }
+      if (name === "feature_mode") {
+        return { data: world.features?.[String(args.p_key)] ?? "on", error: null };
       }
       if (name === "unread_message_count") {
         return world.unread === null ? { data: null, error: { message: "down" } } : { data: world.unread ?? 0, error: null };
@@ -363,6 +367,20 @@ describe("what must still be true when the message is sent", () => {
     const { ctx, sent } = worldContext(accepted, { unread: 1 });
     await HANDLERS["email.unread_messages"](unreadJob({ recipient_role: "coach" }), ctx);
     assert.match(sent[0].html, /\/coach\/messages\/c1/);
+  });
+
+  test("no message alert is sent while messaging is switched off in an emergency", async () => {
+    const { ctx, sent, notifications } = worldContext(accepted, { unread: 2, features: { messaging: "off" } });
+    const outcome = await HANDLERS["email.unread_messages"](unreadJob(), ctx);
+    assert.equal(outcome.kind, "done");
+    assert.deepEqual(sent, []);
+    assert.deepEqual(notifications, []);
+  });
+
+  test("a paused (read-only) messaging switch still lets alerts about earlier messages through", async () => {
+    const { ctx, sent } = worldContext(accepted, { unread: 1, features: { messaging: "read_only" } });
+    await HANDLERS["email.unread_messages"](unreadJob(), ctx);
+    assert.equal(sent.length, 1);
   });
 
   test("an unread count that cannot be read is retried, not assumed", async () => {
