@@ -11,6 +11,7 @@ import { getSession } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { getLiveExpectations } from "@/lib/expectations/server";
 import { purchaseMode } from "@/lib/launch";
+import { featureOnForEveryone } from "@/lib/features/server";
 import { getPublicCoach } from "@/lib/offers/public";
 import { coachPhotoUrl } from "@/lib/storage/photos";
 
@@ -38,11 +39,12 @@ export default async function CoachProfilePage({
   searchParams: Promise<{ checkout?: string }>;
 }) {
   const [{ slug }, { checkout }] = await Promise.all([params, searchParams]);
+  if (!(await featureOnForEveryone("public_profiles"))) return <ProfilesPaused waitlistOpen={await featureOnForEveryone("waitlist")} />;
   const found = await getPublicCoach(slug);
   if (!found) notFound();
   const { coach, plans } = found;
   const session = await getSession();
-  const mode = purchaseMode(session);
+  const mode = await purchaseMode(session);
   const photo = coachPhotoUrl(coach.photo_path);
   const years = coach.experience_since ? new Date().getUTCFullYear() - Number(coach.experience_since.slice(0, 4)) : null;
   // The public, non-personalised version: nothing about anyone who has bought.
@@ -200,6 +202,22 @@ export default async function CoachProfilePage({
         </p>
         <ButtonLink href="/coaches" variant="secondary" className="mt-4">See all coaches</ButtonLink>
       </section>
+    </div>
+  );
+}
+
+function ProfilesPaused({ waitlistOpen }: { waitlistOpen: boolean }) {
+  return (
+    <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
+      <h1 className="font-display text-4xl sm:text-5xl">Coaches</h1>
+      <p role="note" className="mt-6 rounded-lg border border-line-strong bg-paper-raised p-4">
+        Coach profiles are unavailable for a short while. Nothing has changed with anyone&rsquo;s coaching.{" "}
+        {waitlistOpen ? (
+          <><Link href="/waitlist" className="font-semibold underline">Join the waitlist</Link> to hear when you can start.</>
+        ) : env.supportEmail ? (
+          <>Questions? Email <a href={`mailto:${env.supportEmail}`} className="font-semibold underline">{env.supportEmail}</a>.</>
+        ) : null}
+      </p>
     </div>
   );
 }

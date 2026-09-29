@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { featureRefusal } from "@/lib/features/server";
 import { rateLimit } from "@/lib/rate-limit";
 import { createUpload, UploadRefused } from "@/lib/media";
 import { mediaSession, UUID } from "@/lib/media/session";
@@ -36,6 +37,15 @@ export async function POST(request: Request) {
   const enrollmentId = typeof body.enrollmentId === "string" && UUID.test(body.enrollmentId) ? body.enrollmentId : null;
   if (!PURPOSES.has(purpose) || !kind) {
     return NextResponse.json({ error: "Upload a photo or a video." }, { status: 400 });
+  }
+
+  // Rechecked here as well as on the screen; the database refuses too.
+  if (purpose === "chat_attachment" || purpose === "checkin_attachment") {
+    const refused = await featureRefusal("attachments");
+    if (refused) return NextResponse.json({ error: refused }, { status: 423 });
+  } else if (purpose === "progress_photo" || purpose === "food_photo") {
+    const refused = await featureRefusal("logging");
+    if (refused) return NextResponse.json({ error: refused }, { status: 423 });
   }
 
   try {

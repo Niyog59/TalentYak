@@ -5,6 +5,10 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { safeNextPath } from "@/lib/redirects";
 import { CURRENT_LEGAL } from "@/lib/legal";
+import { isReservedTestAddress } from "@/lib/email";
+import { captureProductEvent } from "@/lib/analytics/posthog";
+
+const isProductionSite = () => process.env.VERCEL_ENV === "production";
 
 /**
  * Who is making this request, and what they may do.
@@ -183,4 +187,17 @@ export async function afterSignIn(userId: string, emailConfirmed: boolean): Prom
   const admin = createAdminClient();
   if (!admin) return;
   await admin.rpc("claim_admin_bootstrap", { claimant: userId });
+
+  // Counted for the founder's overview (distinct people signing in) and, for
+  // real customers and coaches on the production site, as an anonymous
+  // PostHog event. Neither may ever stop someone signing in.
+  try {
+    await admin.rpc("record_sign_in", { p_profile: userId });
+    const { data: p } = await admin.from("profiles").select("email, role").eq("id", userId).maybeSingle();
+    const { data: testListed } = await admin.rpc("is_feature_test_account", { p_profile: userId });
+    const real = Boolean(p) && p!.role !== "admin" && !isReservedTestAddress(String(p!.email ?? "")) && testListed !== true;
+    await captureProductEvent("signed_in", {}, { live: isProductionSite() && real });
+  } catch {
+    /* best effort */
+  }
 }

@@ -5,6 +5,7 @@ import { TrackView } from "@/components/marketing/track";
 import { env } from "@/lib/env";
 import { purchaseMode } from "@/lib/launch";
 import { listPublicCoaches } from "@/lib/offers/public";
+import { featureOnForEveryone } from "@/lib/features/server";
 
 export const metadata: Metadata = {
   alternates: { canonical: "/" },
@@ -18,9 +19,10 @@ export const dynamic = "force-dynamic";
  * when the public can actually buy, otherwise the waitlist.
  */
 export default async function HomePage() {
-  const listing = await listPublicCoaches();
+  const profilesOn = await featureOnForEveryone("public_profiles");
+  const listing = profilesOn ? await listPublicCoaches() : [];
   // The public's view: a tester's own access doesn't change what visitors are told.
-  const mode = purchaseMode(null) === "live" ? "live" : "closed";
+  const mode = await purchaseMode(null) === "live" ? "live" : "closed";
   return (
     <>
       <TrackView subject="home" />
@@ -44,7 +46,7 @@ export default async function HomePage() {
         }}
       />
       <Hero mode={mode} hasCoaches={Boolean(listing?.length)} />
-      <MeetCoaches listing={listing ?? []} failed={listing === null} />
+      <MeetCoaches listing={listing ?? []} failed={listing === null} paused={!profilesOn} />
       <HowCoachingWorks />
       <PackageBenefits />
       <Faqs mode={mode} />

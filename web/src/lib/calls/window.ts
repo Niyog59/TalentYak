@@ -115,6 +115,7 @@ export const JOIN_REFUSAL: Record<string, string> = {
   sign_in_required: "Sign in again to join.",
   provider_unconfigured: "Calls aren't switched on for this site yet.",
   provider_unavailable: "The call service isn't responding right now. This isn't anything you did.",
+  calls_paused: "Calls are unavailable right now. The session itself isn't cancelled — contact support if this affects it.",
 };
 
 export function joinRefusal(reason: string | null | undefined): string {

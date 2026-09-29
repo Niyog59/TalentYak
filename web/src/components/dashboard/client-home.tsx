@@ -63,7 +63,7 @@ export function TodoList({ d, nowMs, tz }: { d: ClientDashboard; nowMs: number; 
     if (r.writeState === "paused") {
       items.push({ key: `pay-${r.e.id}`, text: PAUSED_FOR_PAYMENT_NOTICE, who: whoFor(d, r.e.coachName, r.e.id), href: "/account/billing", cta: "Update your card", urgent: true });
     }
-    if (r.checkins.ok && r.checkins.data.open && r.writeState === "live") {
+    if (r.checkins.ok && r.checkins.data.open && (r.writeState === "live" || r.writeState === "logging_paused")) {
       const c = r.checkins.data.open;
       const late = Date.parse(c.dueAt) < nowMs;
       items.push({
@@ -187,7 +187,7 @@ function WeekStrip({ week, weekStart, today, planHref }: { week: WeekCell[]; wee
 
 function TodayCard({ r, today }: { r: Relationship; today: string }) {
   const planHref = `/account/plan/${r.e.id}`;
-  const live = r.writeState === "live";
+  const live = (r.writeState === "live" || r.writeState === "logging_paused");
   if (!r.today.ok) return <SectionFailed what="Today's workout" />;
   const { workout: w, week, weekStart } = r.today.data;
   return (
@@ -263,7 +263,7 @@ function Sessions({ r, d, tz }: { r: Relationship; d: ClientDashboard; tz: strin
   const waiting = s.mine.filter((p) => p.enrollment_id === r.e.id);
   const closed = s.recentlyClosed.filter((p) => p.enrollment_id === r.e.id);
   const cancelled = s.cancelled.filter((a) => a.enrollment_id === r.e.id);
-  const live = r.writeState === "live";
+  const live = (r.writeState === "live" || r.writeState === "logging_paused");
   return (
     <>
       {next ? <SessionLine a={next} tz={tz} live={live} /> : <p className="text-ink-muted">No session booked.</p>}
@@ -329,7 +329,7 @@ function Nutrition({ r }: { r: Relationship }) {
       <p className="mt-1">
         Today&rsquo;s food diary:{" "}
         {n.today.entries ? `${n.today.entries} entr${n.today.entries === 1 ? "y" : "ies"}${n.today.complete ? ", marked as the whole day" : ""}` : "nothing recorded yet"} ·{" "}
-        <Link href={food} className={link}>{r.writeState === "live" ? "Add food" : "Food diary"}</Link>
+        <Link href={food} className={link}>{(r.writeState === "live" || r.writeState === "logging_paused") ? "Add food" : "Food diary"}</Link>
       </p>
     </>
   );
@@ -445,12 +445,12 @@ export function TodayWorkouts({ d }: { d: ClientDashboard }) {
 
 export function RelationshipCard({ r, d, tz }: { r: Relationship; d: ClientDashboard; tz: string | null }) {
   const id = `rel-${r.e.id}`;
-  const stateText = r.writeState === "paused" ? "Paused — payment" : r.writeState === "suspended" ? "On hold — contact support" : r.writeState === "live" ? "Active" : "Not active";
+  const stateText = r.writeState === "paused" ? "Paused — payment" : r.writeState === "suspended" ? "On hold — contact support" : (r.writeState === "live" || r.writeState === "logging_paused") ? "Active" : "Not active";
   return (
     <section aria-labelledby={id} className="mt-10">
       <div className="flex flex-wrap items-center gap-3">
         <h2 id={id} className="text-2xl font-semibold">{r.e.planTitle} <span className="font-normal text-ink-muted">with {r.e.coachName}</span></h2>
-        <StatusPill tone={r.writeState === "live" ? "good" : r.writeState === "paused" || r.writeState === "suspended" ? "bad" : "neutral"}>{stateText}</StatusPill>
+        <StatusPill tone={(r.writeState === "live" || r.writeState === "logging_paused") ? "good" : r.writeState === "paused" || r.writeState === "suspended" ? "bad" : "neutral"}>{stateText}</StatusPill>
       </div>
       {r.writeState === "paused" ? (
         <p role="alert" className="mt-3 rounded-lg border border-danger bg-danger-tint p-4 font-medium">

@@ -70,6 +70,7 @@ export async function requestCallJoin(
   const { data, error } = await supabase.rpc("call_join_request", { p_appointment: appointmentId, p_audio_only: audioOnly });
   if (error) {
     if (error.message.includes("rate_limited")) return { ok: false, status: 429, reason: "rate_limited" };
+    if (error.message.includes("feature_paused")) return { ok: false, status: 423, reason: "calls_paused" };
     if (error.message.includes("sign_in_required")) return { ok: false, status: 401, reason: "sign_in_required" };
     // not_found and anything unexpected read the same: nothing to see here.
     return { ok: false, status: 404, reason: "not_found" };

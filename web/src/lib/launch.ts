@@ -44,7 +44,24 @@ export function decidePurchaseMode(args: {
   return "closed";
 }
 
-export function purchaseMode(session: SessionContext | null): PurchaseMode {
+/**
+ * Who may buy right now: the launch rules above, narrowed by the founder's
+ * switches (new purchases, and the public profiles buying starts from). A
+ * switch can only close buying further; it never opens live payments.
+ */
+export async function purchaseMode(session: SessionContext | null): Promise<PurchaseMode> {
+  const base = basePurchaseMode(session);
+  if (base === "closed") return base;
+  // Loaded here, not at the top: the pure rules above stay importable by tests.
+  const { featureAllowsMe, getFeatureStates } = await import("@/lib/features/server");
+  const { modes, ok } = await getFeatureStates();
+  if (!ok || modes.public_profiles !== "on") return "closed";
+  if (modes.new_sales === "on") return base;
+  if (modes.new_sales === "test_only" && session && (await featureAllowsMe("new_sales"))) return base;
+  return "closed";
+}
+
+function basePurchaseMode(session: SessionContext | null): PurchaseMode {
   return decidePurchaseMode({
     stripe: stripeMode(),
     liveFlag: isLiveBillingFlagSet(),

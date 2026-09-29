@@ -6,6 +6,7 @@ import { CheckboxField, SelectField, SubmitButton, TextField } from "@/component
 import { Notice, PageHeader, Panel } from "@/components/ui/panel";
 import { AppointmentList, ProposalList } from "@/components/scheduling/schedule-lists";
 import { ProposeForm } from "@/components/scheduling/propose-form";
+import { PAUSED_MESSAGE, featureAllowsMe } from "@/lib/features/server";
 import { coachScheduleSettings, loadSchedule } from "@/lib/scheduling/server";
 import { DURATION_CHOICES, WEEKDAY_LABEL, durationLabel, whenIn } from "@/lib/scheduling/types";
 import {
@@ -94,7 +95,9 @@ export default async function CoachCalendarPage() {
       </Panel>
 
       <Panel title="Suggest a time to a client" id="suggest" description="They accept, decline or suggest another time. Nothing is booked until they accept.">
-        {clientOptions.length === 0 ? (
+        {!(await featureAllowsMe("bookings")) ? (
+          <p className="text-ink-muted">{PAUSED_MESSAGE.bookings}</p>
+        ) : clientOptions.length === 0 ? (
           <p className="text-ink-muted">When you have clients, you can suggest times to them here or in your messages.</p>
         ) : (
           <ProposeForm enrollmentOptions={clientOptions} durations={settings.durations_minutes} viewerTz={tz} otherLabel="your client" />

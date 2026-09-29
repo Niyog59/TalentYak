@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { env } from "@/lib/env";
 import { listPublicCoaches } from "@/lib/offers/public";
+import { featureOnForEveryone } from "@/lib/features/server";
 
 /*
  * Only approved public pages: the fixed launch pages and each public coach's
@@ -11,7 +12,7 @@ const PUBLIC_PATHS = ["/", "/coaches", "/how-it-works", "/about", "/waitlist", "
 export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const coaches = (await listPublicCoaches().catch(() => null)) ?? [];
+  const coaches = (await featureOnForEveryone("public_profiles")) ? (await listPublicCoaches().catch(() => null)) ?? [] : [];
   return [
     ...PUBLIC_PATHS.map((path) => ({
       url: new URL(path, env.siteUrl).toString(),

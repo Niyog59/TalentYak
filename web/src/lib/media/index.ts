@@ -126,17 +126,20 @@ export async function linkFor(
   viewer: SupabaseClient,
   assetId: string,
   which: "original" | "preview",
-  opts: { download?: boolean } = {},
+  opts: { download?: boolean; withholdAttachments?: boolean } = {},
 ): Promise<MediaLink | null> {
   const { data: asset } = await viewer
     .from("media_assets")
-    .select("id, state, storage_path, preview_path, deleted_at, media_kind")
+    .select("id, state, storage_path, preview_path, deleted_at, media_kind, purpose")
     .eq("id", assetId)
     .maybeSingle();
 
   // No row: row-level security refused it, or it is gone. Not ready: the
   // cleaned copy does not exist yet, and the original is never served.
   if (!asset || asset.state !== "ready" || asset.deleted_at) return null;
+  // Attachments switched off in an emergency: message and check-in files are
+  // not served at all. Nothing is deleted.
+  if (opts.withholdAttachments && (asset.purpose === "chat_attachment" || asset.purpose === "checkin_attachment")) return null;
   const path = which === "original" ? asset.storage_path : asset.preview_path;
   if (!path) return null;
 

@@ -10,8 +10,8 @@ export const metadata: Metadata = {
 };
 export const dynamic = "force-dynamic";
 
-export default function HowItWorksPage() {
-  const mode = purchaseMode(null) === "live" ? "live" : "closed";
+export default async function HowItWorksPage() {
+  const mode = await purchaseMode(null) === "live" ? "live" : "closed";
   return (
     <>
       <TrackView subject="how-it-works" />

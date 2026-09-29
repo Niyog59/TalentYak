@@ -9,6 +9,7 @@ import { CASE_STATE_LABEL, categoryLabel } from "@/lib/support/categories";
 import { grantMessageAccessAction, revokeMessageAccessAction, updateSupportCaseAction } from "@/lib/support/actions";
 import { recordOutcomeAction } from "@/lib/scheduling/actions";
 import { APPOINTMENT_STATE_LABEL, OUTCOME_LABEL, type AppointmentState } from "@/lib/scheduling/types";
+import { addSupportNoteAction, assignSupportCaseAction } from "../../panel-actions";
 
 export const metadata = { title: "Support case" };
 export const dynamic = "force-dynamic";
@@ -38,10 +39,23 @@ export default async function SupportCasePage({ params }: { params: Promise<{ id
   const c = ((all ?? []) as CaseRow[]).find((r) => r.id === id);
   if (!c) notFound();
 
-  const [{ data: grants }, { data: log }] = await Promise.all([
+  const [{ data: grants }, { data: log }, { data: links }, { data: notes }, { data: events }, { data: admins }] = await Promise.all([
     supabase.from("support_message_access").select("id, granted_to, reason, granted_at, expires_at, revoked_at").eq("case_id", id).order("granted_at", { ascending: false }),
     supabase.from("support_access_log").select("id, admin_profile_id, action, detail, created_at").eq("case_id", id).order("created_at", { ascending: false }).limit(50),
+    supabase.rpc("admin_support_case_links", { p_case: id }),
+    supabase.from("support_case_notes").select("id, body, created_at, author:profiles!support_case_notes_author_id_fkey(full_name, email)").eq("case_id", id).order("created_at"),
+    supabase.from("support_case_events").select("id, kind, detail, created_at, actor:profiles!support_case_events_actor_id_fkey(full_name, email)").eq("case_id", id).order("created_at", { ascending: false }).limit(50),
+    supabase.from("profiles").select("id, full_name, email").eq("role", "admin").is("suspended_at", null),
   ]);
+  const rel = (links ?? {}) as { reporter_profile_id?: string; owner_id?: string | null; customer_id?: string | null; provider_id?: string | null; enrollment_id?: string | null; purchase_id?: string | null };
+  const adminName = (pid: string | null | undefined) => {
+    const a = (admins ?? []).find((x) => x.id === pid);
+    return a ? a.full_name || a.email : null;
+  };
+  const personOf = (v: unknown) => {
+    const one = (Array.isArray(v) ? v[0] : v) as { full_name: string | null; email: string } | null;
+    return one ? one.full_name || one.email : "—";
+  };
   // A report opened from a session page: the session, what was recorded, and
   // who the call service saw connect — the context needed to settle a call
   // problem or a questioned outcome. Nothing here moves money.
@@ -147,6 +161,68 @@ export default async function SupportCasePage({ params }: { params: Promise<{ id
             ) : null}
           </Panel>
         ) : null}
+
+        <Panel title="Owner and related records" id="owner">
+          <Facts
+            items={[
+              ["Owner", adminName(rel.owner_id) ?? "Nobody yet"],
+              ["Reported by", rel.reporter_profile_id ? <Link key="r" href={`/admin/accounts/${rel.reporter_profile_id}`} className="text-brand underline">{c.reporter_name}&rsquo;s account</Link> : c.reporter_name],
+              ...(rel.customer_id && rel.customer_id !== rel.reporter_profile_id ? [["Client", <Link key="cu" href={`/admin/accounts/${rel.customer_id}`} className="text-brand underline">Client&rsquo;s account</Link>] as [string, React.ReactNode]] : []),
+              ...(rel.provider_id ? [["Coach", <Link key="co" href={`/admin/coaches/${rel.provider_id}`} className="text-brand underline">Coach page</Link>] as [string, React.ReactNode]] : []),
+              ...(rel.purchase_id ? [["Purchase", <Link key="pu" href={`/admin/purchases/${rel.purchase_id}`} className="text-brand underline">The purchase behind this relationship</Link>] as [string, React.ReactNode]] : []),
+            ]}
+          />
+          <ActionForm action={assignSupportCaseAction} className="mt-4 flex flex-wrap items-end gap-3">
+            <input type="hidden" name="case_id" value={c.id} />
+            <SelectField
+              name="owner"
+              label="Change owner"
+              required={false}
+              defaultValue={rel.owner_id === session.userId ? "me" : rel.owner_id ?? ""}
+              options={[
+                { value: "", label: "Nobody" },
+                { value: "me", label: "Me" },
+                ...(admins ?? []).filter((a) => a.id !== session.userId).map((a) => ({ value: a.id, label: a.full_name || a.email })),
+              ]}
+            />
+            <SubmitButton variant="secondary" pendingLabel="Saving…">Save owner</SubmitButton>
+          </ActionForm>
+        </Panel>
+
+        <Panel title="Internal notes" id="notes" description="Only administrators see these — never the person who reported it. Don't copy private content (health details, message text) into a note.">
+          {(notes ?? []).length === 0 ? <p className="text-sm text-ink-muted">No notes yet.</p> : null}
+          <ol className="space-y-2">
+            {(notes ?? []).map((n) => (
+              <li key={n.id} className="rounded-lg border border-line bg-paper-raised px-3 py-2">
+                <p className="text-xs text-ink-muted">{personOf(n.author)} · {when(n.created_at)}</p>
+                <p className="whitespace-pre-wrap break-words">{n.body}</p>
+              </li>
+            ))}
+          </ol>
+          <ActionForm action={addSupportNoteAction} className="mt-3 grid gap-3">
+            <input type="hidden" name="case_id" value={c.id} />
+            <TextArea name="body" label="Add a note" required rows={3} maxLength={4000} />
+            <div><SubmitButton variant="secondary" pendingLabel="Adding…">Add note</SubmitButton></div>
+          </ActionForm>
+        </Panel>
+
+        <Panel title="Case history" id="events">
+          {(events ?? []).length === 0 ? (
+            <p className="text-sm text-ink-muted">Nothing recorded yet (history starts with M17).</p>
+          ) : (
+            <ul className="space-y-1 text-sm">
+              {(events ?? []).map((e) => {
+                const d = (e.detail ?? {}) as Record<string, string | null>;
+                const what = e.kind === "state_changed"
+                  ? `State: ${CASE_STATE_LABEL[d.from ?? ""] ?? d.from} → ${CASE_STATE_LABEL[d.to ?? ""] ?? d.to}`
+                  : e.kind === "owner_changed"
+                    ? `Owner: ${adminName(d.from) ?? "nobody"} → ${adminName(d.to) ?? "nobody"}`
+                    : e.kind === "note_added" ? "Internal note added" : "Case opened";
+                return <li key={e.id}>{when(e.created_at)} — {what}{e.actor ? ` · ${personOf(e.actor)}` : ""}</li>;
+              })}
+            </ul>
+          )}
+        </Panel>
 
         <Panel title="Resolve" id="resolve">
           <ActionForm action={updateSupportCaseAction} className="grid gap-4">

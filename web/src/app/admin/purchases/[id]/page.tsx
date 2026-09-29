@@ -8,6 +8,7 @@ import { DataTable, Facts, Notice, PageHeader, Panel } from "@/components/ui/pan
 import { PURCHASE_STATE_LABEL, formatDate, formatMinor } from "@/lib/format";
 import { formatMinorAsDecimal } from "@/lib/money/money";
 import { refundAction } from "../../actions";
+import { stripeMode } from "@/lib/payments/stripe";
 
 export const metadata = { title: "Purchase" };
 
@@ -53,12 +54,18 @@ export default async function AdminPurchasePage({ params }: { params: Promise<{ 
             ["Status", PURCHASE_STATE_LABEL[purchase.state] ?? purchase.state],
             ["Price", `${formatMinor(purchase.charge_amount_minor, purchase.charge_currency)}${purchase.service_type === "recurring_coaching" ? " a month" : ""}`],
             ["Plan version", `v${snapshot.offer_version ?? "?"} (terms frozen at purchase)`],
-            ["Customer email", customer?.email ?? "—"],
+            ["Customer", <Link key="c" href={`/admin/accounts/${purchase.customer_id}`} className="text-brand underline">{customer?.email ?? "Account"}</Link>],
+            ["Coach bought from", <Link key="co" href={`/admin/coaches/${purchase.provider_id}`} className="text-brand underline">{coach?.display_name ?? "Coach"}</Link>],
             ["Started", formatDate(purchase.started_at, null, true)],
             ["Paid until", formatDate(purchase.paid_through_at, null, true)],
             ["Ends", formatDate(purchase.ends_at, null, true)],
             ["Commission policy", purchase.commission_policy_id],
-            ["Stripe subscription", subscription ? `${subscription.stripe_subscription_id} · ${subscription.state}${subscription.cancel_at_period_end ? " · cancels at period end" : ""}` : "—"],
+            ["Stripe subscription", subscription ? (
+              <span key="s">
+                {subscription.state}{subscription.cancel_at_period_end ? " · cancels at period end" : ""} ·{" "}
+                <a href={stripeLink(`subscriptions/${subscription.stripe_subscription_id}`)} target="_blank" rel="noopener noreferrer" className="text-brand underline">Open in Stripe</a>
+              </span>
+            ) : "—"],
           ]}
         />
       </Panel>
@@ -135,4 +142,9 @@ export default async function AdminPurchasePage({ params }: { params: Promise<{ 
       </Panel>
     </div>
   );
+}
+
+/** The Stripe dashboard for the account this deployment uses (test or live). Viewing there never changes anything here. */
+function stripeLink(path: string): string {
+  return `https://dashboard.stripe.com/${stripeMode() === "live" ? "" : "test/"}${path}`;
 }

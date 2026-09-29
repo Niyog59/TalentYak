@@ -63,6 +63,8 @@ export function TrackingHeader({
         </p>
       ) : writeState === "ended" ? (
         <p role="note" className="mt-5 rounded-lg border border-line-strong bg-paper-raised p-4">This coaching has ended. Everything you recorded stays here for you to read; new entries can&rsquo;t be added.</p>
+      ) : writeState === "logging_paused" ? (
+        <p role="note" className="mt-5 rounded-lg border border-line-strong bg-paper-raised p-4">Saving is paused by TalentYak for a short while. New entries are kept on this device and save automatically when it&rsquo;s back. Everything already saved is here as usual.</p>
       ) : writeState === "unavailable" ? (
         <p role="note" className="mt-5 rounded-lg border border-line-strong bg-paper-raised p-4">Coaching isn&rsquo;t active right now — for example, during a coach change. New entries wait on this device until it is.</p>
       ) : null}

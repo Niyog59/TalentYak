@@ -8,12 +8,15 @@ import * as T from "@/lib/email/templates";
 import type { RenderedEmail } from "@/lib/email/templates";
 import type { NotificationCategory } from "@/lib/notifications";
 import {
+  featureNotSwitchedOff,
   appointmentStillCurrent,
   emailStillWanted,
   unreadMessageCount,
   recipientStillValid,
   type Decision,
 } from "@/lib/worker/recheck";
+import { captureProductEvent } from "@/lib/analytics/posthog";
+import { stripeMode } from "@/lib/payments/stripe";
 
 /**
  * What each outbox topic does.
@@ -432,12 +435,27 @@ export const HANDLERS: Record<string, Handler> = {
     const title = str((pu.inclusions_snapshot as Record<string, unknown>)?.title) || "your plan";
 
     await ctx.enqueue("email.new_client", { purchase_id: pu.id }, `new_client:${pu.id}`);
+    await ctx.enqueue("analytics.purchase_confirmed", { purchase_id: pu.id }, `analytics_purchase:${pu.id}`);
 
     return send(job, ctx, "purchase_confirmed", customer, T.purchaseConfirmedEmail(tctx(), {
       customerName: customer.name, coachName: coach.displayName, planTitle: title,
       amountMinor: pu.charge_amount_minor, currency: pu.charge_currency,
       recurring: pu.service_type === "recurring_coaching", paidThrough: pu.paid_through_at, timezone: customer.timezone,
     }), { category: "billing", path: "/account/billing" });
+  },
+
+  // One anonymous "purchase confirmed" for PostHog, once per purchase (the
+  // queue's dedupe key and a fixed event id). Only a live-mode payment by a
+  // real customer on the production site. Amounts are never sent.
+  "analytics.purchase_confirmed": async (job, ctx) => {
+    const pu = await purchaseContext(ctx, job.payload.purchase_id);
+    if (!pu) return { kind: "done", result: { sent: false, reason: "skipped", detail: "purchase not found" } };
+    const { data: buyer } = await ctx.admin.from("profiles").select("email").eq("id", pu.customer_id).maybeSingle();
+    const live = process.env.VERCEL_ENV === "production" && stripeMode() === "live"
+      && Boolean(buyer?.email) && !isReservedTestAddress(String(buyer?.email));
+    const outcome = await captureProductEvent("purchase_confirmed", { service_type: pu.service_type }, { live, dedupeKey: `purchase:${pu.id}` });
+    if (outcome === "failed") return { kind: "retry", error: "analytics service did not accept the event" };
+    return { kind: "done", result: { sent: outcome === "sent", reason: outcome === "sent" ? "sent" : "skipped" } };
   },
 
   "email.new_client": async (job, ctx) => {
@@ -853,6 +871,8 @@ export const HANDLERS: Record<string, Handler> = {
     const to = await person(ctx, job.payload.profile_id);
     if (!to) return gone("recipient");
     const conversationId = str(job.payload.conversation_id);
+    const switched = await featureNotSwitchedOff(ctx.admin, "messaging");
+    if (!switched.proceed) return { kind: "done", result: { sent: false, reason: "skipped", detail: switched.reason } };
 
     // The final recheck: counted now, against the live read markers and the
     // live access rules. Read on any device since, or no longer theirs to

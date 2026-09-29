@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { featureAllowsMe } from "@/lib/features/server";
 import { createClient } from "@/lib/supabase/server";
 import { rateLimit } from "@/lib/rate-limit";
 import { mediaSession, UUID } from "@/lib/media/session";
@@ -30,7 +31,8 @@ import { parseAmount, parseWhole } from "@/lib/tracking/units";
 export const dynamic = "force-dynamic";
 
 const NO_STORE = { "Cache-Control": "no-store" };
-const HELD = ["paused", "ended", "suspended", "unavailable"] as const;
+// "logging_paused" first: its code also contains "paused".
+const HELD = ["logging_paused", "paused", "ended", "suspended", "unavailable"] as const;
 
 function json(body: unknown, status = 200) {
   return NextResponse.json(body, { status, headers: NO_STORE });
@@ -73,6 +75,10 @@ export async function POST(request: Request) {
 
   const supabase = (await createClient())!;
   const op = String(body.op ?? "");
+
+  // TalentYak paused logging: every write is held on the device and saved
+  // when it is back. Reading (fetch) is unaffected. The database refuses too.
+  if (op !== "workout.fetch" && !(await featureAllowsMe("logging"))) return json({ held: "logging_paused" }, 423);
 
   switch (op) {
     case "workout.save": {

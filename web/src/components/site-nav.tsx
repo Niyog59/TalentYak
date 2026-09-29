@@ -13,9 +13,9 @@ const links = [
   { href: "/about", label: "About" },
 ];
 
-export function SiteNav() {
+export async function SiteNav() {
   // What the public can do right now: buy, or register interest.
-  const open = purchaseMode(null) === "live";
+  const open = await purchaseMode(null) === "live";
   const primary = open ? { href: "/coaches", label: "Start coaching" } : { href: "/waitlist", label: "Join the waitlist" };
   return (
     // White, not --paper: the horizontal logo file has an opaque white

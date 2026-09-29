@@ -32,7 +32,7 @@ export default async function CheckinsPage({ params }: { params: Promise<{ enrol
   await refreshCheckins(enrollmentId);
   const [items, schedule] = await Promise.all([checkinsFor(enrollmentId), scheduleFor(enrollmentId)]);
   const base = `${ctx.base}/check-ins`;
-  const live = ctx.writeState === "live";
+  const live = ctx.writeState === "live" || ctx.writeState === "logging_paused";
   const current = items.find((c) => c.status === "open");
   const breaks = (schedule?.breaks ?? []).filter((b) => !b.cancelled_at && b.ends_on >= ctx.today);
 

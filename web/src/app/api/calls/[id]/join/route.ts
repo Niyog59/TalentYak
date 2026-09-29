@@ -3,6 +3,7 @@ import { getSession, isOnboarded } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { rateLimit } from "@/lib/rate-limit";
 import { requestCallJoin } from "@/lib/calls/join";
+import { featureAllowsMe } from "@/lib/features/server";
 
 /**
  * A join pass for one session's private call, for the signed-in person.
@@ -45,6 +46,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // covers a person hammering many sessions.
   const limit = await rateLimit("call_join", session.userId, 60, 600);
   if (!limit.allowed) return refuse(429, "rate_limited", { retryAfterSeconds: limit.retryAfterSeconds });
+
+  // Checked on every join, so a call page opened earlier can't get a pass
+  // once calls are switched off. The database refuses the pass as well.
+  if (!(await featureAllowsMe("calls"))) return refuse(423, "calls_paused");
 
   let audioOnly = false;
   try {

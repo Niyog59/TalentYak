@@ -14,7 +14,11 @@ import { epochMicros, type MeasurementRow, type WeightRow } from "@/lib/tracking
  * media rule; a former coach and an admin get nothing.
  */
 
-export type WriteState = "live" | "paused" | "ended" | "suspended" | "unavailable" | "not_permitted";
+/** "logging_paused": the relationship is live but TalentYak has paused logging; entries wait on the device. */
+export type WriteState = "live" | "logging_paused" | "paused" | "ended" | "suspended" | "unavailable" | "not_permitted";
+
+/** The relationship itself is live (logging may still be paused by TalentYak). */
+export const relationshipLive = (s: WriteState) => s === "live" || s === "logging_paused";
 
 /** May the signed-in client add entries on this relationship now? */
 export async function trackingWriteState(enrollmentId: string): Promise<WriteState> {

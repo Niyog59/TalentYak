@@ -11,7 +11,8 @@ import { ActionForm } from "@/components/form/action-form";
 import { SubmitButton, TextArea } from "@/components/form/fields";
 import { PURCHASE_STATE_LABEL, formatDate, formatMinor } from "@/lib/format";
 import { PAUSED_FOR_PAYMENT_NOTICE } from "@/lib/policy";
-import { requestCoachChangeAction } from "./customer-actions";
+import { CoachChangePanel } from "@/components/coach-change/request-panel";
+import { featureAllowsMe } from "@/lib/features/server";
 import { SignOutForm } from "@/components/tracking/sign-out-form";
 import { LiveRefresh } from "@/components/dashboard/live";
 import { RoleSwitch } from "@/components/dashboard/role-switch";
@@ -140,13 +141,14 @@ async function ManageCoaching({ session, isCoach }: { session: SessionContext; i
         .neq("state", "pending_payment")
         .order("created_at", { ascending: false }),
       supabase.from("enrollments").select("id, purchase_id, state, provider_id").eq("customer_id", session.userId),
-      supabase.from("coach_change_requests").select("enrollment_id, state, created_at").eq("customer_id", session.userId).eq("state", "requested"),
+      supabase.from("coach_change_requests").select("id, enrollment_id, state, created_at, consented_history_scope, preferred_provider_id").eq("customer_id", session.userId).eq("state", "requested"),
       supabase.from("bookings").select("id, status, created_at, services(name)").eq("customer_id", session.userId).order("created_at", { ascending: false }),
     ]);
 
+  const coachChangeAllowed = await featureAllowsMe("coach_changing");
   // A customer can read the profile of any coach they bought from, even one who
   // is no longer public (migration 0025).
-  const providerIds = [...new Set([...(purchases ?? []).map((p) => p.provider_id), ...(enrollments ?? []).map((e) => e.provider_id)])];
+  const providerIds = [...new Set([...(purchases ?? []).map((p) => p.provider_id), ...(enrollments ?? []).map((e) => e.provider_id), ...(requests ?? []).map((r) => r.preferred_provider_id).filter(Boolean)])];
   const { data: coaches } = providerIds.length
     ? await supabase.from("provider_public_profiles").select("provider_id, display_name").in("provider_id", providerIds)
     : { data: [] };
@@ -165,7 +167,7 @@ async function ManageCoaching({ session, isCoach }: { session: SessionContext; i
           <ul className="mt-5 space-y-4">
             {(purchases ?? []).map((p) => {
               const enrollment = (enrollments ?? []).find((e) => e.purchase_id === p.id);
-              const openRequest = enrollment && (requests ?? []).some((r) => r.enrollment_id === enrollment.id);
+              const openRequest = enrollment ? (requests ?? []).find((r) => r.enrollment_id === enrollment.id) ?? null : null;
               const title = (p.inclusions_snapshot as { title?: string })?.title ?? "Plan";
               return (
                 <li key={p.id} className="rounded-xl border border-line bg-surface p-5">
@@ -195,18 +197,17 @@ async function ManageCoaching({ session, isCoach }: { session: SessionContext; i
                     </p>
                   ) : null}
                   {enrollment && ["active", "paused"].includes(enrollment.state) ? (
-                    openRequest ? (
-                      <p className="mt-3 text-sm">You&rsquo;ve asked to change coach. TalentYak will be in touch.</p>
-                    ) : (
-                      <details className="mt-3">
-                        <summary className="cursor-pointer text-brand underline">Ask to change coach</summary>
-                        <ActionForm action={requestCoachChangeAction} className="mt-3 grid gap-3">
-                          <input type="hidden" name="enrollment_id" value={enrollment.id} />
-                          <TextArea name="reason" label="What isn't working?" required rows={3} maxLength={2000} help="Only TalentYak sees this, not your coach." />
-                          <div><SubmitButton pendingLabel="Sending…" variant="secondary">Send request</SubmitButton></div>
-                        </ActionForm>
-                      </details>
-                    )
+                    <CoachChangePanel
+                      enrollmentId={enrollment.id}
+                      allowed={coachChangeAllowed}
+                      timeZone={tz}
+                      open={openRequest ? {
+                        id: openRequest.id,
+                        created_at: openRequest.created_at,
+                        consented_history_scope: openRequest.consented_history_scope,
+                        preferred_name: coaches?.find((c) => c.provider_id === openRequest.preferred_provider_id)?.display_name ?? (openRequest.preferred_provider_id ? "the coach you chose" : null),
+                      } : null}
+                    />
                   ) : null}
                 </li>
               );

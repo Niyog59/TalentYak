@@ -2,6 +2,8 @@
 
 > ### Amended 2026-09-25 (sixth pass) — read §L, then §M, then §N, then §O.
 >
+> **§X (2026-09-28)** records M17, the founder panel: feature switches separate from readiness, enforcement down to the database, append-only change history, PostHog server-side analytics, and the coach-change workflow (off at launch). **OPEN-08's money half still needs your decision** (§X1).
+>
 > **§T (2026-09-27)** records M12 client logging and progress. The founder decided that while coaching is paused for payment, **new tracking entries wait on the client's device** and save after renewal (TY-TRACK-06) — this amends TY-ACCESS-06.
 >
 > **§O (2026-09-25)** sets how agents report to the founder: short, plain language; what happened, how it affects users, a recommendation, and whether the founder must act. It simplifies the explanation, never the scope or the engineering.
@@ -723,3 +725,36 @@ The project instructions file that every agent reads first is founder-owned. Wit
 | About page | Said the name means "our own" (the old name Aafnai's meaning) | Removed |
 | `robots.txt` | `/coach` also blocked `/coaches` | Coach area matched exactly; public profiles crawlable |
 
+
+## X. Fifteenth-pass decisions — 2026-09-28 (M17 founder administration)
+
+**Source key added:** **FM17** — Founder prompt, *Implement M17: TalentYak's founder administration panel*, 2026-09-28. Founder-supplied. It authorises implementation, commit and push without separate plan approval for this scope.
+
+| ID | Topic | Status | Rule | Source | Modules |
+|---|---|---|---|---|---|
+| **TY-ADMIN-01** | Founder access | **CONFIRMED** (FM17) | The panel at `/admin` uses the existing sign-in. Every page, action, API and admin database function requires the administrator role **and** a completed second factor in the session. Administrators are provisioned only by the recorded bootstrap or by the project owner in the database; public sign-up never grants it. Recovery is a second authenticator device, then the project owner removing factors (`docs/operations/founder-access.md`). | FM17 | M17 |
+| **TY-ADMIN-02** | Readiness vs availability | **CONFIRMED** (FM17) | Feature switches (`feature_settings`) are separate from readiness (code and configuration). A switch never activates unbuilt functionality, completes setup, approves a policy or opens live payments. Security, sign-in, authorisation, the live-payment gate and change history are not switchable. | FM17 | M17 |
+| **TY-ADMIN-03** | Switch modes | **CONFIRMED** (FM17) + engineering | Modes per feature, only where meaningful: programmes, logging, check-ins, bookings — on / read-only / test accounts only; messaging, attachments — plus an **emergency off**; calls — on / emergency off / test accounts only; new purchases — on / off / test; public profiles, waitlist — on / off; changing coach — off / test / on. Normal pauses let work under way finish (confirmed sessions, weekly series, submitted check-ins, drafts, open coach-change requests); emergency modes also stop it (calls close open rooms; attachments aren't served; conversations are hidden). Stopping new purchases never ends paid coaching. | FM17 | M17 |
+| **TY-ADMIN-04** | Enforcement | **CONFIRMED** (FM17) + engineering | Each switch is checked by the page, again by the action or API on every request (so an old tab is refused), in the database (triggers on the tables that start new activity, and the tracking gate), and by the relevant jobs. If settings can't be read, nothing new is allowed. | FM17 | M17 |
+| **TY-ADMIN-05** | Test accounts | **CONFIRMED** (FM17) + engineering | "Test accounts only" means the founder's allowlist (`feature_test_accounts`), judged by the client of the relationship in the database. Reports leave out reserved test addresses, listed accounts and payments without a live-mode Stripe event. | FM17 | M17 |
+| **TY-ADMIN-06** | Environment | **CONFIRMED** (engineering) | Settings live in each database; the database is labelled (`platform_environment`), today `test`. The panel shows site, database and payment mode on every page; a production site on the test database is shown as a warning. | FM17 | M17 |
+| **TY-ADMIN-07** | Change history | **CONFIRMED** (FM17) | Consequential founder actions are recorded with actor, time, reason and changed values (never private content) in append-only records the database refuses to edit or delete. Restoring a setting is a new change and never reverses completed actions. | FM17 | M17 |
+| **TY-ADMIN-08** | Private data in support | **CONFIRMED** (FM17; stricter existing rules kept) | Conversations: per-case, reasoned, time-limited, audited grant (TY-MSG-04). Health records, tracking values and private media: **no administrator access at all** (invariant 3, TY-PROG-02, TY-TRACK-07) — stricter than case-scoped access, so no new path was added. Search and dashboards never show private content. | FM17 | M17 |
+| **TY-ADMIN-09** | Analytics | **CONFIRMED** (FM17) + engineering | PostHog, server-side only, for deliberate anonymous events (visits, profile views, package choices, sign-up, sign-in, checkout start, confirmed purchase), production only, excluding staff and test activity; no browser script, cookies, recordings or autocapture; no emails, health, messages, form answers, media addresses or query strings. Sent through the M16 counting point, so nothing is counted twice. Inactive until `POSTHOG_PROJECT_KEY` is set. Money figures come only from payment and ledger records. | FM17 | M16, M17 |
+| **TY-ADMIN-10** | Coach change workflow | **CONFIRMED** (FM17) + engineering | Behind `coach_changing`, **off at launch**. The client chooses a replacement who can take them now (same service, selling a matching package, accepting, not away, with room) or asks TalentYak to suggest, and consents to a history scope; the founder can share less, never more. One open request per relationship (a lock plus the unique index). Capacity is rechecked under lock at confirmation. The move is one transaction; the former coach loses access at once; the new coach gets a new conversation (TY-MSG-03); sessions with the former coach are cancelled with notices; check-ins hand over or flag (TY-CHECKIN-03). Open requests finish after the switch goes off. | FM17 | M17 |
+
+### X1 · Awaiting founder decision
+
+| ID | Topic | Status | Recommendation |
+|---|---|---|---|
+| **OPEN-08** (remaining half) | Money when a client changes coach | **OPEN — blocks turning changing coach on for real clients** (`feature_prerequisites.coach_change_money_policy`) | **PROPOSED:** the client keeps their current price, billing and paid dates; the new coach agrees to take them at that price before the move; the part-finished month is split between the two coaches by days delivered; call allowances carry over within the paid period; no refund or credit unless TalentYak decides one case by case with the refund tool. *Trade-off:* simple and never surprises the client, but a coach who charges more takes the client at the lower price until the client moves to one of the new coach's plans. |
+
+Until decided, the implementation already does the client-protective part (price and billing unchanged; earnings for the part-finished period **held** for the founder to allocate, AAF-TERM-04; nothing refunded automatically) and the switch refuses "on".
+
+### X2 · Status changes
+
+| Entry | Was | Now |
+|---|---|---|
+| AAF-OPS-01 (TalentYak handles coach changes) | Confirmed; admin-only workflow | **Delivered end to end** behind a switch (TY-ADMIN-10) |
+| OPEN-08 | Partly resolved (earnings split, AAF-TERM-04) | **Consent and records access resolved** by TY-ADMIN-10 (client-chosen scope, founder can only narrow). Price difference, part-used period and refunds still open (X1) |
+| TY-LAUNCH-06 (own counts, "no analytics service") | M16 | **Extended** by TY-ADMIN-09: the same counting point also sends anonymous events to PostHog once configured |

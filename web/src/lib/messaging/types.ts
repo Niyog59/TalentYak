@@ -105,6 +105,8 @@ export const SEND_ERRORS: Record<string, string> = {
   attachment_not_ready: "That file isn't ready yet, or it couldn't be processed. Nothing was sent.",
   attachment_used: "That file has already been sent.",
   client_id_reused: "Something went wrong sending that. Try writing it again.",
+  feature_paused: "Sending is paused by TalentYak for now. What you wrote has not been sent.",
+  feature_off: "Messaging is temporarily unavailable. Nothing has been deleted.",
 };
 
 export function errorCode(message: string | undefined | null): string {

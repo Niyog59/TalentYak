@@ -35,7 +35,7 @@ export default async function WorkoutsPage({
     weightUnit: ctx.prefs.weight_unit,
     lengthUnit: ctx.prefs.length_unit,
   });
-  const canAdd = ctx.writeState === "live" || ctx.writeState === "paused";
+  const canAdd = ctx.writeState === "live" || ctx.writeState === "paused" || ctx.writeState === "logging_paused";
   const base = ctx.base;
   const startHref = (p: { versionId: string; sessionKey: string; plannedOn: string }) =>
     `${base}/workouts/new?${new URLSearchParams({ version: p.versionId, session: p.sessionKey, date: p.plannedOn }).toString()}`;

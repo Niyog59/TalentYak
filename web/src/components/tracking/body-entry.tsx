@@ -53,7 +53,7 @@ export function BodyEntry({
   weightUnit: WeightUnit;
   lengthUnit: LengthUnit;
   live: boolean;
-  held: "paused" | "ended" | "suspended" | "unavailable" | null;
+  held: "paused" | "ended" | "suspended" | "unavailable" | "logging_paused" | null;
   pausedNotice: string;
   showMeasurements: boolean;
 }) {
@@ -176,7 +176,7 @@ export function BodyEntry({
     window.dispatchEvent(new Event("talentyak:tracking-changed"));
   }
 
-  const locked = !live && held !== "paused";
+  const locked = !live && held !== "paused" && held !== "logging_paused";
 
   return (
     <div>

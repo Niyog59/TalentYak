@@ -12,6 +12,7 @@ import { countEvent } from "@/lib/site-events";
 import { purchaseMode } from "@/lib/launch";
 import { WAITLIST_CONSENT_VERSION } from "@/lib/waitlist/copy";
 import { TOKEN_RE, confirmWaitlist, hashToken, newToken as token } from "@/lib/waitlist/server";
+import { featureOnForEveryone } from "@/lib/features/server";
 
 /*
  * The waitlist. A person gives an email, and optionally a first name and the
@@ -35,6 +36,8 @@ export async function joinWaitlistAction(_: ActionState, form: FormData): Promis
   if (field(form, "website", 200)) return succeed(CONFIRM_MESSAGE);
   if (!EMAIL_RE.test(email)) return fail("Enter a valid email address.", { fieldErrors: { email: "Enter a valid email address." }, values });
   if (form.get("consent") !== "on") return fail("Tick the box to confirm what you're signing up for.", { fieldErrors: { consent: "Required." }, values });
+  // Rechecked on submit: a page opened before the waitlist closed can't add to it.
+  if (!(await featureOnForEveryone("waitlist"))) return fail("The waitlist is closed right now, so nothing was saved. Please check back soon.", { values });
 
   const [byIp, byEmail] = await Promise.all([
     rateLimit("waitlist_ip", await clientIp(), 10, 3600),
@@ -129,7 +132,7 @@ export async function sendWaitlistNoticeAction(_: ActionState, form: FormData): 
   // Only announce what can actually be bought, and only through the
   // administrator's own session (RLS: admin with a second factor).
   // What an ordinary visitor would meet: a notice goes out only if they could buy.
-  if (purchaseMode(null) === "closed") {
+  if (await purchaseMode(null) === "closed") {
     return fail("Buying isn't open to the public yet, so there's nothing to announce. Notices can be sent once purchasing is open.");
   }
   const supabase = (await createClient())!;

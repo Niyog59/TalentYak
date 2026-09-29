@@ -17,6 +17,8 @@ export function heldMessage(reason: HeldState): string {
       return "Your account is suspended, so new entries can't be saved right now. Contact support if you have questions.";
     case "paused":
       return "Coaching is paused, so new entries wait on this device until it resumes.";
+    case "logging_paused":
+      return "Saving is paused by TalentYak for a short while. Your entries are kept on this device and save automatically when it's back.";
     default:
       return "Coaching isn't active right now (for example, during a coach change), so new entries wait on this device.";
   }

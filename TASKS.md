@@ -261,3 +261,17 @@ Status of record: `docs/implementation/M03-M07-STATUS.md`.
 - [ ] **Test hygiene:** DB suites leave published fixture coaches; they are hidden on production by the guard, but suites should retire their coaches in `after()`.
 - [ ] **Waitlist entries aren't expired automatically** (automatic deletion stays off). Unconfirmed entries stay until withdrawn; decide a retention rule in M17.
 
+
+## M17 — Founder administration panel (2026-09-28) — complete (see M17-STATUS)
+
+- [x] Founder panel with overview (date ranges, attention queue, people and money by currency, charts), search, accounts, support owners and notes, coach-change decisions, feature controls with history and restore, coaching operations, jobs, website & launch, policies & launch, change history; switches enforced from screen to database to jobs; client coach-change flow (off at launch); PostHog server-side (inactive until configured); password change; access and recovery guide (decision register §X).
+- [ ] **Founder — decide OPEN-08's money half** (register §X1). Until then "Changing coach" can only be off or test accounts only.
+- [ ] **Founder — PostHog**: create a free project (no card), then set `POSTHOG_PROJECT_KEY`, `POSTHOG_HOST` and `POSTHOG_APP_URL` on the production deployment; confirm the first events arrive. Nothing is collected until then.
+- [ ] **Founder — Supabase dashboard account**: confirm it has two-step verification (it is the recovery route for the founder account).
+- [ ] **Founder — add a second authenticator device** to the founder account.
+- [ ] **Stripe fees aren't in the ledger.** The overview says "not recorded yet"; import `balance_transaction` fees as `processing_fee` entries if fee reporting is wanted.
+- [ ] **Sign-ins are counted from M17 onwards** (earlier ones were never recorded).
+- [ ] **The attention queue counts everything, test records included** (it's a to-do list, not a report). On the shared test database that means large numbers from old automated runs.
+- [ ] **Test hygiene:** the M17 and workflow database suites change switches on the shared test project for a few seconds and restore them, recorded as "automated test" by a deleted test admin. Not a concern once production has its own database.
+- [ ] **Emergency messaging off hides screens**; the database's own access rules still let the two participants read their messages through the API. Add a read gate if a real incident ever needs it.
+- [ ] **Old tables still on the older look** (coaches, finance, payouts, scheduling, retention…): they work inside the new panel; restyle when next touched.

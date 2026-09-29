@@ -120,6 +120,7 @@ export function durationLabel(minutes: number): string {
 
 /** The error codes the scheduling functions raise, in words a person can act on. */
 export const SCHEDULE_ERRORS: Record<string, string> = {
+  feature_paused: "New session requests are paused by TalentYak for now. Confirmed sessions go ahead, and you can still answer requests already waiting or cancel.",
   in_past: "That time has already passed.",
   too_soon: "That's sooner than your coach's notice period.",
   too_far_ahead: "That's further ahead than your coach takes bookings.",

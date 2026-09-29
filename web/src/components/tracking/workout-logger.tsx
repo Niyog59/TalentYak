@@ -221,7 +221,7 @@ export function WorkoutLogger(props: WorkoutLoggerProps) {
   const loaded = useRef(false);
   const [savedOnce, setSavedOnce] = useState(Boolean(props.initial));
 
-  const canWrite = props.writeState === "live" || props.writeState === "paused";
+  const canWrite = props.writeState === "live" || props.writeState === "paused" || props.writeState === "logging_paused";
   const held: HeldState | null = props.writeState === "live" || props.writeState === "not_permitted" ? null : props.writeState;
 
   // ---------------------------------------------------------------- storage

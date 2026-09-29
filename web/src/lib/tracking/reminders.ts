@@ -37,6 +37,10 @@ function hourIn(tz: string | null, at: Date): number {
 export async function sendLogReminders(now = new Date()): Promise<number> {
   const admin = createAdminClient();
   if (!admin) return 0;
+  // Nudging people to log while TalentYak has paused logging would ask for
+  // something they can't save. Only a plain "on" sends reminders.
+  const { data: mode } = await admin.rpc("feature_mode", { p_key: "logging" });
+  if (mode !== "on") return 0;
 
   const { data: enrollments } = await admin
     .from("enrollments")

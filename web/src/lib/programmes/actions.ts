@@ -20,6 +20,7 @@ import {
 } from "@/lib/programmes/content";
 import { planError } from "@/lib/programmes/labels";
 import { myClient } from "@/lib/programmes/server";
+import { featureRefusal } from "@/lib/features/server";
 
 /*
  * Coaches and clients act through their own sessions. The database functions
@@ -69,6 +70,8 @@ export async function saveTemplateAction(_: ActionState, form: FormData): Promis
   if (!supabase) return fail("That didn't save. Please try again.");
   const limit = await rateLimit("plan_template_save", session.userId, 60, 600);
   if (!limit.allowed) return fail(tooMany(limit));
+  const paused = await featureRefusal("programmes");
+  if (paused) return fail(paused);
 
   const kind = kindOf(form);
   if (!kind) return fail("That didn't save. Reload the page and try again.");
@@ -144,6 +147,8 @@ export async function savePlanAction(_: ActionState, form: FormData): Promise<Ac
   if (!supabase) return fail("That didn't save. Please try again.");
   const limit = await rateLimit("plan_save", session.userId, 60, 600);
   if (!limit.allowed) return fail(tooMany(limit));
+  const paused = await featureRefusal("programmes");
+  if (paused) return fail(paused);
 
   const enrollmentId = field(form, "enrollment_id", 36);
   const kind = kindOf(form);
@@ -212,6 +217,8 @@ export async function startDraftFromAction(_: ActionState, form: FormData): Prom
   if (!supabase) return fail("That didn't work. Please try again.");
   const limit = await rateLimit("plan_save", session.userId, 60, 600);
   if (!limit.allowed) return fail(tooMany(limit));
+  const paused = await featureRefusal("programmes");
+  if (paused) return fail(paused);
 
   const enrollmentId = field(form, "enrollment_id", 36);
   const kind = kindOf(form);

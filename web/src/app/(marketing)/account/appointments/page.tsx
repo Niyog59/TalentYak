@@ -8,6 +8,8 @@ import { ProposeForm } from "@/components/scheduling/propose-form";
 import { SlotRequestForm } from "@/components/scheduling/slot-picker";
 import { coachScheduleSettings, freeSlots, loadSchedule } from "@/lib/scheduling/server";
 import { durationLabel } from "@/lib/scheduling/types";
+import { FeaturePausedNotice } from "@/components/ui/feature-notice";
+import { PAUSED_MESSAGE, featureAllowsMe } from "@/lib/features/server";
 
 export const metadata: Metadata = { title: "Your sessions", robots: { index: false } };
 export const dynamic = "force-dynamic";
@@ -17,6 +19,7 @@ export default async function CustomerAppointmentsPage({ searchParams }: { searc
   const session = await requireOnboarded("/account/appointments");
   const tz = session.profile.timezone ?? "UTC";
   const supabase = (await createClient())!;
+  const bookingsOpen = await featureAllowsMe("bookings");
 
   const [schedule, { data: enrollments }, { data: consultations }] = await Promise.all([
     loadSchedule("customer", { userId: session.userId }),
@@ -87,7 +90,11 @@ export default async function CustomerAppointmentsPage({ searchParams }: { searc
         );
       })}
 
-      {(enrollments ?? []).filter((e) => e.state === "active").map((e) => {
+      {!bookingsOpen && (enrollments ?? []).some((e) => e.state === "active") ? (
+        <FeaturePausedNotice title="Booking new sessions is paused" className="mt-10">{PAUSED_MESSAGE.bookings}</FeaturePausedNotice>
+      ) : null}
+
+      {(enrollments ?? []).filter((e) => e.state === "active" && bookingsOpen).map((e) => {
         const who = coach(e.provider_id);
         const s = settingsByProvider.get(e.provider_id);
         const durations = s?.durations_minutes ?? [60];

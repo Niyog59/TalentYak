@@ -7,6 +7,7 @@ import { type ActionState, fail, field, succeed } from "@/lib/actions";
 import { rateLimit, tooMany } from "@/lib/rate-limit";
 import { kickWorker } from "@/lib/worker/outbox";
 import { CONFLICT_REASON, OUTCOME_LABEL, scheduleError, whenIn } from "@/lib/scheduling/types";
+import { featureRefusal } from "@/lib/features/server";
 
 /*
  * Every scheduling action runs as the signed-in person, through their own
@@ -49,6 +50,10 @@ export async function proposeAction(_: ActionState, form: FormData): Promise<Act
   if (!ctx) return fail("Sign in again to continue.");
   const limit = await rateLimit("schedule_propose", ctx.session.userId, 30, 600);
   if (!limit.allowed) return fail(tooMany(limit));
+  // Rechecked on every request: a page opened before bookings were paused
+  // can't make a new one. Answering and cancelling stay open.
+  const paused = await featureRefusal("bookings");
+  if (paused) return fail(paused);
 
   let startsAt = field(form, "starts_at", 40);
   let note: string | null = null;
