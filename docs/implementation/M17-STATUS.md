@@ -42,3 +42,18 @@ Scope: the founder brief (FM17, 2026-09-28). Migrations `0056_founder_admin.sql`
 - A real email arriving, real phones and screen readers, and the deployed site signed in (not smoke-checked on the live domain for M17).
 - OPEN-08 money decision (register §X1) — "Changing coach" stays off / test-only until then.
 - A separate production database (still a launch blocker).
+
+## Deployed — `0cf16cd`, www.talentyak.com
+
+Checked 2026-09-29 from a cloud session on a fresh checkout of `main`.
+
+| Check | Result |
+|---|---|
+| `npm ci` | pass — 438 packages, 0 vulnerabilities |
+| `npm run build` | pass (Next.js 16.3.5; one font-fallback warning for Atkinson Hyperlegible Next, already present) |
+| `npm run verify` | pass after the build — typecheck, lint, 63 migration files, **371/371** unit tests. On a fresh checkout it fails **before** the first build: `src/app/layout.tsx` uses `LayoutProps`, a route type Next generates during `next build` / `next dev` / `next typegen` into `.next/` (gitignored). Not an M17 regression and not a code fault; the laptop always had `.next/` |
+| Vercel production deployment | **success** — GitHub commit status "Vercel: Deployment has completed" for `0cf16cd` (includes the M17 code from `8d1cb8b`) |
+| Live-site smoke check (`/admin` redirect, public pages 200, sitemap, `/api/events` 204) | **not run** — the cloud session's network policy refuses connections to `www.talentyak.com` |
+| M17 database suite (`test/db/founder-admin.db.test.ts`) | **not run** — no database credentials in the cloud session. The last recorded run is 9/9 before the final small walkthrough fixes |
+
+Migrations `0056`–`0061` were applied to the hosted TEST project before the M17 push; nothing was applied or changed in this check. Still to do: the live-site smoke check and the M17 database suite rerun, from the founder's laptop or a session with that access.
