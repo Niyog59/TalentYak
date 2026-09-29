@@ -1,6 +1,25 @@
 # M18 — Coach applications ("Become a coach")
 
-**Status: DRAFT — awaiting founder approval. No code written yet.**
+**Status: DRAFT v2 — founder answers applied 2026-09-29; account change awaiting approval. No code written yet.**
+
+## 0. Founder answers (2026-09-29)
+
+- **Applicants need an account** (founder proposal; agent agrees). Replaces the no-account token/session design in §2.3.
+- **No second "accept" step.** After approval the applicant signs the coaching agreement (commission, payouts, coach duties). Signing is the only step; then the account becomes a coach in onboarding.
+- **Write a coaching agreement:** yes — draft, versioned, labelled draft until approved with an adviser.
+- **Certificates:** photos (cleaned) + PDF (byte-checked, download-only for founders).
+- **Switch "Accept coach applications": ON** at deploy, for testing.
+- **Retention:** proposed 12 months after the final decision, inactive until approved.
+- **Invitation page:** read the commission from `lib/policy` instead of typed "20%".
+
+### Revised flow with accounts
+1. "Apply" → sign up or sign in (existing; email confirmation already works on any device and resists mail scanners) → short account setup → application form.
+2. Submitting needs a confirmed email; the application goes straight to the founder queue. One active application per account.
+3. Status, edit, add/remove certificates, withdraw and delete-my-data live on the applicant's account page. Changing email uses the existing account email change (fresh confirmation).
+4. Founder approves → "accepted" email → applicant reads and signs the agreement on their account (tick + typed name, version and time recorded) or declines.
+5. Signing turns the same account into a coach in onboarding (existing roles and data kept; no invitation link needed) → existing onboarding → founder final approval → active.
+6. Founder control "Send onboarding invitation" becomes "Resend acceptance email" (deduped).
+
 Written 2026-09-29. Branch `claude/bold-franklin-nukw4j`.
 
 ## 1. What exists today (reused, not rebuilt)
