@@ -13,18 +13,18 @@
 
 ## 1. Where things stand
 
-- **Everything from M17 is committed on the branch `m17-cloud-handoff`** and pushed to GitHub. **It is not merged into `main` and not deployed yet.** Merging or pushing to `main` deploys to production automatically (Vercel project `talentyak`, `www.talentyak.com`). The database side is already in place (next bullet), so merging is safe once the checks in "Not finished at hand-off" pass. Merge to `main` only with the founder's go-ahead.
-- **Database:** migrations `0056`–`0061` are **already applied** to the hosted Supabase project, which is the **shared TEST project**. It's also what the production site currently uses; a separate production database is a known launch blocker. The M17 changes only add to the database, and the M16 code now running in production keeps working with them (verified locally throughout M17). One side effect until M17 is deployed: "Ask to change coach" is still visible on the live site, and a request made there would be refused (the switch is off).
+- **Everything from M17 is merged into `main` and pushed** (2026-09-28, founder-approved). Pushing to `main` deploys to production automatically (Vercel project `talentyak`, `www.talentyak.com`), so M17 is deploying or deployed. The branch `m17-cloud-handoff` holds the same commits and can be deleted.
+- **Database:** migrations `0056`–`0061` are **already applied** to the hosted Supabase project, which is the **shared TEST project**. It's also what the production site currently uses; a separate production database is a known launch blocker. The code on `main` and that database match.
 - **No real customers, no live payments.** Stripe is in test mode, and live billing is refused by the policy gate.
 - **Switch defaults** (checked after the tests): everything `on` except `coach_changing = off`.
 
 ### Not finished at hand-off (do these first)
 
-1. **Re-run the final checks.** The last small walkthrough fixes were typechecked but the final pass was interrupted:
+1. **Re-run the final checks.** The last small walkthrough fixes were typechecked, but the final pass was interrupted before the merge. If anything fails, fix it on a branch and open a PR; don't push fixes straight to `main` without the founder's go-ahead:
    - `cd web && npm ci && npm run verify` — typecheck, lint, migration structure, and **371 unit tests**. Needs no credentials.
    - `npm run build`.
    - If you have database credentials (see §3): `TALENTYAK_DB_TESTS=confirmed node ../scripts/lib/with-idle-timeout.mjs 240 node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./test/register.mjs --test --test-concurrency=1 test/db/founder-admin.db.test.ts` (expect 9/9).
-2. **After the founder approves merging to `main`, smoke-check the deployment** once Vercel finishes (read-only; never write in prod):
+2. **Smoke-check the production deployment of M17** (read-only; never write in prod). Check the latest Vercel deployment for `main` succeeded (e.g. `gh api repos/Niyog59/TalentYak/commits/main/status` or the deployments API); if it failed, report the build error and stop:
    - signed out, `/admin` redirects to `/account/sign-in?next=%2Fadmin`;
    - `/`, `/coaches`, `/waitlist`, `/how-it-works`, `/sitemap.xml` answer 200;
    - `/api/events` POST answers 204.
