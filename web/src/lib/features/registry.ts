@@ -31,6 +31,7 @@ export const FEATURE_KEYS = [
   "public_profiles",
   "waitlist",
   "coach_changing",
+  "coach_applications",
 ] as const;
 
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
@@ -370,6 +371,29 @@ export const FEATURES: FeatureSpec[] = [
     dependencies: [],
     enforcement: "The client's screen, the request action and the database refuse new requests.",
     readiness: built,
+  },
+  {
+    key: "coach_applications",
+    label: "Accept coach applications",
+    summary: "People apply to coach on TalentYak from the Become a coach page.",
+    audiences: "Website visitors with a TalentYak account.",
+    defaultMode: "on",
+    modes: [
+      { mode: "on", kind: "normal", explanation: "Anyone signed in with a confirmed email can start and send an application.", highImpact: false },
+      {
+        mode: "off",
+        kind: "normal",
+        explanation: "No new applications. The page says applications are closed. Applicants already in progress keep their status, can still correct or withdraw, and you keep reviewing.",
+        highImpact: true,
+      },
+    ],
+    existingWork: "Every application, note and decision is kept. Drafts stay saved and can be sent once it is back on.",
+    dependencies: [],
+    enforcement: "The Become a coach page, the application actions and the database refuse new applications.",
+    readiness: (ctx) =>
+      ctx.resendConfigured
+        ? built()
+        : { state: "needs_setup", blockers: ["Email sending (Resend and a verified sender) is not configured, so receipts and decision emails can't go out."] },
   },
 ];
 

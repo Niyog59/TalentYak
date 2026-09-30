@@ -1,6 +1,6 @@
 # M18 — Coach applications ("Become a coach")
 
-**Status: DRAFT v2 — founder answers applied 2026-09-29; account change awaiting approval. No code written yet.**
+**Status: BUILT on branch `claude/bold-franklin-nukw4j` — see `docs/implementation/M18-STATUS.md`. Founder answers applied 2026-09-29.**
 
 ## 0. Founder answers (2026-09-29)
 

@@ -275,3 +275,14 @@ Status of record: `docs/implementation/M03-M07-STATUS.md`.
 - [ ] **Test hygiene:** the M17 and workflow database suites change switches on the shared test project for a few seconds and restore them, recorded as "automated test" by a deleted test admin. Not a concern once production has its own database.
 - [ ] **Emergency messaging off hides screens**; the database's own access rules still let the two participants read their messages through the API. Add a read gate if a real incident ever needs it.
 - [ ] **Old tables still on the older look** (coaches, finance, payouts, scheduling, retention…): they work inside the new panel; restyle when next touched.
+
+## M18 — Coach applications (2026-09-29) — built on branch `claude/bold-franklin-nukw4j` (see M18-STATUS)
+
+- [x] "Become a coach" in the header and phone menu; public page without commercial terms; account-based application with draft, qualifications and private certificate files; receipt and decision emails (once each); status, correction, withdrawal and deletion; founder list with search and filters, detail with private certificates, checklist, notes, qualification checks and history; founder alerts; approval → sign the draft agreement (or decline) → coach in onboarding → existing final approval; "Accept coach applications" switch (register §Y).
+- [ ] **Founder — decide how long closed applications are kept** (register §Y1). Proposed 12 months; nothing is deleted automatically until approved.
+- [ ] **Founder — coach agreement**: legal review of the draft; decide the notice period and the Nepal payout route it lists as "still being confirmed".
+- [ ] **Founder — run the database suite from the laptop**: `test/db/coach-applications.db.test.ts` (it skips in the cloud session, which has no database keys or network access to the database).
+- [ ] **Not verified**: a signed-in click-through against the database (sign-up, application, founder review, signing), real email arriving, real phones and screen readers.
+- [ ] **Changing email isn't possible anywhere in accounts yet**, so an applicant can't move their application to another address (they would apply from the other account). Add account email change (with fresh confirmation) if needed.
+- [ ] **Deleting an account deletes its application rows but not certificate files** in storage (they become unreferenced private files). Add a cleanup to the account-deletion job.
+- [ ] **Declined or withdrawn applicants can apply again immediately.** Add a waiting period if repeat applications become a problem.

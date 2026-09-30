@@ -34,6 +34,7 @@ export function adminNav(opts: { serviceTools: { label: string; href: string }[]
       label: "People",
       items: [
         { label: "Accounts", href: "/admin/accounts", icon: "profile" },
+        { label: "Coach applications", href: "/admin/coach-applications", icon: "plans" },
         { label: "Coaches", href: "/admin/coaches", icon: "coaches", alsoActiveFor: ["/admin/providers"] },
         { label: "Coach changes", href: "/admin/coach-changes", icon: "clients" },
         { label: "Support cases", href: "/admin/support", icon: "messages" },

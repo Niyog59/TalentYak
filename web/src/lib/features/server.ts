@@ -99,6 +99,7 @@ export const PAUSED_MESSAGE: Record<FeatureKey, string> = {
   public_profiles: "Coach profiles are unavailable right now.",
   waitlist: "The waitlist is closed right now.",
   coach_changing: "Changing coach isn't available right now. You can contact support about your coaching.",
+  coach_applications: "Coach applications are closed right now, so nothing was saved.",
 };
 
 /** null when allowed; otherwise the plain-language reason to show. */

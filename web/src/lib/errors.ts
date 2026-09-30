@@ -35,6 +35,9 @@ const KNOWN_CODES = new Set([
   "feature_paused", "feature_policy_unresolved", "stale_setting", "invalid_mode", "no_change",
   "history_scope_exceeds_consent", "coach_not_eligible", "invalid_owner", "use_trusted_process",
   "use_coach_workflow", "invalid_range", "append_only", "not_applied",
+  // M18: coach applications.
+  "not_signed_in", "email_unconfirmed", "account_suspended", "invalid_application", "application_exists",
+  "application_locked", "too_many_certificates", "signature_required",
 ]);
 
 const GENERIC = "Something went wrong and nothing was saved. Please try again.";

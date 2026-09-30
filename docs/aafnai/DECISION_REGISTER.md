@@ -758,3 +758,25 @@ Until decided, the implementation already does the client-protective part (price
 | AAF-OPS-01 (TalentYak handles coach changes) | Confirmed; admin-only workflow | **Delivered end to end** behind a switch (TY-ADMIN-10) |
 | OPEN-08 | Partly resolved (earnings split, AAF-TERM-04) | **Consent and records access resolved** by TY-ADMIN-10 (client-chosen scope, founder can only narrow). Price difference, part-used period and refunds still open (X1) |
 | TY-LAUNCH-06 (own counts, "no analytics service") | M16 | **Extended** by TY-ADMIN-09: the same counting point also sends anonymous events to PostHog once configured |
+
+## Y. Sixteenth-pass decisions — 2026-09-29 (M18 coach applications)
+
+**Source key added:** **FM18** — Founder prompt, *Become a coach*, 2026-09-29, and the founder's answers in the same session (`docs/specs/M18-coach-applications.md` §0).
+
+| ID | Topic | Status | Rule | Source | Modules |
+|---|---|---|---|---|---|
+| **TY-APPLY-01** | Who can apply | **CONFIRMED** (FM18, founder answer) | Applicants **need a TalentYak account with a confirmed email**. Supersedes the brief's "no account required". One open application per account; the public can read nothing. | FM18 | M18 |
+| **TY-APPLY-02** | What the public page says | **CONFIRMED** (FM18) | Who we're looking for, who they'd coach, the steps; applying is free; reviews depend on openings; acceptance doesn't guarantee clients; **no review deadline**. **Commission, payouts and terms are shown only after acceptance**, on the welcome page, read from `lib/policy` (invariant 8 still holds: disclosed by us, before signing). | FM18 | M16, M18 |
+| **TY-APPLY-03** | Statuses and emails | **CONFIRMED** (FM18) | New, Reviewing, Interview, Approved, Waitlisted, Declined, Withdrawn (plus the applicant's private Draft). Only Approved, Waitlisted and Declined email the applicant, once per decision; private notes and reasons are never shown or emailed. Interviews are arranged by hand. | FM18 | M18 |
+| **TY-APPLY-04** | Acceptance | **CONFIRMED** (founder answer) | Approval sends an invitation only. **There is no separate "accept" step**: the applicant reads and **signs the coach agreement** (or declines), which creates a coach in `onboarding` on the same account, keeping existing roles and data. Existing onboarding and the founder's final approval (TY-ADMIN / coach review) then activate the coach; directory visibility still follows `public_profiles` and the coach's own publish setting. | FM18 | M18 |
+| **TY-APPLY-05** | Coach agreement | **CONFIRMED as a draft** (founder answer) | `coach-agreement.draft.2026-09` (`lib/coach-agreement.ts`), written from §K/§L; every rate and date read from the policy register; signing records the version, time and typed name. **Not legally reviewed.** Items not yet decided are listed in the agreement as "still being confirmed". | FM18 | M18 |
+| **TY-APPLY-06** | Qualifications | **CONFIRMED** (FM18) | Checking a qualification is separate from approving the application; an upload never counts as checked. Checks carry over to `provider_credentials` exactly on signing. Follower count is not a requirement. | FM18 | M18 |
+| **TY-APPLY-07** | Certificate files | **CONFIRMED** (founder answer) | Photos (JPEG/PNG/WebP, re-encoded to WebP, EXIF/GPS removed, not cropped) and PDFs (checked by their bytes; refused if they contain scripts, launch actions, embedded files or active forms; download-only for founders). 4 MB each, up to 5 qualifications, private `provider-evidence` bucket, 2-minute links for administrators with a second factor. | FM18 | M18 |
+| **TY-APPLY-08** | Switch | **CONFIRMED** (founder answer) | "Accept coach applications" (`coach_applications`: on / off), **on at deploy for testing**, independent of `public_profiles`. Off refuses new applications on the page, the action and in the database; applicants keep status, correction and withdrawal; founders keep review. | FM18 | M17, M18 |
+
+### Y1 · Awaiting founder decision
+
+| ID | Topic | Status | Recommendation |
+|---|---|---|---|
+| **OPEN-10** (retention half, applications) | How long closed applications are kept | **OPEN** — recorded as `retention.coach_applications.v1`, **proposed**, 365 days after the final decision; nothing is deleted automatically while it is proposed. Applicants can delete their own application at any time. | Approve 12 months, or give another period; then it can be activated like the other retention policies. |
+| **TY-APPLY-05** (final text) | Coach agreement | **Draft** | Have the agreement reviewed with an adviser, together with the terms and privacy drafts. Decide the notice period for ending coaching and the Nepal payout route (both listed as "still being confirmed"). |

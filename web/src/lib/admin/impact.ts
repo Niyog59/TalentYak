@@ -90,5 +90,10 @@ export async function featureImpact(key: FeatureKey): Promise<ImpactLine[]> {
         { label: "Requests waiting for a decision", count: await attemptCount(() => sb.from("coach_change_requests").select("id", head).eq("state", "requested")), note: "Are still decided through the normal workflow." },
         { label: "Clients in active coaching", count: await activeRelationships(), note: "Who could ask, when it's on." },
       ];
+    case "coach_applications":
+      return [
+        { label: "Applications waiting for a decision", count: await attemptCount(() => sb.from("coach_applications").select("id", head).in("status", ["new", "reviewing", "interview"])), note: "Kept. You keep reviewing, and applicants can still correct or withdraw." },
+        { label: "Sent in the last 30 days", count: await attemptCount(() => sb.from("coach_applications").select("id", head).gte("submitted_at", since(30))), note: "For a sense of what closing it would stop." },
+      ];
   }
 }

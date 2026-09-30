@@ -3,6 +3,7 @@ import { getSession, isOnboarded } from "@/lib/auth";
 import { ButtonLink } from "@/components/button";
 import { ActionForm } from "@/components/form/action-form";
 import { SubmitButton } from "@/components/form/fields";
+import { coachTerms } from "@/lib/coach-agreement";
 import { acceptInvitationAction } from "./actions";
 
 export const metadata: Metadata = { title: "Coach invitation", robots: { index: false, follow: false } };
@@ -47,7 +48,7 @@ export default async function InvitationPage({ params }: { params: Promise<{ tok
         <>
           <p className="mt-4 text-ink-muted">
             Signed in as <strong>{session.email}</strong>. Accepting turns this account into a coach account. You&rsquo;ll set up your profile next;
-            TalentYak reviews it once, and after approval you publish your own plans and prices. TalentYak keeps 20% of what clients pay.
+            TalentYak reviews it once, and after approval you publish your own plans and prices. TalentYak keeps {coachTerms().ongoingCommission} of what clients pay for ongoing coaching.
           </p>
           <ActionForm action={acceptInvitationAction} className="mt-6 grid gap-3">
             <input type="hidden" name="token" value={token} />

@@ -140,6 +140,45 @@ async function checkinNoticeStillTrue(ctx: HandlerContext, payload: Record<strin
   return data ? { proceed: false, reason: String(data) } : { proceed: true };
 }
 
+interface CoachApplicationRow {
+  id: string;
+  profile_id: string;
+  status: string;
+  full_name: string;
+  agreement_signed_at: string | null;
+}
+
+async function coachApplication(ctx: HandlerContext, id: unknown): Promise<CoachApplicationRow | null> {
+  if (typeof id !== "string") return null;
+  const { data } = await ctx.admin
+    .from("coach_applications")
+    .select("id, profile_id, status, full_name, agreement_signed_at")
+    .eq("id", id)
+    .maybeSingle();
+  return (data as CoachApplicationRow | null) ?? null;
+}
+
+/**
+ * A decision email goes out only while it is still the truth: the status
+ * hasn't changed since, the applicant hasn't already signed, and no later
+ * decision (or re-send) has superseded this one.
+ */
+async function decisionStillCurrent(ctx: HandlerContext, app: CoachApplicationRow, decision: string, eventId: string): Promise<Decision> {
+  if (app.status !== decision) return { proceed: false, reason: `status is now ${app.status}` };
+  if (decision === "approved" && app.agreement_signed_at) return { proceed: false, reason: "already signed" };
+  const { data, error } = await ctx.admin
+    .from("coach_application_events")
+    .select("id")
+    .eq("application_id", app.id)
+    .in("kind", ["status_changed", "acceptance_resent"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) return { proceed: false, reason: "decision history could not be checked" };
+  if (data && data.id !== eventId) return { proceed: false, reason: "superseded by a later decision" };
+  return { proceed: true };
+}
+
 function gone(who: string): Outcome {
   return { kind: "done", result: { sent: false, reason: "skipped", detail: `${who} no longer exists` } };
 }
@@ -424,6 +463,56 @@ export const HANDLERS: Record<string, Handler> = {
     return send(job, ctx, "waitlist_notice", { id: null, email: w.email as string },
       T.waitlistNoticeEmail(tctx(), { firstName: w.first_name as string | null, coachName: str(job.payload.coach_name) || null, url: str(job.payload.url), withdrawUrl: str(job.payload.withdraw_url) }),
       { recheck: async () => (w.state === "confirmed" ? { proceed: true } : { proceed: false, reason: "not_confirmed" }) });
+  },
+
+  // Coach applications (M18). Producers: coach_application_submit,
+  // admin_set_coach_application_status and admin_resend_coach_acceptance
+  // (0062), each keyed on the application or the decision, so a repeated
+  // click or a retried job never sends twice. The address and the current
+  // status are read at send time: an application deleted in the meantime is
+  // never emailed, and a decision the founder has since changed is skipped.
+  "email.coach_application_received": async (job, ctx) => {
+    const app = await coachApplication(ctx, job.payload.application_id);
+    if (!app) return gone("application");
+    const to = await person(ctx, app.profile_id);
+    if (!to) return gone("applicant");
+    return send(job, ctx, "coach_application_received", to, T.coachApplicationReceivedEmail(tctx(), { name: app.full_name }), {
+      category: "coaching",
+      path: "/account/coach-application",
+      inboxTitle: "Your coach application was received",
+      recheck: async () => (app.status === "draft" ? { proceed: false, reason: "not sent" } : { proceed: true }),
+    });
+  },
+
+  // Founders hear about a new application; the alert names no one.
+  "email.coach_application_submitted": async (job, ctx) => {
+    const app = await coachApplication(ctx, job.payload.application_id);
+    if (!app || app.status === "draft") return { kind: "done", result: { fanned_out: 0, reason: "application no longer waiting" } };
+    const admins = await adminPeople(ctx);
+    for (const a of admins) {
+      await ctx.enqueue("email.admin_alert", {
+        admin_id: a.id,
+        title: "New coach application",
+        detail: "Someone with a confirmed email address has applied to coach. Their answers are in the founder panel.",
+        path: `/admin/coach-applications/${app.id}`,
+      }, `admin_alert:${job.id}:${a.id}`);
+    }
+    return { kind: "done", result: { fanned_out: admins.length } };
+  },
+
+  "email.coach_application_decision": async (job, ctx) => {
+    const decision = str(job.payload.status);
+    if (decision !== "approved" && decision !== "waitlisted" && decision !== "declined") return { kind: "fail", error: "unknown decision" };
+    const app = await coachApplication(ctx, job.payload.application_id);
+    if (!app) return gone("application");
+    const to = await person(ctx, app.profile_id);
+    if (!to) return gone("applicant");
+    return send(job, ctx, `coach_application_${decision}`, to, T.coachApplicationDecisionEmail(tctx(), { name: app.full_name, decision }), {
+      category: "coaching",
+      path: decision === "approved" ? "/account/coach-application/agreement" : "/account/coach-application",
+      inboxTitle: decision === "approved" ? "You've been accepted to coach" : "An update on your coach application",
+      recheck: () => decisionStillCurrent(ctx, app, decision, str(job.payload.event_id)),
+    });
   },
 
   "email.purchase_confirmed": async (job, ctx) => {

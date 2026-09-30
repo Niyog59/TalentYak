@@ -11,6 +11,7 @@ const links = [
   { href: "/coaches", label: "Coaches" },
   { href: "/how-it-works", label: "How it works" },
   { href: "/about", label: "About" },
+  { href: "/become-a-coach", label: "Become a coach" },
 ];
 
 export async function SiteNav() {
@@ -24,13 +25,13 @@ export async function SiteNav() {
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
         <BrandLogoLink variant="horizontal" width={160} />
 
-        <nav aria-label="Main" className="hidden md:block">
+        <nav aria-label="Main" className="hidden lg:block">
           <ul className="flex items-center gap-1">
             {links.map((link) => (
               <li key={link.href}>
                 <Link
                   href={link.href}
-                  className="inline-flex min-h-11 items-center rounded-lg px-3 font-medium text-ink hover:bg-paper-raised"
+                  className="inline-flex min-h-11 items-center whitespace-nowrap rounded-lg px-3 font-medium text-ink hover:bg-paper-raised"
                 >
                   {link.label}
                 </Link>
@@ -39,7 +40,7 @@ export async function SiteNav() {
           </ul>
         </nav>
 
-        <div className="hidden items-center gap-2 md:flex">
+        <div className="hidden items-center gap-2 lg:flex">
           <Link
             href="/account/sign-in"
             className="inline-flex min-h-11 items-center rounded-lg px-3 font-semibold text-brand hover:bg-brand-tint"

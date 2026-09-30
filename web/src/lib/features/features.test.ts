@@ -19,6 +19,7 @@ test("launch defaults: everything that exists stays on, changing coach starts of
   const d = defaultModes();
   assert.equal(d.coach_changing, "off");
   for (const f of FEATURES.filter((x) => x.key !== "coach_changing")) assert.equal(d[f.key], "on", f.key);
+  assert.equal(d.coach_applications, "on", "on at deploy for founder testing (M18)");
 });
 
 test("security, sign-in, permissions, payments' live gate and history are not switchable", () => {

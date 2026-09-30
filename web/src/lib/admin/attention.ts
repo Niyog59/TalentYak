@@ -27,7 +27,7 @@ export async function loadAttention(): Promise<AttentionItem[]> {
     casesOpen, casesUnowned, changes, coachReview, destinations, photos,
     pastDue, needsReview, disputes, exceptions, failedEvents,
     batchesOpen, held, checkinAttention, sessionsOnHold, interruptedCalls,
-    jobs, deliveries, deletions, ops,
+    jobs, deliveries, deletions, ops, applications,
   ] = await Promise.all([
     attemptCount(() => sb.from("support_cases").select("id", head).neq("state", "resolved")),
     attemptCount(() => sb.from("support_cases").select("id", head).neq("state", "resolved").is("owner_id", null)),
@@ -51,6 +51,7 @@ export async function loadAttention(): Promise<AttentionItem[]> {
     attemptCount(() => sb.from("notification_deliveries").select("id", head).in("state", ["bounced", "complained", "failed", "uncertain"]).gte("created_at", since(30))),
     attemptCount(() => sb.from("deletion_requests").select("id", head).in("state", ["received", "in_review"])),
     attempt(() => sb.rpc("admin_coaching_operations")),
+    attemptCount(() => sb.from("coach_applications").select("id", head).in("status", ["new", "reviewing", "interview"])),
   ]);
 
   const opsCount = (key: string): Loaded<number> => (ops.ok ? loaded(Number((ops.value as Record<string, number>)[key] ?? 0)) : failed());
@@ -68,7 +69,8 @@ export async function loadAttention(): Promise<AttentionItem[]> {
     { group: "Payouts", label: "Payout batches not yet recorded as paid", href: "/admin/payouts", count: batchesOpen },
     { group: "Payouts", label: "Coach earnings on hold", href: "/admin/finance#held", count: held },
     { group: "Payouts", label: "Payout details to check", href: "/admin/coaches", count: destinations },
-    { group: "Coaches", label: "Coach applications to review", href: "/admin/coaches?status=submitted", count: coachReview },
+    { group: "Coaches", label: "Coach applications waiting for a decision", href: "/admin/coach-applications", count: applications },
+    { group: "Coaches", label: "Coach profiles waiting for final approval", href: "/admin/coaches?status=submitted", count: coachReview },
     { group: "Coaches", label: "Profile photos to check", href: "/admin/coaches", count: photos },
     { group: "Coaching", label: "Check-in reviews waiting (coach away or flagged)", href: "/admin/check-ins", count: checkinAttention },
     { group: "Coaching", label: "Sessions on hold (unresolved bookings)", href: "/admin/scheduling", count: sessionsOnHold },

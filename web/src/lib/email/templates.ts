@@ -13,6 +13,7 @@
 import { escapeHtml, htmlToText, safeUrl } from "@/lib/email/escape";
 import { formatMinorAsDecimal } from "@/lib/money/money";
 import { isCurrencyCode } from "@/lib/money/currency";
+import { coachTerms } from "@/lib/coach-agreement";
 
 export interface RenderedEmail {
   subject: string;
@@ -114,7 +115,7 @@ export function coachInvitationEmail(
     "You're invited to coach on TalentYak",
     `${greet()}
 <p>You've been invited to join TalentYak as a coach.</p>
-<p>On TalentYak you create your own plans, set your own prices and decide what each plan includes. TalentYak handles finding clients, taking payment and support, and keeps 20% of what customers pay.</p>
+<p>On TalentYak you create your own plans, set your own prices and decide what each plan includes. TalentYak handles finding clients, taking payment and support, and keeps ${escapeHtml(coachTerms().ongoingCommission)} of what customers pay for ongoing coaching.</p>
 <p>Accepting creates your coach account. Your profile is reviewed before it is shown to customers.</p>
 ${button(d.inviteUrl, "Accept invitation")}
 <p style="color:${MUTED}">This invitation works once and expires on ${escapeHtml(date(d.expiresAt))}. It was sent to this address, and it can only be accepted by signing in with it.</p>`,
@@ -651,4 +652,58 @@ ${button(d.url, d.coachName ? `See ${d.coachName}'s plans` : "See the coaches")}
 <p style="color:${MUTED}">You're getting this because you joined the TalentYak waitlist. <a href="${safeUrl(d.withdrawUrl)}" style="color:${BRAND}">Remove me from the list</a>.</p>`,
     ctx.supportEmail,
   );
+}
+
+// ---------------------------------------------------------------------------
+// Coach applications (M18). Sent to the applicant's own account. They say
+// what happened and what comes next — never a reviewer's notes or reasons,
+// and never a promised timeline.
+// ---------------------------------------------------------------------------
+
+export function coachApplicationReceivedEmail(ctx: TemplateContext, d: { name?: string | null }): RenderedEmail {
+  return build(
+    "We've received your TalentYak coach application",
+    `${greet(d.name)}
+<p>Thank you for applying to coach with TalentYak. Your application has reached us.</p>
+<p><strong>What happens next.</strong> We review applications when we have openings, so there's no fixed timeline. We may email you to arrange a short call. When there's a decision, we'll email you.</p>
+<p>Until then you can correct your application, add qualifications, or withdraw it at any time.</p>
+${button(`${ctx.siteUrl}/account/coach-application`, "See your application")}
+<p style="color:${MUTED}">Applying is free. Being accepted doesn't guarantee clients.</p>`,
+    ctx.supportEmail,
+  );
+}
+
+export type CoachApplicationDecision = "approved" | "waitlisted" | "declined";
+
+export function coachApplicationDecisionEmail(ctx: TemplateContext, d: { name?: string | null; decision: CoachApplicationDecision }): RenderedEmail {
+  switch (d.decision) {
+    case "approved":
+      return build(
+        "You've been accepted to coach with TalentYak",
+        `${greet(d.name)}
+<p>Good news: we'd like you to coach with TalentYak.</p>
+<p>Next, read how TalentYak works for coaches — including what you earn and when you're paid — and the coach agreement. If you're happy, sign it to set up your coach account. You can also decline.</p>
+${button(`${ctx.siteUrl}/account/coach-application/agreement`, "Read the coach agreement")}
+<p style="color:${MUTED}">Nothing is shown to customers until you've completed your profile and TalentYak has given final approval. Being accepted doesn't guarantee clients.</p>`,
+        ctx.supportEmail,
+      );
+    case "waitlisted":
+      return build(
+        "An update on your TalentYak coach application",
+        `${greet(d.name)}
+<p>Thank you for your patience. We don't have an opening for you right now, but we'd like to keep your application on our waitlist for when we do.</p>
+<p>You don't need to do anything. You can still update your application or withdraw it at any time.</p>
+${button(`${ctx.siteUrl}/account/coach-application`, "See your application")}`,
+        ctx.supportEmail,
+      );
+    case "declined":
+      return build(
+        "An update on your TalentYak coach application",
+        `${greet(d.name)}
+<p>Thank you for applying to coach with TalentYak. We're not able to offer you a place this time.</p>
+<p>You can delete your application and everything in it from your application page whenever you like.</p>
+${button(`${ctx.siteUrl}/account/coach-application`, "See your application")}`,
+        ctx.supportEmail,
+      );
+  }
 }
