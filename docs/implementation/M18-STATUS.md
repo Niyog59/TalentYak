@@ -29,3 +29,7 @@ Scope: founder brief FM18 ("Become a coach", 2026-09-29) with the founder's answ
 - **Signed-in click-through against the database** (form, uploads, founder decisions, signing) — not run, same reason. The rules underneath were checked directly (above).
 - A real email arriving; real phones and screen readers.
 - Retention period for closed applications and the agreement's legal review (register §Y1).
+
+## Deployed — `4517112`, www.talentyak.com
+
+Merged to `main` 2026-09-30 with the founder's approval ("go ahead"). GitHub commit status: **Vercel — Deployment has completed**. Migration `0062` was already on the database the site uses. The "Accept coach applications" switch is **on**, so applications are open on the live site. A signed-in check of the live site was not run from the cloud session.
