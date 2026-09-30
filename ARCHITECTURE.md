@@ -530,6 +530,29 @@ admin_coach_change_preview / admin_coach_change_candidates / admin_support_case_
 
 The feature register is `web/src/lib/features/registry.ts` (modes, explanations, dependencies, readiness — pure) and `server.ts` (per-request modes read with no cookies, `featureAllowsMe`, plain refusal messages, readiness context). Readiness comes from code and configuration and is never stored; availability is the database setting. Pages hide entry points, actions and API routes recheck on every request, the triggers refuse underneath, and jobs skip (`featureNotSwitchedOff`, the log-reminder sweep). `purchaseMode()` is now async and also closes buying when `new_sales` is off or `public_profiles` isn't on. Analytics: `web/src/lib/analytics/posthog.ts`, server-side capture only, called from `countEvent` (so a public event is recorded once in both places), sign-up, `afterSignIn` and a once-per-purchase `analytics.purchase_confirmed` job. The panel lives under `web/src/app/admin/` with its own shell (`components/admin/`).
 
+### 3.7l Coach applications (M18) — `0062`
+
+```
+coach_applications              one per attempt, owned by an account (profile_id); one open per account (partial unique index);
+                                applicant reads own; admin (aal2) reads all except drafts; no direct writes
+coach_application_certificates  claims + optional file in the private provider-evidence bucket
+                                (coach-applications/<app>/<cert>/…); verification_state set only by a founder; admin read
+coach_application_checklist     reviewer checklist; admin read
+coach_application_notes         private founder notes; admin read, no write policy (append via function)
+coach_application_events        decision history; admin read
+feature_settings                + 'coach_applications' (on / off); feature_guard_coach_applications BEFORE INSERT
+retention_policies              + retention.coach_applications.v1 — PROPOSED, inactive
+applicant (auth.uid):   coach_application_save / _submit / _withdraw / _erase / _add_certificate / _remove_certificate,
+                        my_coach_application_certificates, decline_coach_agreement
+server only:            coach_application_attach_file, sign_coach_agreement (creates providers row in 'onboarding',
+                        customer → provider only, copies checks to provider_credentials)
+founder (is_admin):     admin_set_coach_application_status, admin_resend_coach_acceptance, admin_check_coach_certificate,
+                        admin_set_coach_application_checklist, admin_add_coach_application_note
+outbox topics:          email.coach_application_received / _submitted (fans out email.admin_alert) / _decision
+```
+
+Flow: account with a confirmed email → draft → qualifications (files cleaned in `web/src/lib/coach-applications/files.ts`: photos re-encoded to WebP without metadata, PDFs refused if active) → submit (receipt + founder alert, keyed on the application) → founder review → Approved / Waitlisted / Declined (one email per decision, keyed on the decision event; the handler skips a superseded or changed decision) → the applicant signs the draft agreement (`web/src/lib/coach-agreement.ts`, figures from `lib/policy`) or declines → the existing coach onboarding and final approval. Pages: `web/src/app/(marketing)/become-a-coach`, `(marketing)/account/coach-application`, `admin/coach-applications` (certificates open through a two-minute signed-link route there).
+
 ### 3.8 How the database defends itself
 
 Three mechanisms, all exercised by the test suite:
