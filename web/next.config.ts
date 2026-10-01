@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs/config";
 
 /**
  * Security headers.
@@ -79,6 +80,12 @@ const securityHeaders = [
 const MEDIA_PROCESSING_ROUTES = ["/api/media/complete", "/api/media/retry", "/api/jobs/process"];
 
 const nextConfig: NextConfig = {
+  // Error reports name the environment they came from: production, preview, or
+  // development on a laptop. Fixed at build time for the browser bundle.
+  env: {
+    NEXT_PUBLIC_SENTRY_ENVIRONMENT: process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT || process.env.VERCEL_ENV || "",
+  },
+
   experimental: {
     serverActions: { bodySizeLimit: "6mb" },
   },
@@ -122,4 +129,28 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+/**
+ * Error reporting (src/instrumentation*.ts, src/lib/monitoring/).
+ *
+ * Source maps are uploaded only when SENTRY_AUTH_TOKEN is present in the BUILD
+ * environment, and are deleted from the build output after upload, so no map
+ * is ever served publicly. Without the token nothing is generated or uploaded.
+ * The token is a build secret: never NEXT_PUBLIC_, never in the repository.
+ *
+ * No tunnel route: the SDK's tunnel forwards to any Sentry organisation, which
+ * would make this site an open relay. Browsers report to the configured host,
+ * allowed narrowly in the CSP (src/proxy.ts).
+ */
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: true,
+  telemetry: false,
+  sourcemaps: {
+    disable: !process.env.SENTRY_AUTH_TOKEN,
+    deleteSourcemapsAfterUpload: true,
+  },
+  widenClientFileUpload: false,
+  suppressOnRouterTransitionStartWarning: true,
+});

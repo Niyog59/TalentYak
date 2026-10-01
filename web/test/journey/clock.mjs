@@ -10,6 +10,7 @@
  * to the local webhook.
  *
  *   node test/journey/clock.mjs setup <credentials.json>   # customer, purchase, subscription
+ *     (JOURNEY_OFFER_VERSION=<offer version id> picks the plan; default: newest published)
  *   node test/journey/clock.mjs advance <days>             # move the clock
  *   node test/journey/clock.mjs fail                       # swap in a card that will be declined
  *   node test/journey/clock.mjs state                      # what the database now says
@@ -62,8 +63,11 @@ if (command === "setup") {
 
   // The live version of the journey coach's published plan.
   const [version] = await sb(
-    `offer_versions?published_at=not.is.null&superseded_at=is.null&select=id,offer_id,title,offers!inner(provider_id,providers!inner(display_name))&order=published_at.desc&limit=1`,
+    `offer_versions?published_at=not.is.null&superseded_at=is.null${process.env.JOURNEY_OFFER_VERSION ? `&id=eq.${process.env.JOURNEY_OFFER_VERSION}` : ""}&select=id,offer_id,title,offers!inner(provider_id,providers!inner(display_name))&order=published_at.desc&limit=1`,
   );
+
+  const [coachExpectations] = await sb(`coach_expectation_versions?provider_id=eq.${version.offers.provider_id}&published_at=not.is.null&superseded_at=is.null&select=id`);
+  const [platformExpectations] = await sb(`platform_expectation_versions?published_at=not.is.null&superseded_at=is.null&select=id`);
 
   const clock = await stripe.testHelpers.testClocks.create({ frozen_time: Math.floor(Date.now() / 1000), name: "TalentYak journey clock" });
   const customer = await stripe.customers.create({ email, test_clock: clock.id, metadata: { profile_id: user.id } });
@@ -73,7 +77,11 @@ if (command === "setup") {
   const records = await fetch(`${env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/create_checkout_records`, {
     method: "POST",
     headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ p: { customer_id: user.id, offer_version_id: version.id, currency: "USD", display_currency: "USD", idempotency_key: randomUUID(), hold_seconds: 2100 } }),
+    body: JSON.stringify({ p: {
+      customer_id: user.id, offer_version_id: version.id, currency: "USD", display_currency: "USD", idempotency_key: randomUUID(), hold_seconds: 2100,
+      // The welcome & expectations versions a checkout page shows now (0040).
+      expectations_coach_version_id: coachExpectations?.id ?? null, expectations_platform_version_id: platformExpectations?.id ?? null,
+    } }),
   }).then((r) => r.json());
   if (!records?.purchase_id) throw new Error(`checkout records failed: ${JSON.stringify(records)}`);
 

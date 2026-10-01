@@ -66,3 +66,6 @@ PostHog shows website visits, coach profile views, package choices, sign-ups, si
 | See who changed what | Change history |
 | See what still blocks real payments | Policies & launch |
 | Pause a feature | Feature controls |
+| Check the schedule is running, or send a test error | Jobs & deliveries → Is everything running? |
+| Handle a failed renewal, a refund, a failed call, or roll back a bad release | `docs/operations/launch-runbook.md` |
+| Switch on real payments | `docs/operations/live-activation.md` (not before every prerequisite is done) |

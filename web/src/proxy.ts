@@ -52,6 +52,18 @@ function buildCsp(nonce: string, callPage = false): string {
     }
   })();
 
+  // Browser error reports go straight to the configured monitoring host and
+  // nowhere else. Nothing is added when error reporting isn't configured.
+  const monitoringOrigin = (() => {
+    const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
+    if (!dsn) return "";
+    try {
+      return new URL(dsn).origin;
+    } catch {
+      return "";
+    }
+  })();
+
   return [
     "default-src 'self'",
     // 'strict-dynamic' lets a nonced script load the chunks it needs without
@@ -69,7 +81,7 @@ function buildCsp(nonce: string, callPage = false): string {
     // execute anything under the app's own origin.
     `media-src 'self' blob: ${supabaseOrigin[0] ?? ""}`.trim(),
     "font-src 'self' data:",
-    `connect-src 'self' ${supabaseOrigin.join(" ")}${callPage ? ` ${DAILY_CONNECT.join(" ")}` : ""}`.trim(),
+    `connect-src 'self' ${supabaseOrigin.join(" ")} ${monitoringOrigin}${callPage ? ` ${DAILY_CONNECT.join(" ")}` : ""}`.replace(/\s+/g, " ").trim(),
     ...(callPage ? ["worker-src 'self' blob:"] : []),
     // Stripe Checkout is a full redirect, not an embedded frame, so nothing
     // needs to be framed by us.

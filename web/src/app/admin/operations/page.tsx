@@ -9,6 +9,8 @@ import { formatDate } from "@/lib/format";
 import { isResendConfigured } from "@/lib/env";
 import { retryJobAction } from "../actions";
 import { daysAgoIso } from "@/lib/admin/range";
+import { monitoringEnabled, monitoringEnvironment } from "@/lib/monitoring/options";
+import { MonitoringTest } from "./monitoring-test";
 
 export const metadata = { title: "Jobs & deliveries" };
 
@@ -25,7 +27,7 @@ export default async function OperationsPage() {
   const head = { count: "exact" as const, head: true };
   const since = daysAgoIso(1);
 
-  const [jobs, deliveries, events, ops, queued, done24, failed24] = await Promise.all([
+  const [jobs, deliveries, events, ops, queued, done24, failed24, scheduler] = await Promise.all([
     supabase.from("outbox").select("id, topic, state, attempts, last_error, created_at, scheduled_for").in("state", ["failed", "blocked"]).order("created_at", { ascending: false }).limit(100),
     supabase.from("notification_deliveries").select("id, template, recipient_email, state, provider_message_id, error, created_at").order("created_at", { ascending: false }).limit(50),
     supabase.from("provider_events").select("id, event_type, processing_state, attempts, last_error, received_at").in("processing_state", ["failed", "processing", "received"]).order("received_at", { ascending: false }).limit(50),
@@ -33,7 +35,12 @@ export default async function OperationsPage() {
     attemptCount(() => supabase.from("outbox").select("id", head).eq("state", "pending")),
     attemptCount(() => supabase.from("outbox").select("id", head).eq("state", "done").gte("created_at", since)),
     attemptCount(() => supabase.from("outbox").select("id", head).in("state", ["failed", "blocked"]).gte("created_at", since)),
+    supabase.rpc("admin_scheduler_status"),
   ]);
+  const sched = (scheduler.data ?? null) as SchedulerStatus | null;
+  const reporting = monitoringEnabled("server");
+  const release = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "local build";
+  const sentryOrg = process.env.SENTRY_ORG;
   const o = (ops.data ?? {}) as Record<string, number>;
 
   return (
@@ -54,6 +61,42 @@ export default async function OperationsPage() {
             { label: "Email sending", value: loaded(isResendConfigured() ? "Configured" : "Not configured"), note: isResendConfigured() ? undefined : "Emails wait as blocked jobs" },
           ]}
         />
+      </Section>
+
+      <Section
+        id="monitoring"
+        title="Is everything running?"
+        description="The schedule runs every five minutes. Error reporting raises an alert when something breaks; the schedule monitor raises one when the schedule goes quiet. Neither notices if the whole site is down — that is the uptime check in Sentry."
+      >
+        {scheduler.error || !sched ? <ErrorNote /> : (
+          <Figures
+            items={[
+              {
+                label: "Scheduled worker last called",
+                value: loaded(sched.last_run_at ? formatDate(sched.last_run_at, tz, true) : "Never"),
+                note: schedulerNote(sched),
+              },
+              {
+                label: "Site's last answer to it",
+                value: loaded(sched.last_response_status ? String(sched.last_response_status) : "None kept"),
+                note: sched.responses_not_ok_6h > 0 ? `${sched.responses_not_ok_6h} answers weren't OK in 6 hours` : "200 means it ran; answers are kept about 6 hours",
+              },
+              {
+                label: "Error reporting",
+                value: loaded(reporting ? "On" : "Not configured"),
+                note: reporting ? `Environment ${monitoringEnvironment()}, release ${release}` : "Set the Sentry settings on the deployment (see the founder guide)",
+              },
+              {
+                label: "Sentry",
+                value: loaded(sentryOrg ? <a href={`https://${sentryOrg}.sentry.io/issues/`} className="text-brand underline" rel="noreferrer" target="_blank">Open issues</a> : "—"),
+                note: "Alerts go to the founder's email from Sentry",
+              },
+            ]}
+          />
+        )}
+        <div className="mt-6">
+          <MonitoringTest browserEnabled={Boolean(process.env.NEXT_PUBLIC_SENTRY_DSN)} />
+        </div>
       </Section>
 
       <Section id="jobs" title="Failed or blocked jobs" description="Blocked means something must be configured first (for example email). Failed means it ran out of automatic retries.">
@@ -123,4 +166,21 @@ export default async function OperationsPage() {
       </p>
     </div>
   );
+}
+
+interface SchedulerStatus {
+  scheduled: boolean;
+  active: boolean;
+  last_run_at: string | null;
+  last_run_status: string | null;
+  runs_failed_24h: number;
+  last_response_at: string | null;
+  last_response_status: number | null;
+  responses_not_ok_6h: number;
+}
+
+function schedulerNote(s: SchedulerStatus): string {
+  if (!s.scheduled || !s.active) return "Not scheduled — background work only runs after other activity";
+  if (s.runs_failed_24h > 0) return `${s.runs_failed_24h} scheduled calls failed in 24 hours`;
+  return "Every five minutes";
 }

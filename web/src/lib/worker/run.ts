@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resendTransport, type EmailTransport } from "@/lib/email";
 import { HANDLERS, type OutboxJob, type Outcome } from "@/lib/worker/handlers";
+import { reportOperationalFailure } from "@/lib/monitoring/server";
 
 /**
  * One pass of the outbox worker.
@@ -81,6 +82,16 @@ export async function runWorker(opts: {
       if (state === "blocked") summary.blocked++;
       else if (state === "failed") summary.failed++;
       else summary.retrying++;
+      // Out of retries, or waiting on configuration: a person has to look.
+      // The topic only — the payload and the error text stay in the panel.
+      if (state === "failed" || state === "blocked") {
+        await reportOperationalFailure(
+          job.topic.startsWith("email.") ? "email" : "jobs",
+          state === "failed" ? "Background job failed after its retries" : "Background job blocked until something is configured",
+          { topic: job.topic },
+          state === "failed" ? "error" : "warning",
+        );
+      }
     }
   }
 

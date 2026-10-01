@@ -163,7 +163,9 @@ const CUSTOMER = "00000000-0000-4000-8000-0000000000c1";
 const COACH_PROFILE = "00000000-0000-4000-8000-0000000000c2";
 const PROVIDER = "00000000-0000-4000-8000-0000000000p1";
 const APPOINTMENT = "00000000-0000-4000-8000-0000000000a1";
-const QUEUED_START = "2026-10-01T09:00:00.000Z";
+// Far in the future, so "already started" never masks the rule under test.
+// (A date in 2026 expired on 1 October 2026 and turned two tests red.)
+const QUEUED_START = "2036-10-01T09:00:00.000Z";
 
 interface World {
   appointment?: Record<string, unknown> | null;
@@ -259,7 +261,7 @@ describe("what must still be true when the message is sent", () => {
       appointment: {
         id: APPOINTMENT,
         // Moved an hour later after the reminder was queued.
-        starts_at: "2026-10-01T10:00:00.000Z",
+        starts_at: "2036-10-01T10:00:00.000Z",
         state: "booked",
         customer_id: CUSTOMER,
         provider_id: PROVIDER,

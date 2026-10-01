@@ -166,6 +166,8 @@ async function processWithLease(
       .update({ processing_state: "failed", last_error: message.slice(0, 2000), lease_owner: null, lease_expires_at: null })
       .eq("id", receiptId);
     console.error(`[stripe] ${event.type} ${event.id} failed: ${message}`);
+    const { reportOperationalFailure } = await import("@/lib/monitoring/server");
+    await reportOperationalFailure("payments", "Payment notification could not be applied", { event_type: event.type });
     return "failed";
   }
 }

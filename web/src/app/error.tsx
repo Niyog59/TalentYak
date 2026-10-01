@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import * as Sentry from "@sentry/nextjs";
 import { Button, ButtonLink } from "@/components/button";
 
 /*
@@ -17,6 +18,8 @@ export default function Error({
 }) {
   useEffect(() => {
     console.error(error);
+    // Reported to error monitoring, filtered for privacy before it leaves.
+    Sentry.captureException(error);
   }, [error]);
 
   return (

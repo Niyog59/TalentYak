@@ -286,3 +286,16 @@ Status of record: `docs/implementation/M03-M07-STATUS.md`.
 - [ ] **Changing email isn't possible anywhere in accounts yet**, so an applicant can't move their application to another address (they would apply from the other account). Add account email change (with fresh confirmation) if needed.
 - [ ] **Deleting an account deletes its application rows but not certificate files** in storage (they become unreferenced private files). Add a cleanup to the account-deletion job.
 - [ ] **Declined or withdrawn applicants can apply again immediately.** Add a waiting period if repeat applications become a problem.
+
+## M18 (launch) — Launch readiness and error monitoring (2026-10-01) — complete (pilot and paid launch not yet ready; see M18-LAUNCH-READINESS)
+
+- [x] Sentry error reporting (browser, server, edge) with in-process privacy filtering, no replay or tracing, environment and release tags, source maps only with a build token; operational failures (jobs, payment notifications, media, sweeps) raise alerts; scheduled-worker cron monitor; "Is everything running?" on Jobs & deliveries with protected test errors; real Stripe-hosted test checkout, duplicates and renewals verified; launch runbook and live-activation checklist.
+- [x] ~~Founder checklist item 7: one test purchase through Stripe's hosted page.~~ Done 2026-10-01 with Stripe's test card; recorded by the deployed webhook.
+- [ ] **Founder — connect Sentry** (`docs/operations/launch-runbook.md` §2), then press both test buttons and confirm the alert email. Until then nothing alerts on errors, a stopped schedule or a site outage.
+- [ ] **Founder — uptime check.** Add one in Sentry (if the plan allows) for `https://www.talentyak.com/`. Nothing notices a full outage today.
+- [ ] **No backups exist** (Supabase free plan) and files are never in database backups. Required before real customers: paid plan or nightly dump, bucket copies, one restore drill.
+- [ ] **Vercel Hobby is non-commercial.** Move to Pro with a spend limit before taking payments.
+- [ ] **Personal-data export has no button.** Handled by hand from the Supabase dashboard via a support case. Add a "Privacy request" support category (needs a constraint migration) if requests become common.
+- [ ] **Checkout doesn't warn about an existing plan with the same coach** until Continue is pressed (the database refuses correctly). Show it on the page.
+- [ ] **Leaked-password protection** is off in Supabase Auth (may need a paid plan).
+- [ ] **Dev-only audit advisory** (`brace-expansion` via lint tooling). Production dependencies report 0.

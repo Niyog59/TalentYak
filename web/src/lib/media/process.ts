@@ -493,6 +493,8 @@ export async function processMedia(assetId: string): Promise<ProcessOutcome> {
     const reason = err instanceof MediaProcessingError ? err.message : "Processing failed unexpectedly. Try again.";
     if (!(err instanceof MediaProcessingError)) {
       console.error("[media] processing error:", asset.id, err instanceof Error ? err.message : err);
+      const { reportOperationalFailure } = await import("@/lib/monitoring/server");
+      await reportOperationalFailure("media", "Media processing failed unexpectedly");
     }
     // A permanent refusal (HEIC, a document, an over-length clip) releases the
     // original in the same statement, and its bytes are removed here: nobody

@@ -17,6 +17,7 @@
 | Deployment | Vercel project `talentyak`, root `web/`. `www.talentyak.com` serves it; apex redirects to www; `talentyak.vercel.app` preserved |
 | Live payments | Refused by the gate (§5). The Stripe account has not submitted business details either |
 | `SUPPORT_EMAIL` | **Still empty** — outgoing email carries no reply address |
+| Error reporting (Sentry) | **Built (M18), not connected.** No Sentry account exists yet; nothing is reported until `NEXT_PUBLIC_SENTRY_DSN` is set. See `launch-runbook.md` §2 |
 
 Actual values live in `web/.env.local`, which is gitignored. If a value ever reaches a commit, a log, a screenshot, or a chat message, it is **rotated, not excused**.
 
@@ -48,6 +49,11 @@ Actual values live in `web/.env.local`, which is gitignored. If a value ever rea
 | `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | **No** | Ceremony recordings | Cloudflare R2 |
 | `R2_BUCKET` | **No** | Ceremony recordings | Default `talentyak-recordings`. Only the retained pandit vertical uses it, nothing has ever been stored, and R2 is not configured. Not needed for fitness |
 | `NEXT_PUBLIC_SITE_URL` | Yes | Metadata, emails, Stripe redirects | The origin this deployment serves from |
+| `NEXT_PUBLIC_SENTRY_DSN` | Yes | Error reporting (browser and server) | Sentry project → Client Keys. A public, write-only ingestion address, not a credential. **Unset = error reporting off.** Must be present at **build** time for the browser |
+| `SENTRY_DSN` | **No** | Error reporting (server only) | Optional; defaults to the public DSN |
+| `SENTRY_ORG` / `SENTRY_PROJECT` | **No** | Source-map upload; the panel's "Open issues" link | Slugs, not secrets |
+| `SENTRY_AUTH_TOKEN` | **No** | Source-map upload at build time | A Sentry **organisation token** limited to release/source-map upload. Build-only; maps are deleted from the build after upload and never served. Without it nothing is uploaded and stack traces stay minified |
+| `NEXT_PUBLIC_SENTRY_ENVIRONMENT` | Yes | Optional override | Defaults to Vercel's `production` / `preview`, `development` locally. Local builds never report unless `NEXT_PUBLIC_SENTRY_SEND_FROM_DEVELOPMENT=true` |
 | `SUPABASE_ACCESS_TOKEN` | **No** | Applying migrations, and nothing else | A personal access token, scoped to database work. **The running application never reads it.** Revoke it once schema work is finished |
 
 ---

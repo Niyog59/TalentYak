@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { runWorker } from "@/lib/worker/run";
 import { runSweeps } from "@/lib/worker/sweeps";
+import { reportOperationalFailure, schedulerCheckInFinish, schedulerCheckInStart } from "@/lib/monitoring/server";
 
 /**
  * Scheduled job endpoint: one worker pass plus the housekeeping sweep.
@@ -39,6 +40,25 @@ async function handle(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Heartbeat for error reporting's schedule monitor: a missing run is how a
+  // stopped schedule is noticed. Production only.
+  const checkIn = await schedulerCheckInStart();
+  try {
+    const result = await runAll();
+    await schedulerCheckInFinish(checkIn, result.sweeps.errors.length === 0);
+    if (result.sweeps.errors.length) {
+      // Area names only ("checkout <id>: …" → "checkout"), never the detail.
+      const areas = [...new Set(result.sweeps.errors.map((e) => e.split(/[:\s]/, 1)[0].slice(0, 40)))].sort();
+      await reportOperationalFailure("scheduler", "Scheduled sweep reported errors", { topic: areas.join(", ") }, "warning");
+    }
+    return NextResponse.json(result);
+  } catch (err) {
+    await schedulerCheckInFinish(checkIn, false);
+    throw err;
+  }
+}
+
+async function runAll() {
   const sweeps = await runSweeps();
 
   // Uploads that finished but were never processed — the function that should
@@ -55,7 +75,7 @@ async function handle(req: Request) {
   const first = await runWorker({ limit: 25, workerName: "scheduled" });
   const second = first.claimed === 25 ? await runWorker({ limit: 25, workerName: "scheduled" }) : null;
 
-  return NextResponse.json({ sweeps, mediaProcessed, worker: [first, second].filter(Boolean) });
+  return { sweeps, mediaProcessed, worker: [first, second].filter(Boolean) };
 }
 
 export async function POST(req: Request) {
