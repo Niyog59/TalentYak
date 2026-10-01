@@ -117,3 +117,15 @@ Legend:
 - **Real people and real devices:** no pilot participants, phones or real inbox were available to this session. Nothing was simulated and called a pilot.
 - **Restore drill:** there is no backup to restore and no isolated project. I didn't create a project without your go-ahead.
 - **Deployed signed-in journeys:** checked against the shared database with a local production build. The deployed webhook and worker did take part.
+
+## Deployed — `505eff0`, www.talentyak.com
+
+Vercel production deployment: **success**.
+- **Signed out:** `/`, `/coaches`, `/how-it-works`, `/waitlist`, `/become-a-coach`, `/sitemap.xml` and `/robots.txt` answer 200; `/admin`, `/admin/operations` and `/account` redirect to sign-in; `/api/events` answers 204.
+- **Refusals:** the job endpoint refuses an unauthenticated call (401); the Stripe webhook refuses an unsigned request (400).
+- **Source maps:** JavaScript chunks answer 200, their `.map` files 403.
+- **Sentry not yet active:** the CSP `connect-src` has no Sentry host, consistent with no DSN set.
+- **Scheduled worker:** the first run on the new code (23:45 UTC) answered 200.
+- **Migration:** `0062_scheduler_status.sql` was applied before the push.
+
+**Switch state after deploy:** everything on except **Changing coach (off)**. The coach-applications work from the other M18 session added **Accept coach applications — on**. So real people can apply to coach on the live site today, and their applications (including certificate files) are stored in the shared test database. That is the founder's call; see M18-STATUS.

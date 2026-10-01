@@ -106,7 +106,7 @@ The test buttons stay. They're only available to an administrator with two-step 
 
 ## 7. Launch switches
 
-- **Feature controls** (panel): Programmes, Logging, Check-ins, Messaging, Attachments, Bookings, Calls, New purchases, Public profiles, Waitlist, Changing coach. Launch defaults: all on except **Changing coach (off)**.
+- **Feature controls** (panel): Programmes, Logging, Check-ins, Messaging, Attachments, Bookings, Calls, New purchases, Public profiles, Waitlist, Accept coach applications, Changing coach. State on 2026-10-01: all on except **Changing coach (off)**. Note that **Accept coach applications is on**, so real applicants' details and certificates land in the shared test database until production has its own.
 - **Who can buy**: nobody with live money until all of the following are true:
   - live Stripe keys;
   - `LIVE_BILLING=true`;
