@@ -1,80 +1,71 @@
 # TalentYak
 
-A contractor-delivered managed coaching service for the Nepali diaspora, at `talentyak.com`. Fitness is the only active launch vertical. The pandit vertical (shraddha and ancestral rites) is built, retained, and not publicly sellable.
+A fitness coaching platform connecting Nepali coaches with clients abroad.
 
-## Read this first
+I designed and built TalentYak as the sole developer. The project covers the application interface, relational data model, authentication, coaching workflows, payments integration, and background processing.
 
-If you're about to work on this project, start with these:
+[Visit TalentYak](https://talentyak.com) · [Technical overview](docs/PORTFOLIO.md)
 
-1. **`docs/aafnai/DECISION_REGISTER.md`** — **current product authority.** Every rule with a status: confirmed, proposed, open, or superseded. **Read §L first** — it carries the TalentYak brand and the 20% commission, and supersedes several earlier entries. Where this and any other document disagree, **this one wins**.
-2. **`docs/aafnai/PRODUCT_CONTRACT.md`** — what the product must do: launch boundary, coach-plan specification, commission rules, user journeys.
-3. **`ARCHITECTURE.md`** — system design, data model, node registry, money flow.
-4. **`docs/implementation/M03-M07-STATUS.md`** — **what is actually true today**: what is built, what was tested and against which real services, and what is blocked.
-5. The relevant spec in **`docs/specs/`**.
+## What the application supports
 
-## The product, in one breath
+- Coach offers and client enrollment.
+- Coaching programmes, check-ins, and progress records.
+- Private communication between clients and coaches.
+- Payment-event processing and financial records.
+- Background jobs for notifications and operational tasks.
+- Administrative workflows for managing the platform.
 
-TalentYak is a contractor-delivered managed coaching service for the Nepali diaspora. The customer buys coaching from TalentYak; their **selected** independent coach delivers it. Coaches create their own offers, set their own prices, and define their own inclusions — there is no platform package and no price approval. The customer chooses their coach and offer **before** paying. **Commission is 20% on recurring coaching and 20% on one-off consultations**; the coach receives 80%. Coaches are paid monthly in arrears for service actually delivered.
+## Engineering decisions
 
-Fitness is the launch vertical. Pandit (ancestral rites) is built and retained. Tutoring and bookkeeping are catalog-only placeholders.
+**Access rules belong in the database.** PostgreSQL row-level security controls access to records, with database tests covering different user roles.
 
-## The invariants, in one breath
+**Money is stored in integer minor units.** Currency precision and rounding are handled explicitly, with tests for calculations and allocations.
 
-Human confirms every ritual date. Grief data and body data are locked. Card data never touches our servers. The Stripe webhook is the only writer of payment truth. RLS on every table, same commit. The service-role key never reaches the browser. Payout economics are disclosed by us, never discovered. No fake data in production.
+**Payment processing must tolerate repeated delivery.** The webhook implementation verifies Stripe signatures, records event receipts, and handles duplicate processing and retries.
 
-## Running it
+**Background work must survive the request that created it.** Jobs are recorded in a database-backed outbox before workers attempt delivery.
+
+## Stack
+
+Next.js · React · TypeScript · Supabase/PostgreSQL · Stripe · Vercel
+
+## Run locally
+
+Start from the repository root:
 
 ```bash
 cd web
-npm install
-cp .env.example .env.local     # fill in; .env.local is gitignored and must stay so
-npm run dev                    # http://localhost:3001
-npm run verify                 # typecheck + lint + unit tests
+npm ci
+cp .env.example .env.local
+npm run dev
 ```
 
-Against a database, with credentials in `.env.local`:
+Configure `.env.local` using the example file and the [configuration guide](docs/operations/configuration.md). Keep credentials out of Git.
+
+## Check the application
+
+From the `web` directory:
 
 ```bash
-node scripts/check-migrations.mjs                              # structure of the migrations
-npm --prefix web run db:migrate:dry                            # what would apply
-TALENTYAK_DB_TESTS=confirmed npm --prefix web run test:db      # permissions, as real users
+npm run verify
+npm run build
 ```
 
-Sending one real email, to check delivery end to end:
+The verification command runs the checks defined in [`web/package.json`](web/package.json). A successful unit check does not establish that external services or database integration tests have passed.
 
-```bash
-node scripts/send-test-notification.mjs <address>            # queue it
-node scripts/send-test-notification.mjs <address> --report   # what actually happened
-node scripts/send-test-notification.mjs <address> --cleanup  # remove the fixture
-```
+## Database integration tests
 
-The address is **required** — there is no default, because a default is how a
-test send reaches somebody who never asked for it. Reserved test domains are
-refused, and so is everything until the worker runs: the script only queues, and
-the worker sends through the same path a real notification takes.
+Database tests require a separate test environment and appropriate credentials. Use the [database guide](docs/operations/database-and-migrations.md) before running them. Do not point test fixtures or migrations at a live customer database.
 
-New screens in this batch: `/account/notifications` and `/account/notifications/preferences` (inbox and email settings), `/account/media` (private photos and clips, deletion requests), and `/admin/retention` (dry runs and holds — it deletes nothing).
+## Project status
 
-Which variables are needed, and what is configured today: `docs/operations/configuration.md`.
+The public website and the repository demonstrate the product and its implementation. Live payment acceptance, service activation, and external integrations depend on the deployment configuration.
 
-## File guide
+## Documentation
 
-| Path | What it is |
-|---|---|
-| `docs/aafnai/DECISION_REGISTER.md` | **Current product authority.** Every rule, with status, source, and owner. §L is the newest pass |
-| `docs/implementation/M03-M07-STATUS.md` | **Status of record** — built, tested, verified, blocked, per module |
-| `docs/FOUNDER-NEXT-STEPS.md` | The only actions that genuinely need the founder, with exact steps |
-| `docs/operations/configuration.md` | Every environment variable, and what is and is not configured |
-| `docs/operations/payments-and-payouts.md` | How money moves, who may write it, what each state means |
-| `docs/operations/database-and-migrations.md` | Migration rules, and how to build the production project cleanly |
-| `web/src/lib/policy/` | **Every commercial rule, versioned.** Commission, payouts, cancellation, the live-billing gate |
-| `web/src/lib/money/` | Money arithmetic — integer minor units, currency precision, exact allocation |
-| `brand/talentyak/` | Approved logo pack, masters, and integration notes |
-| `docs/aafnai/PRODUCT_CONTRACT.md` | What the product must do — scope, plan spec, commission, journeys |
-| `docs/aafnai/CODEBASE_RECONCILIATION.md` | Each requirement mapped to real code, with keep/repair/replace/new/defer |
-| `docs/aafnai/M00_ACCEPTANCE.md` | Given/When/Then product scenarios |
-| `docs/aafnai/M00_COMPLETION_REPORT.md` | What was inspected, changed, and verified in M00 |
-| `ARCHITECTURE.md` | System design, data model, node registry, money flow |
-| `MIGRATION.md` | Vendor portability, exit runbook, backups |
-| `TASKS.md` | Deferred items, known debt |
-| `docs/specs/` | Per-module build specs (`module-N.md`) |
+- [Technical overview](docs/PORTFOLIO.md)
+- [Architecture](ARCHITECTURE.md)
+- [Configuration](docs/operations/configuration.md)
+- [Database and migrations](docs/operations/database-and-migrations.md)
+- [Payments and payouts](docs/operations/payments-and-payouts.md)
+- [Launch runbook](docs/operations/launch-runbook.md)

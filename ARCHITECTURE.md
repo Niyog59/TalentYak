@@ -4,7 +4,9 @@
 
 Two truth markers are used throughout. **BUILT** means it exists in the repository. **REQUIRED** means a confirmed decision demands it and it does **not** exist yet. Unlike the first version of this file, sections 3 and 7 have been checked against a running system: 30 migrations applied, 95 database tests run as real signed-in users, and a full payment, refund, dispute and payout cycle driven through Stripe in test mode. What each module was and was not verified against is recorded in `docs/implementation/M03-M07-STATUS.md`.
 
-Business context: `docs/HANDOVER.md`. Current product authority: `docs/aafnai/DECISION_REGISTER.md`.
+Current product authority: `docs/aafnai/DECISION_REGISTER.md`.
+
+For an implementation-focused overview, see [docs/PORTFOLIO.md](docs/PORTFOLIO.md).
 
 ---
 
@@ -12,13 +14,15 @@ Business context: `docs/HANDOVER.md`. Current product authority: `docs/aafnai/DE
 
 A Next.js 16 application (App Router, React 19, TypeScript strict) backed by Supabase Postgres, deployed to Vercel. One shared core — identity, catalog, bookings, payments, payouts, notifications — with **per-vertical modules** plugged in through a single registry. The core never special-cases a vertical slug.
 
-Two verticals exist in code. **Pandit** (ancestral rites) is complete and active. **Fitness** is the launch vertical for Aafnai and is largely unbuilt on the customer side. Tutoring and bookkeeping are catalog-only placeholders.
+Fitness is the public-facing product focus. Other verticals may remain in the codebase without being publicly offered.
 
-Only two client components exist in the entire application; everything else is a Server Component.
+The application uses both Server Components and Client Components.
 
 ---
 
 ## 2. Invariants, architecturally
+
+> This section records an earlier implementation state. Verify current behavior against the linked source code and tests.
 
 The project rules state the invariants. This section says **where each one is enforced** — and, honestly, where it currently is not.
 
@@ -567,6 +571,8 @@ Views run as the **caller** (`security_invoker`) unless documented otherwise —
 
 ## 4. Extension node registry
 
+> This section records an earlier implementation state. Verify current behavior against the linked source code and tests.
+
 Tables, columns, and stubs that exist without a caller. **Each is listed with the trigger that activates it.** Per §5, none may be deleted or "cleaned up" without a written decision.
 
 | Node | Kind | Status | Activation trigger |
@@ -694,6 +700,8 @@ Detail, including what happens when things go wrong: `docs/operations/payments-a
 
 ## 8. The tithi pipeline
 
+> This section records an earlier implementation state. Verify current behavior against the linked source code and tests.
+
 The highest-consequence path in the product. A wrong shraddha date is a family's ancestral rite performed on the wrong day.
 
 ```
@@ -715,6 +723,8 @@ Customer states what they know (tithi, or a Gregorian date, or nothing)
 
 ## 9. Vendor boundaries
 
+> This section records an earlier implementation state. Verify current behavior against the linked source code and tests.
+
 Every vendor sits behind a local `/lib/*` module so it can be replaced. **No vendor SDK call appears in a component.** This holds today.
 
 | Concern | Vendor | Seam | Leak risk |
@@ -733,6 +743,8 @@ Every vendor sits behind a local `/lib/*` module so it can be replaced. **No ven
 ---
 
 ## 10. Performance architecture
+
+> This section records an earlier implementation state. Verify current behavior against the linked source code and tests.
 
 Server Components by default; route-level code splitting; images through `next/image` with explicit dimensions; admin lists capped (`limit(100)`, `limit(10)`, jobs `limit(50)`).
 
