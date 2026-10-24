@@ -51,7 +51,7 @@ npm run verify
 npm run build
 ```
 
-The verification command runs the checks defined in [`web/package.json`](web/package.json). A successful unit check does not establish that external services or database integration tests have passed.
+The verification command generates the Next.js types before running the project checks. The verification command runs the checks defined in [`web/package.json`](web/package.json). A successful unit check does not establish that external services or database integration tests have passed.
 
 ## Database integration tests
 
