@@ -278,7 +278,7 @@ export function shouldApply(
  *
  * A full Stripe payload carries the customer's name, email, address, and card
  * details. This table is read by ordinary operators during reconciliation, and
- * CLAUDE.md forbids logging a full payload containing customer PII. Enough is
+ * The project rules forbid logging a full payload containing customer PII. Enough is
  * kept to replay and reconcile; nothing more.
  */
 export function minimisePayload(

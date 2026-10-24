@@ -69,7 +69,7 @@ Every material rule, with its authority. **A source is treated as a founder deci
 |---|---|---|---|---|---|---|---|---|
 | **AAF-COMM-01** | Monthly rate | **CONFIRMED** | Monthly coaching: Aafnai **30%**, coach **70%**. | FM00 §3.2 | 60/40 left the coach near or below the local benchmark (APH:79) | M06, M07, M05, M15 | — | Founder |
 | **AAF-COMM-02** | One-off rate | **CONFIRMED** | One-off consultations: Aafnai **40%**, coach **60%**. | FM00 §3.2 | Higher per-transaction servicing cost, no recurring relationship | M06, M07, M05 | — | Founder |
-| **AAF-COMM-03** | Share disclosure | **CONFIRMED** | The plan builder displays Customer pays / Coach receives / Aafnai share, with clearly labelled assumptions and rounding. | FM00 §3.2 | `CLAUDE.md` invariant 8: economics are disclosed by us, never discovered | M05 | — *(base settled by AAF-COMM-06/07)* | Founder |
+| **AAF-COMM-03** | Share disclosure | **CONFIRMED** | The plan builder displays Customer pays / Coach receives / Aafnai share, with clearly labelled assumptions and rounding. | FM00 §3.2 | the project rules invariant 8: economics are disclosed by us, never discovered | M05 | — *(base settled by AAF-COMM-06/07)* | Founder |
 | **AAF-COMM-04** | Rounding | **CONFIRMED** | Integer minor units: `coach = round(base × rate)`, `aafnai = base − coach`. Guarantees exact summation. | Engineering; matches `SRC web/src/lib/payouts/index.ts:24-29` | No lost cent; continuity with existing arithmetic | M06, M07 | — *(confirmed 2026-09-09 with AAF-COMM-06)* | Engineering |
 | **AAF-COMM-05** | Classification | **PROPOSED** | Commission is classified by **service type, not payment count**. A multi-month coaching commitment paid once is coaching (70/30), not a consultation (60/40). | FM00 §3.2 | A billing-shaped fact must not transfer ~$51 per $510 term away from the coach (PRODUCT_CONTRACT §5.4) | M05, M06, M07 | **OPEN-02** — six-month classification and billing need final confirmation | Founder |
 | **AAF-PAY-01** | Payment ≠ payout | **CONFIRMED** (derived) | A client payment must never be displayed as an already-delivered coach payout. | FM00 §"Stripe buffer"; FM00 §5 acceptance 11 | Settlement is a chain, not an event | M07, M15 | — | Engineering |
@@ -112,7 +112,7 @@ All of D1–D8 are **CONFIRMED first-product capabilities**, per FM00 §3.4 ("re
 | **AAF-PROG-09** | Capability not obligation | **CONFIRMED** | Daily weighing is available, never required. No nagging, streaks, or feature gating on weigh-in frequency. | FM00 §3.4 | M12, M15 |
 | **AAF-PROG-10** | Immutable prescription | **CONFIRMED** | A programme edit must not rewrite what was previously prescribed or logged. | FM00 §3.4 | M11, M12 |
 | **AAF-PROG-11** | No automatic verdict | **CONFIRMED** | The product must not judge a weight increase or decrease as automatically good or bad. | FM00 §3.4 | M15 |
-| **AAF-PROG-12** | Private media | **CONFIRMED** (rules OPEN) | All progress media is private. Access and retention rules are required specifications. | FM00 §3.4; `CLAUDE.md` invariant 3 | M08, M12 |
+| **AAF-PROG-12** | Private media | **CONFIRMED** (rules OPEN) | All progress media is private. Access and retention rules are required specifications. | FM00 §3.4; the project rules invariant 3 | M08, M12 |
 
 ---
 
@@ -124,12 +124,12 @@ All of D1–D8 are **CONFIRMED first-product capabilities**, per FM00 §3.4 ("re
 | **AAF-ACCT-02** | Local-currency display | **CONFIRMED** | Client prices are shown in the client's own local currency. | FM00 §3.5 | M05, M06, M16 | Charge-currency mechanism gated by **OPEN-01a** | Founder |
 | **AAF-ACCT-03** | Additional auth | **PROPOSED** | Email/password, optional Apple sign-in, verified email, optional phone verification, role-based MFA. **Recommended details, approval status not established.** | FM00 §3.5 | M04 | — | Founder |
 | **AAF-ACCT-04** | Display ≠ charge | **CONFIRMED** (distinction) | Showing a converted estimate is not charging in that currency. Fixed supported-currency prices vs conversion/adaptive pricing, supported markets, and FX allocation remain **OPEN**. | FM00 §3.5 | M06 | **OPEN-01a** | Founder |
-| **AAF-SEC-01** | Admin MFA | **CONFIRMED** (pre-existing) | Admin accounts require a second factor. Independent of AAF-ACCT-03. | `CLAUDE.md` → Security operating rules | M04, M17 | — | Engineering |
+| **AAF-SEC-01** | Admin MFA | **CONFIRMED** (pre-existing) | Admin accounts require a second factor. Independent of AAF-ACCT-03. | the project rules → Security operating rules | M04, M17 | — | Engineering |
 | **AAF-BRAND-01** | Continue on codebase | **CONFIRMED** | Continue the Aafnai direction on the existing Ghartira codebase. | FM00 §3.6 | M01, M02 | — | Founder |
 | **AAF-BRAND-02** | UI replacement | **CONFIRMED** | The founder permits replacing unsuitable UI. | FM00 §3.6 | M02, M16 | — | Founder |
 | **AAF-BRAND-03** | Preserve foundations | **CONFIRMED** | Preserve useful foundations and historical data. | FM00 §3.6 | M01, M03 | — | Founder |
 | **AAF-BRAND-04** | Fitness-first | **PROPOSED** | Fitness-first launch with other verticals retained internally. **No founder-approved scope statement confirming this was located.** `HB:244-256` still describes a two-vertical January launch. | FM00 §3.6 | M16 | **OPEN-11** | Founder |
-| **AAF-BRAND-05** | Pandit retention | **CONFIRMED** | Do not delete pandit code. Do not assume hiding its links secures existing sensitive data. | FM00 §3.6; `CLAUDE.md` node-protection | M01, M03 | — | Founder |
+| **AAF-BRAND-05** | Pandit retention | **CONFIRMED** | Do not delete pandit code. Do not assume hiding its links secures existing sensitive data. | FM00 §3.6; the project rules node-protection | M01, M03 | — | Founder |
 | **AAF-BRAND-06** | Visual direction | **PROPOSED** | Ivory `#F8F6F1`, deep teal `#0B5956`, charcoal `#182B2A`, restrained terracotta; lowercase `aafnai` wordmark and `a` monogram. Conceptual raster output, **not production vector assets**; name spelling and trademark unchecked. | APH:32-42 | M02 | — | Founder |
 
 ---
@@ -141,7 +141,7 @@ All of D1–D8 are **CONFIRMED first-product capabilities**, per FM00 §3.4 ("re
 | **AAF-OPS-01** | Coach change | **CONFIRMED** | Aafnai handles client requests to change coaches. | FM00 §3.1 ("explicitly wants") | M17 | Mechanics: **OPEN-08** | Founder |
 | **AAF-OPS-02** | Wider operations | **PROPOSED** | Aafnai also handles billing failures, complaints, missed service, and safety escalations. **Assistant recommendations; the founder has not explicitly accepted all of them.** | FM00 §3.1 | M17 | Needs confirmation | Founder |
 | **AAF-OPS-03** | No liability waiver | **CONFIRMED** (statement of fact) | Limited operational involvement does **not** eliminate legal responsibility. This register gives no legal conclusion. | FM00 §3.1 | — | **AAF-OPS-06** — verification still required | Founder + qualified adviser |
-| **AAF-OPS-04** | Truthful supervision claims | **CONFIRMED** | Aafnai describes only the screening and supervision it actually performs. No claim of expert technical oversight of coaching. | APH:67, :124; `CLAUDE.md` invariant 9 | M16, M17 | — | Founder |
+| **AAF-OPS-04** | Truthful supervision claims | **CONFIRMED** | Aafnai describes only the screening and supervision it actually performs. No claim of expert technical oversight of coaching. | APH:67, :124; the project rules invariant 9 | M16, M17 | — | Founder |
 
 ---
 
@@ -149,7 +149,7 @@ All of D1–D8 are **CONFIRMED first-product capabilities**, per FM00 §3.4 ("re
 
 | ID | Topic | Status | Rule | Source | Modules | Owner |
 |---|---|---|---|---|---|---|
-| **AAF-DATA-01** | Financial immutability | **CONFIRMED** (derived) | Financial amounts and history are immutable. Corrections are new entries. Payout **workflow** state is separate structured state. | FM00 §5C; `CLAUDE.md` money discipline | M03, M07 | Engineering |
+| **AAF-DATA-01** | Financial immutability | **CONFIRMED** (derived) | Financial amounts and history are immutable. Corrections are new entries. Payout **workflow** state is separate structured state. | FM00 §5C; the project rules money discipline | M03, M07 | Engineering |
 | **AAF-DATA-02** | Purchase-time freeze | **CONFIRMED** (derived) | Purchase-time price, inclusions, and entitlements are frozen. Editing a plan never alters an existing purchase. | FM00 §5D scenario 8 | M03, M05, M06 | Engineering |
 | **AAF-DATA-03** | History immutability | **CONFIRMED** (derived) | Prescribed programmes and recorded logs are immutable history. | AAF-PROG-10 | M03, M11, M12 | Engineering |
 | **AAF-DATA-04** | Historical preservation | **CONFIRMED** | Existing pandit rules and transactions remain reconstructible. New commission rates apply to new coaching plans and do **not** retroactively reinterpret past records. | FM00 §3.2, §3.6 | M03, M07 | Engineering |

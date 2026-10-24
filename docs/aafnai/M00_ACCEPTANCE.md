@@ -289,7 +289,7 @@
 
 **Fails if:** a fitness-first change is reported as having secured grief data; pandit code or data is removed; the restricted-data fix is closed on the basis of a visibility change.
 
-**Related instruction defect (R-55):** `.cursorrules` lists the protected tables as `deceased_records`, `tithi_reminders`, `ceremonies`, and `health_records`. Only `ceremonies` exists. **The real grief table, `shraddha_dates`, is not named in the hard-stop list** — an agent obeying `.cursorrules` literally would not know it is protected. This should be corrected before any agent works on the pandit vertical.
+**Related instruction defect (R-55):** the rules file lists the protected tables as `deceased_records`, `tithi_reminders`, `ceremonies`, and `health_records`. Only `ceremonies` exists. **The real grief table, `shraddha_dates`, is not named in the hard-stop list** — an agent obeying the rules file literally would not know it is protected. This should be corrected before any agent works on the pandit vertical.
 
 ---
 

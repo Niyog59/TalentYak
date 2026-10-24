@@ -8,7 +8,7 @@ import { env } from "@/lib/env";
  * It bypasses RLS entirely, which means every guarantee the database makes
  * about who can see what stops applying to anything that goes through here.
  *
- * Guarded three ways, per CLAUDE.md → Security operating rules:
+ * Guarded three ways, per the project rules → Security operating rules:
  *
  *   1. `import "server-only"` makes the bundler fail the build if a client
  *      component ever imports this file.

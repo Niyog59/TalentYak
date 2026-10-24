@@ -56,7 +56,7 @@ Aafnai is an umbrella services brand for Nepalis living abroad. The first and on
 |---|---|
 | Public multi-vertical marketplace | Premature; see `aafnai-project-handover.md` §"Scope discipline" |
 | Tutoring and pandit as *public* verticals | Fitness-first is the working recommendation (PROPOSED, AAF-BRAND-04); public activation is OPEN |
-| Deletion of pandit code or data | Forbidden (CONFIRMED, AAF-BRAND-05); `CLAUDE.md` node-protection rule also applies |
+| Deletion of pandit code or data | Forbidden (CONFIRMED, AAF-BRAND-05); the project rules node-protection rule also applies |
 | Software-only subscription for coaches' own clients | A separate business; deferred (`aafnai-project-handover.md` §"Coach-owned clients") |
 | Source-based commission (Aafnai-acquired vs coach-acquired) | Rejected in prior discussion; not reintroduced here |
 | Medical or disease-specific nutrition guidance | Licensing exposure; general wellness only |
@@ -65,7 +65,7 @@ Aafnai is an umbrella services brand for Nepalis living abroad. The first and on
 
 ### 1.4 What Aafnai must not claim
 
-Aafnai may describe only the screening and supervision it actually performs. The founder is not a fitness professional. No page, plan, or email may assert expert technical oversight of coaching, verified credentials that have not been verified with the issuer, testimonials that did not occur, client counts that are not real, or coaches who do not exist. This restates `CLAUDE.md` invariant 9 and extends it to credential and supervision claims.
+Aafnai may describe only the screening and supervision it actually performs. The founder is not a fitness professional. No page, plan, or email may assert expert technical oversight of coaching, verified credentials that have not been verified with the issuer, testimonials that did not occur, client counts that are not real, or coaches who do not exist. This restates the project rules invariant 9 and extends it to credential and supervision claims.
 
 ---
 
@@ -127,7 +127,7 @@ Constraints:
 
 **AAF-ACCT-04 (CONFIRMED as a distinction, OPEN as a mechanism).** Showing a converted estimate is not the same as charging in that currency. Whether Aafnai holds fixed per-currency prices or converts at display time, which markets are supported, and who bears FX cost are OPEN (**OPEN-01a**).
 
-Email/password sign-in, Apple sign-in, verified email, optional phone verification, and role-based MFA are **PROPOSED** (AAF-ACCT-03), not confirmed. Note that `CLAUDE.md` → Security operating rules independently requires a second factor for admin accounts; that requirement stands regardless of AAF-ACCT-03's status.
+Email/password sign-in, Apple sign-in, verified email, optional phone verification, and role-based MFA are **PROPOSED** (AAF-ACCT-03), not confirmed. Note that the project rules → Security operating rules independently requires a second factor for admin accounts; that requirement stands regardless of AAF-ACCT-03's status.
 
 ### 2.6 Brand and verticals — **AAF-BRAND-01 … 05**
 
@@ -422,11 +422,11 @@ A workout log references the programme version in force when it was recorded (AA
 
 ### 8.2 Privacy and access
 
-- Progress photos, form videos, measurements, bodyweight, and injury disclosures are **health-adjacent personal data**. `CLAUDE.md` invariant 3 restricts them to the owning client and the **currently assigned** coach.
+- Progress photos, form videos, measurements, bodyweight, and injury disclosures are **health-adjacent personal data**. the project rules invariant 3 restricts them to the owning client and the **currently assigned** coach.
 - Private storage only. No permanent public URLs, no guessable paths.
 - Uploads go to a **quarantine location** and are only exposed after validation and processing (§8.5, item 3).
 - A coach who is no longer assigned loses access on the transfer effective date. Whether prior clips remain visible to a former coach is OPEN-08.
-- Grief data (`shraddha_dates`, and any pandit intake) remains under `CLAUDE.md` invariant 2 regardless of whether the pandit vertical is publicly visible (§9.3).
+- Grief data (`shraddha_dates`, and any pandit intake) remains under the project rules invariant 2 regardless of whether the pandit vertical is publicly visible (§9.3).
 - Retention and deletion periods are **OPEN-10**.
 
 ### 8.3 Failure and recovery
@@ -439,7 +439,7 @@ A workout log references the programme version in force when it was recorded (AA
 
 ### 8.4 Truthful marketing
 
-Restating and extending `CLAUDE.md` invariant 9: no fabricated testimonials, reviews, coach names, credentials, client counts, or prices. A plan may not advertise an inclusion the platform cannot deliver (AAF-PLAN-04). Credentials are stated only after verification with the issuing body, and stated at the precision verified.
+Restating and extending the project rules invariant 9: no fabricated testimonials, reviews, coach names, credentials, client counts, or prices. A plan may not advertise an inclusion the platform cannot deliver (AAF-PLAN-04). Credentials are stated only after verification with the issuing body, and stated at the precision verified.
 
 > **Open item carried from the audit:** `web/src/app/(marketing)/page.tsx:141` renders a testimonial attributed to "Early family, Houston — September pilot." Its truth is unestablished (OPEN-10). It must be verified or removed before any traffic.
 
@@ -489,14 +489,14 @@ Recorded, not resolved. `docs/HANDOVER.md` is founder-only and **was not edited*
 
 ### 9.3 Contradictions between agent instructions and the repository
 
-Found while reading instructions; unrelated to M00 scope but recorded per `CLAUDE.md` ("Flag every contradiction you find").
+Found while reading instructions; unrelated to M00 scope but recorded per the project rules ("Flag every contradiction you find").
 
-1. `AGENTS.md` and `.cursorrules` require reading `docs/STATE.md` and `docs/DIRECTION.md`. **Neither file exists.**
-2. `.cursorrules` requires updating `docs/DATA-MAP.md` and `docs/RUNBOOK.md`, and extending `scripts/payout-test.ts`, `scripts/rls-test.ts`, and `scripts/lib/with-idle-timeout.mjs`. **None of these exist; there is no `scripts/` directory.**
-3. `.cursorrules` cites `CLAUDE.md` → "Tone rules" and "design & tone rules". **`CLAUDE.md` contains no such section.**
-4. `.cursorrules` names the protected tables as `deceased_records`, `tithi_reminders`, `ceremonies`, `health_records`. **Only `ceremonies` exists.** The actual grief table is `shraddha_dates` and the actual health tables are `progress_photos`, `measurements`, `bodyweight_logs`. **The real grief table is not named in the hard-stop list** — an agent obeying `.cursorrules` literally would not know `shraddha_dates` is protected.
+1. the rules file and the rules file require reading `docs/STATE.md` and `docs/DIRECTION.md`. **Neither file exists.**
+2. the rules file requires updating `docs/DATA-MAP.md` and `docs/RUNBOOK.md`, and extending `scripts/payout-test.ts`, `scripts/rls-test.ts`, and `scripts/lib/with-idle-timeout.mjs`. **None of these exist; there is no `scripts/` directory.**
+3. the rules file cites the project rules → "Tone rules" and "design & tone rules". **the project rules contains no such section.**
+4. the rules file names the protected tables as `deceased_records`, `tithi_reminders`, `ceremonies`, `health_records`. **Only `ceremonies` exists.** The actual grief table is `shraddha_dates` and the actual health tables are `progress_photos`, `measurements`, `bodyweight_logs`. **The real grief table is not named in the hard-stop list** — an agent obeying the rules file literally would not know `shraddha_dates` is protected.
 
-Item 4 is a live safety defect in the agent instructions and should be corrected before any agent touches the pandit vertical. `.cursorrules` was not edited in this task.
+Item 4 is a live safety defect in the agent instructions and should be corrected before any agent touches the pandit vertical. the rules file was not edited in this task.
 
 ---
 

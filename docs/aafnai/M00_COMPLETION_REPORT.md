@@ -39,7 +39,7 @@
 
 ## 2. What was read
 
-**Instructions and conventions:** `CLAUDE.md`, `AGENTS.md`, `.cursorrules`, `README.md`, `ARCHITECTURE.md` (stub), `MIGRATION.md` (stub), `TASKS.md`, `docs/specs/README.md`, `DEVLOG.md`, `CTO-BRIEF.md`.
+**Instructions and conventions:** the project rules, the rules file, the rules file, `README.md`, `ARCHITECTURE.md` (stub), `MIGRATION.md` (stub), `TASKS.md`, `docs/specs/README.md`, `DEVLOG.md`, `CTO-BRIEF.md`.
 
 **Business:** `docs/HANDOVER.md` §§5–7, 10–14 (read in the first pass; **amended in the second pass under founder authorisation** — see §14); `aafnai-project-handover.md` in full.
 
@@ -215,7 +215,7 @@ docs/aafnai/M00_COMPLETION_REPORT.md
 
 Plus the containing directory `docs/aafnai/`.
 
-**Modified:** `TASKS.md` (one appended section, following its own stated rule that anyone may append and agents may tick progress without approval) and `DEVLOG.md` (one session entry; gitignored, local-only, required by `CLAUDE.md`).
+**Modified:** `TASKS.md` (one appended section, following its own stated rule that anyone may append and agents may tick progress without approval) and `DEVLOG.md` (one session entry; gitignored, local-only, required by the project rules).
 
 **Pre-existing edits left untouched:** none existed. The working tree was clean at start.
 
@@ -227,8 +227,8 @@ Plus the containing directory `docs/aafnai/`.
 - No runtime configuration or environment file
 - No test (none exists)
 - **`docs/HANDOVER.md` — founder-only, read but not edited**
-- `CLAUDE.md`, `AGENTS.md`, `.cursorrules` — not edited, despite the defects found in them (§11)
-- `README.md`, `ARCHITECTURE.md`, `MIGRATION.md` — `CLAUDE.md` requires approval before editing these; proposals are in §12 instead
+- the project rules, the rules file, the rules file — not edited, despite the defects found in them (§11)
+- `README.md`, `ARCHITECTURE.md`, `MIGRATION.md` — the project rules requires approval before editing these; proposals are in §12 instead
 - No commit, no branch, no remote, no push, no deployment
 - No vendor account, no live data, no money movement, no email sent
 
@@ -236,25 +236,25 @@ Plus the containing directory `docs/aafnai/`.
 
 ## 11. Contradictions found in the agent instructions
 
-Found while reading, outside M00 scope, reported per `CLAUDE.md` ("Flag every contradiction you find"). **These files were not edited.**
+Found while reading, outside M00 scope, reported per the project rules ("Flag every contradiction you find"). **These files were not edited.**
 
-1. `AGENTS.md` and `.cursorrules` require reading `docs/STATE.md` and `docs/DIRECTION.md`. **Neither exists.**
-2. `.cursorrules` requires updating `docs/DATA-MAP.md` and `docs/RUNBOOK.md` and extending `scripts/payout-test.ts`, `scripts/rls-test.ts`, and `scripts/lib/with-idle-timeout.mjs`. **None exists; there is no `scripts/` directory.**
-3. `.cursorrules` cites a `CLAUDE.md` "Tone rules" section. **`CLAUDE.md` has no such section.**
-4. **Safety defect.** `.cursorrules` names the protected tables as `deceased_records`, `tithi_reminders`, `ceremonies`, `health_records`. Only `ceremonies` exists. The real grief table is **`shraddha_dates`** and the real health tables are `progress_photos`, `measurements`, `bodyweight_logs`. **The actual grief table is not named in the hard-stop list.** An agent obeying `.cursorrules` literally would not know `shraddha_dates` is protected. Worth correcting before any agent touches the pandit vertical.
+1. the rules file and the rules file require reading `docs/STATE.md` and `docs/DIRECTION.md`. **Neither exists.**
+2. the rules file requires updating `docs/DATA-MAP.md` and `docs/RUNBOOK.md` and extending `scripts/payout-test.ts`, `scripts/rls-test.ts`, and `scripts/lib/with-idle-timeout.mjs`. **None exists; there is no `scripts/` directory.**
+3. the old rules file cites a "Tone rules" section. **the project rules has no such section.**
+4. **Safety defect.** the rules file names the protected tables as `deceased_records`, `tithi_reminders`, `ceremonies`, `health_records`. Only `ceremonies` exists. The real grief table is **`shraddha_dates`** and the real health tables are `progress_photos`, `measurements`, `bodyweight_logs`. **The actual grief table is not named in the hard-stop list.** An agent obeying the rules file literally would not know `shraddha_dates` is protected. Worth correcting before any agent touches the pandit vertical.
 
 ---
 
 ## 12. Proposed documentation updates awaiting your approval
 
-`CLAUDE.md` requires approval before these are edited. **Not made.**
+the project rules requires approval before these are edited. **Not made.**
 
 | File | Proposed change | Why |
 |---|---|---|
 | `README.md` | Add `docs/aafnai/` to the file guide, marking `PRODUCT_CONTRACT.md` and `DECISION_REGISTER.md` as current product authority | The guide is how a new agent orients; without it these records are invisible |
 | `ARCHITECTURE.md` | Fill the stub, including §4's node registry with an activation trigger for each currently-dead table | Nothing today distinguishes a deliberate reservation from abandoned code |
 | `MIGRATION.md` | Fill the stub: stack inventory, env inventory, exit procedure, **and a backup with a tested restore** | There is no backup of anything, and no git remote |
-| `.cursorrules` | Correct the four defects in §11, especially the protected-table names | Item 4 is a live safety defect |
+| the rules file | Correct the four defects in §11, especially the protected-table names | Item 4 is a live safety defect |
 | `docs/HANDOVER.md` | **Founder action only.** §6.1, §6.2, §6.3, and §12 now contain superseded rules | A future agent reading it alone builds the wrong product |
 
 **Approve these documentation updates?**
@@ -298,8 +298,8 @@ Supersedes §6 and §13.
 | `README.md` | `docs/aafnai/` added to the reading order and file guide; a "product in one breath" section added; `DECISION_REGISTER.md` named as current product authority |
 | `ARCHITECTURE.md` | **Stub replaced** with the real architecture, written from the codebase: invariant enforcement points with honest state, the data model, an **extension node registry with activation triggers**, the storage quarantine design, money flow as-built and as-required, the tithi pipeline, vendor boundaries, performance |
 | `MIGRATION.md` | **Stub replaced**: stack inventory with honest exit costs, exit procedure, env inventory split client-safe vs server-only, vendor notes, correctness dependencies, backups, production checklist, and **§8 — the requirements for enabling live payments** |
-| `.cursorrules` | Four defects fixed. The protected-table list now names the **real** tables — `shraddha_dates`, `ceremonies`, `progress_photos`, `measurements`, `bodyweight_logs`, `workout_logs`, `set_logs`, plus `bookings.intake_response` — instead of three tables that do not exist. Stale file references removed; tone rules stated where they live; money-math fixtures updated to the new rates |
-| `AGENTS.md` | Reading order corrected; `docs/STATE.md` / `docs/DIRECTION.md` references removed |
+| the rules file | Four defects fixed. The protected-table list now names the **real** tables — `shraddha_dates`, `ceremonies`, `progress_photos`, `measurements`, `bodyweight_logs`, `workout_logs`, `set_logs`, plus `bookings.intake_response` — instead of three tables that do not exist. Stale file references removed; tone rules stated where they live; money-math fixtures updated to the new rates |
+| the rules file | Reading order corrected; `docs/STATE.md` / `docs/DIRECTION.md` references removed |
 | `docs/aafnai/*` | All five records updated with the second-pass decisions; stale references to now-resolved policies swept |
 
 ### 14.2 New decisions recorded

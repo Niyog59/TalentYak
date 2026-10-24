@@ -20,7 +20,7 @@ Only two client components exist in the entire application; everything else is a
 
 ## 2. Invariants, architecturally
 
-`CLAUDE.md` states the invariants. This section says **where each one is enforced** — and, honestly, where it currently is not.
+The project rules state the invariants. This section says **where each one is enforced** — and, honestly, where it currently is not.
 
 | Invariant | Enforcement point | State |
 |---|---|---|
@@ -738,7 +738,7 @@ Server Components by default; route-level code splitting; images through `next/i
 
 **Known regression risk:** every marketing page calls `getVerticals()`, which reads `cookies()` when Supabase is configured — opting the whole public site out of static rendering. No `revalidate` and no caching strategy exist. This is invisible today only because nothing is configured.
 
-**Not yet in place:** performance budgets (LCP, INP, first-load JS, CLS) checked at each module boundary, and the idle-timeout wrapper for hang-prone commands that `CLAUDE.md` requires. There is no `scripts/` directory.
+**Not yet in place:** performance budgets (LCP, INP, first-load JS, CLS) checked at each module boundary, and the idle-timeout wrapper for hang-prone commands that the project rules requires. There is no `scripts/` directory.
 
 ---
 

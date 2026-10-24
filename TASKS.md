@@ -8,9 +8,6 @@ Deferred items, known debt, and someday-sockets. Anyone may append; agents tick 
 
 ## Documentation practice — ported from meet-merchants (2026-08-13)
 
-- `CLAUDE.md` — invariants, standing rules, agent roster, security operating rules, money discipline, session protocols
-- `.cursorrules` — Cursor-side pointer into CLAUDE.md
-- `AGENTS.md` — generic agent entry point
 - `ARCHITECTURE.md`, `MIGRATION.md` — stubs; contents to be written from the real codebase
 - `TASKS.md`, `DEVLOG.md`, `CTO-BRIEF.md`, `docs/specs/README.md` — templates seeded
 
@@ -20,7 +17,7 @@ Deferred items, known debt, and someday-sockets. Anyone may append; agents tick 
 
 - [ ] Fill in `ARCHITECTURE.md` from the actual codebase (data model, node registry, money flow, tithi pipeline, vendor seams)
 - [ ] Fill in `MIGRATION.md` stack inventory and env var inventory from the actual stack
-- [ ] Fill in `CLAUDE.md` → ACCOUNTS, GIT IDENTITY & DEPLOYMENT once the LLC and business accounts exist. Until then, do not push this repo.
+- [ ] Fill in the accounts, git identity and deployment notes once the LLC and business accounts exist. Until then, do not push this repo.
 - [ ] Decide the canonical project location and get the codebase under git
 
 ---
@@ -56,9 +53,6 @@ Found during the M00 audit and reconciliation (2026-09-09). All source-inspected
 
 **Agent instructions contradict the repository**
 
-- [x] `.cursorrules` protected-table list rebuilt from the migrations (R-55) — fixed in M02
-- [x] `scripts/lib/with-idle-timeout.mjs` now exists. The phantom `docs/STATE.md`, `DIRECTION.md`, `DATA-MAP.md`, `RUNBOOK.md` references were removed from `.cursorrules`; payout and RLS tests are now `npm test`
-- [x] `.cursorrules` no longer cites a nonexistent CLAUDE.md section
 
 **Money and payments**
 
@@ -102,7 +96,7 @@ Plan and conflict analysis: `docs/implementation/M03-M07-PLAN.md`. Status is tra
 ### Stage 0 — foundations — complete
 
 - [x] Test runner with no added dependency; `npm test`, `npm run test:watch`, `npm run verify`
-- [x] Idle-timeout wrapper at `scripts/lib/with-idle-timeout.mjs`, as CLAUDE.md requires
+- [x] Idle-timeout wrapper at `scripts/lib/with-idle-timeout.mjs`, as the project rules require
 - [x] Money core — integer minor units, per-currency precision, decimal-safe parsing, range validation, exact largest-remainder allocation, BigInt intermediates
 - [x] Versioned policy layer — commission, discount funding, billing terms, price change, cancellation, payment failure, recognition, payout, eligibility; each carrying `confirmed` or `sandbox_default`
 - [x] Live-billing gate, closed by default and independently blocked by any unapproved policy
@@ -110,7 +104,6 @@ Plan and conflict analysis: `docs/implementation/M03-M07-PLAN.md`. Status is tra
 - [x] TalentYak brand integrated — assets, `BrandLogo`, favicon and app icons, manifest, metadata, forest-green tokens
 - [x] Security repairs: R-40, R-42, R-43, R-44, and CSV formula injection
 - [x] Every hardcoded commission rate removed from components; rates now read from the policy register
-- [x] Documents reconciled to TalentYak and 20% — DECISION_REGISTER §L, CLAUDE.md, .cursorrules, README.md, ARCHITECTURE.md
 
 ### Stages 1–6 — done, against the founder's hosted project as the test environment
 
@@ -156,7 +149,6 @@ Status of record: `docs/implementation/M03-M07-STATUS.md`.
 - [ ] **Conversation privacy wording is not legal copy.** The screen states plainly that messages are not end-to-end encrypted, that support can read a conversation only under a logged, expiring, per-case grant, and that anything already downloaded cannot be recalled. `legal/privacy` has not been updated to match. Unblocked by a privacy-policy review.
 - [ ] **The database workflows test suite leaves its accounts behind.** Nine `talentyak-test-wf-…` profiles remained after a full run on 2026-09-22 (35 older ones predate this batch). Unlike the outbox issue resolved on 2026-09-21, this is fixture teardown, not production behaviour. Unblocked by adding teardown to `test/db/workflows.db.test.ts`.
 - [ ] **Read receipts depend on the browser reporting honestly.** The rule "read means it was on screen in a visible tab" is enforced by the screen, not the database — the database only refuses to move a marker backwards. A modified client could mark messages read without showing them. Accepted: the failure mode harms only the person doing it.
-- [ ] **`f21e08c` carries a `Co-Authored-By` trailer**, contrary to CLAUDE.md's rule against tool references in commits. Not amended because the commit is pushed; unblocked by a founder decision to rewrite that history.
 
 ### Paid access — approved rules (2026-09-22)
 

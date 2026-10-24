@@ -2,7 +2,7 @@
 
 One file per module: `module-N.md`. The detailed feature specification each module was built from, saved by the build prompt **before** implementation begins.
 
-These are the source of truth for what each screen does and what "done" means for that module. A module is not complete because the code runs — it is complete when it is verified against the acceptance criteria written here. See `CLAUDE.md` → STANDING RULES FOR AGENTS.
+These are the source of truth for what each screen does and what "done" means for that module. A module is not complete because the code runs — it is complete when it is verified against the acceptance criteria written here.
 
 A spec should contain:
 

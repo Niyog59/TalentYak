@@ -8,7 +8,7 @@ import { withSentryConfig } from "@sentry/nextjs/config";
  * Security Policy is the one exception and lives in `src/proxy.ts`, because it
  * carries a per-request nonce and therefore cannot be a static header.
  *
- * Per CLAUDE.md → Security operating rules, these are not removed. If one of
+ * Per the project rules → Security operating rules, these are not removed. If one of
  * them blocks a feature, the feature is adjusted or the header is narrowed
  * deliberately and the reason recorded — it is not deleted to make something
  * work.

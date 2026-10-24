@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Idle-timeout wrapper, required by CLAUDE.md → Interruption & failure protocol
+ * Idle-timeout wrapper, required by the project rules → Interruption & failure protocol
  * ("HANGS"). Enforced in code rather than by an agent's memory.
  *
  *   node scripts/lib/with-idle-timeout.mjs <idleSeconds> <command> [args...]

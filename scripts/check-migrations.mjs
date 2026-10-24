@@ -88,7 +88,7 @@ for (const file of files) {
   }
 
   // Every table created here should have RLS turned on in the same file.
-  // CLAUDE.md requires it in the same commit; same file is stricter and easier
+  // the project rules require it in the same commit; same file is stricter and easier
   // to check.
   const created = [...stripped.matchAll(/create table(?:\s+if not exists)?\s+(\w+)/gi)].map(
     (x) => x[1],
